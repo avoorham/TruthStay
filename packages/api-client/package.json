@@ -1,0 +1,20 @@
+{
+  "name": "@truthstay/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@truthstay/typescript-config": "workspace:*",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@truthstay/types": "workspace:*",
+    "@supabase/supabase-js": "^2.49.4"
+  }
+}

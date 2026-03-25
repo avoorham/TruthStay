@@ -5,6 +5,10 @@ node_modules
 .pnp
 .pnp.js
 
+# Lock files from other package managers (we use pnpm)
+package-lock.json
+yarn.lock
+
 # Local env files
 .env
 .env.local

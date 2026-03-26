@@ -3,25 +3,54 @@
 import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Sparkles, Send } from "lucide-react";
 import Link from "next/link";
+import { AdventurePlanCard } from "./AdventurePlanCard";
+import type {
+  GeneratedAdventure,
+  DayAlternativesMap,
+} from "../lib/agent/adventure-agent";
 
-interface Message {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TextMessage {
+  kind: "text";
   role: "ai" | "user";
   text: string;
   time: string;
 }
 
-function formatTime() {
-  return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+interface AdventureMessage {
+  kind: "adventure";
+  adventure: GeneratedAdventure;
+  dayAlternatives: DayAlternativesMap;
+  adventureId: string | null;
+  time: string;
 }
 
-const INITIAL_MESSAGE: Message = {
+type Message = TextMessage | AdventureMessage;
+
+// Conversation history for the API (plain role/content)
+interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+function formatTime() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+const INITIAL_MESSAGE: TextMessage = {
+  kind: "text",
   role: "ai",
-  text: "Hi! I'm your TruthStay AI travel assistant. I'll help you discover your next perfect vacation based on your preferences and past trips. What kind of experience are you looking for?",
+  text: "Hi! I'm your TruthStay adventure planner. I specialise in sport-first holidays — cycling, hiking, trail running, climbing, and more. What activity are you planning for?",
   time: formatTime(),
 };
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function DiscoverChat() {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
+  const [history, setHistory] = useState<ChatTurn[]>([]); // sent to /api/adventures/chat
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -35,39 +64,59 @@ export function DiscoverChat() {
     if (!text || loading) return;
 
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", text, time: formatTime() }]);
+
+    const userMsg: TextMessage = { kind: "text", role: "user", text, time: formatTime() };
+    setMessages((prev) => [...prev, userMsg]);
+
+    // Build updated history for the API
+    const updatedHistory: ChatTurn[] = [...history, { role: "user", content: text }];
     setLoading(true);
 
     try {
-      // Parse the user's message to extract region, activity type, duration
-      // For now we do a best-effort extraction and call the generate endpoint
-      const res = await fetch("/api/adventures/generate", {
+      const res = await fetch("/api/adventures/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          region: extractRegion(text),
-          activityType: extractActivity(text),
-          durationDays: extractDuration(text),
-          additionalNotes: text,
-        }),
+        body: JSON.stringify({ messages: updatedHistory }),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.detail || err.error || "Generation failed");
+        throw new Error(err.detail || err.error || "Something went wrong");
       }
 
-      const { adventure } = await res.json();
+      const data = await res.json();
 
-      const reply = formatAdventureReply(adventure);
-      setMessages((prev) => [...prev, { role: "ai", text: reply, time: formatTime() }]);
+      if (data.type === "adventure") {
+        // Add the adventure card to the chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            kind: "adventure",
+            adventure: data.adventure,
+            dayAlternatives: data.day_alternatives ?? {},
+            adventureId: data.adventure_id ?? null,
+            time: formatTime(),
+          },
+        ]);
+        // Don't add adventure JSON to history — keep conversation clean
+        setHistory(updatedHistory);
+      } else {
+        // Follow-up question
+        const aiText: string = data.text ?? "Could you tell me a bit more?";
+        setMessages((prev) => [
+          ...prev,
+          { kind: "text", role: "ai", text: aiText, time: formatTime() },
+        ]);
+        setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
+      }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       setMessages((prev) => [
         ...prev,
         {
+          kind: "text",
           role: "ai",
-          text: `Sorry, I couldn't generate an adventure right now.\n\n${detail}`,
+          text: `Sorry, something went wrong.\n\n${detail}`,
           time: formatTime(),
         },
       ]);
@@ -89,22 +138,44 @@ export function DiscoverChat() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 pb-24">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div
-              className={`max-w-[80%] px-4 py-3 text-sm ${
-                msg.role === "ai"
-                  ? "bg-[#e9ebef] text-[#212121]"
-                  : "bg-black text-white"
-              }`}
-            >
-              <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-              <p suppressHydrationWarning className={`text-xs mt-2 ${msg.role === "ai" ? "text-[#717182]" : "text-white/60"}`}>
-                {msg.time}
-              </p>
+        {messages.map((msg, i) => {
+          if (msg.kind === "adventure") {
+            return (
+              <div key={i} className="flex justify-start">
+                <div className="w-full max-w-[340px]">
+                  <AdventurePlanCard
+                    adventure={msg.adventure}
+                    dayAlternatives={msg.dayAlternatives}
+                    adventureId={msg.adventureId}
+                  />
+                  <p suppressHydrationWarning className="text-xs mt-2 text-[#717182]">
+                    {msg.time}
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] px-4 py-3 text-sm ${
+                  msg.role === "ai"
+                    ? "bg-[#e9ebef] text-[#212121]"
+                    : "bg-black text-white"
+                }`}
+              >
+                <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                <p
+                  suppressHydrationWarning
+                  className={`text-xs mt-2 ${msg.role === "ai" ? "text-[#717182]" : "text-white/60"}`}
+                >
+                  {msg.time}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {loading && (
           <div className="flex justify-start">
@@ -127,7 +198,7 @@ export function DiscoverChat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Describe your ideal vacation..."
+          placeholder="Type a message…"
           className="flex-1 text-sm outline-none placeholder:text-[#717182] border border-[#dadccb] px-3 py-2.5 bg-white"
         />
         <button
@@ -140,60 +211,4 @@ export function DiscoverChat() {
       </div>
     </div>
   );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function extractRegion(text: string): string {
-  // Common regions mentioned in travel text
-  const regions = [
-    "Mallorca", "Dolomites", "Alps", "Pyrenees", "Tuscany", "Provence",
-    "Corsica", "Sardinia", "Iceland", "Norway", "Scotland", "Andalusia",
-    "Algarve", "Madeira", "Canary Islands", "Crete", "Greece",
-  ];
-  const found = regions.find((r) => text.toLowerCase().includes(r.toLowerCase()));
-  return found ?? "Europe";
-}
-
-function extractActivity(text: string): string {
-  if (/cycl|bike|bik|road/i.test(text)) return "cycling";
-  if (/hik|trek|walk/i.test(text)) return "hiking";
-  if (/trail.?run|run/i.test(text)) return "trail_running";
-  if (/ski|snow/i.test(text)) return "skiing";
-  if (/kayak|paddle|canoe/i.test(text)) return "kayaking";
-  if (/climb/i.test(text)) return "climbing";
-  return "hiking";
-}
-
-function extractDuration(text: string): number {
-  const match = text.match(/(\d+)\s*(?:day|night|week)/i);
-  if (match) {
-    const n = parseInt(match[1] ?? "5");
-    if (/week/i.test(match[0] ?? "")) return Math.min(n * 7, 14);
-    return Math.min(Math.max(n, 1), 14);
-  }
-  return 5;
-}
-
-function formatAdventureReply(adventure: any): string {
-  const lines = [
-    `Here's your adventure: **${adventure.title}**`,
-    "",
-    adventure.description,
-    "",
-    `📍 ${adventure.region}  ·  ${adventure.duration_days} days  ·  ${adventure.activity_type.replace("_", " ")}`,
-    "",
-  ];
-
-  adventure.days?.slice(0, 3).forEach((day: any) => {
-    lines.push(`Day ${day.day_number}: ${day.title}`);
-    if (day.description) lines.push(day.description);
-    lines.push("");
-  });
-
-  if (adventure.days?.length > 3) {
-    lines.push(`…and ${adventure.days.length - 3} more days. Your adventure has been saved — head to My Trips to view it.`);
-  }
-
-  return lines.join("\n").trim();
 }

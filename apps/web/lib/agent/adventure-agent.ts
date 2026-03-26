@@ -19,6 +19,28 @@ export interface GenerateAdventureInput {
   additionalNotes?: string;
 }
 
+export interface RouteAlternative {
+  title: string;
+  distance_km: number | null;
+  elevation_gain_m: number | null;
+  difficulty: "easy" | "moderate" | "hard";
+  description: string;
+}
+
+export interface AccommodationAlternative {
+  name: string;
+  type: "camping" | "hostel" | "hotel" | "guesthouse" | "luxury";
+  price_range: "budget" | "mid" | "luxury";
+  description: string;
+}
+
+export interface DayAlternatives {
+  routes: RouteAlternative[];
+  accommodation: AccommodationAlternative[];
+}
+
+export type DayAlternativesMap = Record<string, DayAlternatives>;
+
 export interface AdventureDayPlan {
   day_number: number;
   title: string;
@@ -42,6 +64,12 @@ export interface GeneratedAdventure {
   duration_days: number;
   start_date: string | null;
   days: AdventureDayPlan[];
+}
+
+// Chat conversation message (used by /api/adventures/chat)
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────

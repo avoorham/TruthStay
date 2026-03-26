@@ -99,7 +99,7 @@ export function DiscoverChat() {
               }`}
             >
               <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-              <p className={`text-xs mt-2 ${msg.role === "ai" ? "text-[#717182]" : "text-white/60"}`}>
+              <p suppressHydrationWarning className={`text-xs mt-2 ${msg.role === "ai" ? "text-[#717182]" : "text-white/60"}`}>
                 {msg.time}
               </p>
             </div>

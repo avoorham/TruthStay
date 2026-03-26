@@ -48,35 +48,22 @@ export interface GeneratedAdventure {
 
 const SYSTEM_PROMPT = `You are an expert adventure planner for active travellers — cyclists, hikers, trail runners, skiers, and other outdoor sports enthusiasts.
 
-Your job is to generate detailed, personalised multi-day adventure itineraries based on:
-- Community-validated data from real travellers (POI ratings, route reviews)
-- The user's fitness level, preferences, and group size
-- The chosen region, activity type, and duration
+Generate a detailed, day-by-day adventure itinerary for the requested region, activity type, and duration.
 
-When generating an adventure:
-1. Start by fetching the user's saved preferences with get_user_preferences
-2. Search for rated routes in the region using search_routes_by_region
-3. Search for accommodation options using search_pois_by_region with categories ["hotel","hostel","campsite","guesthouse"]
-4. Search for quality dining using search_pois_by_region with categories ["restaurant","cafe","bar"]
-5. For top-rated POIs, get detailed ratings with get_poi_ratings to verify quality
-6. Build a day-by-day plan that:
-   - Matches the user's fitness level and preferred daily distances
-   - Places accommodation at logical stopping points
-   - Recommends highly-rated venues based on real community feedback
-   - Creates a narrative arc (build-up, highlight day, wind-down)
-   - Includes practical route notes from community reviews
+Be specific and practical:
+- Realistic distances and elevation for the activity type
+- Named roads, climbs, trails, or routes where known
+- Accommodation placed at logical stopping points (towns, villages)
+- Mix of highlight days and recovery days to create a narrative arc
 
-Be specific and practical. Reference actual POI IDs so the app can link them.
-Distances and elevation should be realistic for the activity type.
-
-When you have gathered enough data, respond with a JSON object in this exact format:
+Respond ONLY with a valid JSON object in this exact format (no markdown, no explanation):
 {
   "title": "Adventure title",
   "description": "1-2 sentence overview",
   "region": "Region name",
   "activity_type": "cycling|hiking|trail_running|skiing|etc",
   "duration_days": number,
-  "start_date": "YYYY-MM-DD or null",
+  "start_date": null,
   "days": [
     {
       "day_number": 1,
@@ -84,21 +71,11 @@ When you have gathered enough data, respond with a JSON object in this exact for
       "description": "What makes this day special",
       "distance_km": number or null,
       "elevation_gain_m": number or null,
-      "route_notes": "Practical notes from community reviews",
-      "pois": [
-        {
-          "poi_id": "uuid",
-          "name": "POI name",
-          "role": "accommodation|lunch|dinner|breakfast|start|end|highlight|rest_stop",
-          "notes": "Why this was chosen, what the community says"
-        }
-      ]
+      "route_notes": "Practical tips — surfaces, gradients, resupply points",
+      "pois": []
     }
   ]
-}
-
-Only include POIs that you found via the search tools (use their actual IDs).
-If no rated POIs exist in the database for this region yet, still generate the adventure but omit the pois array for affected days and note in route_notes that these are suggestions pending community validation.`;
+}`;
 
 // ─── Tool dispatcher ──────────────────────────────────────────────────────────
 
@@ -124,7 +101,7 @@ async function dispatchTool(
 // ─── Main agent ───────────────────────────────────────────────────────────────
 
 export async function generateAdventure(
-  db: SupabaseClient,
+  _db: SupabaseClient,
   input: GenerateAdventureInput
 ): Promise<GeneratedAdventure> {
   const client = new Anthropic();
@@ -132,83 +109,29 @@ export async function generateAdventure(
   const userMessage = [
     `Generate a ${input.durationDays}-day ${input.activityType} adventure in ${input.region}.`,
     input.startDate ? `Start date: ${input.startDate}.` : null,
-    `User ID: ${input.userId}`,
-    input.additionalNotes ? `Additional notes: ${input.additionalNotes}` : null,
+    input.additionalNotes ? `Additional context: ${input.additionalNotes}` : null,
   ]
     .filter(Boolean)
     .join(" ");
 
-  const messages: Anthropic.MessageParam[] = [
-    { role: "user", content: userMessage },
-  ];
+  const response = await client.messages.create({
+    model: "claude-opus-4-6",
+    max_tokens: 4096,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: userMessage }],
+  });
 
-  // Agentic loop — run until Claude stops calling tools
-  while (true) {
-    const response = await client.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 8192,
-      thinking: { type: "adaptive" },
-      system: SYSTEM_PROMPT,
-      tools: ADVENTURE_TOOLS as unknown as Anthropic.Tool[],
-      messages,
-    });
-
-    // Append Claude's response to the conversation
-    messages.push({ role: "assistant", content: response.content });
-
-    if (response.stop_reason === "end_turn") {
-      // Extract the JSON adventure plan from the final text block
-      const textBlock = response.content.find((b) => b.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        throw new Error("Agent did not return a text response");
-      }
-
-      const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("Agent response did not contain valid JSON");
-      }
-
-      return JSON.parse(jsonMatch[0]) as GeneratedAdventure;
-    }
-
-    if (response.stop_reason === "tool_use") {
-      // Execute all tool calls in parallel
-      const toolUseBlocks = response.content.filter(
-        (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
-      );
-
-      const toolResults = await Promise.all(
-        toolUseBlocks.map(async (block) => {
-          let result: unknown;
-          let isError = false;
-
-          try {
-            result = await dispatchTool(
-              db,
-              block.name,
-              block.input as Record<string, unknown>
-            );
-          } catch (err) {
-            result = { error: err instanceof Error ? err.message : String(err) };
-            isError = true;
-          }
-
-          return {
-            type: "tool_result" as const,
-            tool_use_id: block.id,
-            content: JSON.stringify(result),
-            is_error: isError,
-          };
-        })
-      );
-
-      messages.push({ role: "user", content: toolResults });
-      continue;
-    }
-
-    // Unexpected stop reason
-    throw new Error(`Unexpected stop reason: ${response.stop_reason}`);
+  const textBlock = response.content.find((b) => b.type === "text");
+  if (!textBlock || textBlock.type !== "text") {
+    throw new Error("No text response from Claude");
   }
+
+  const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error(`Claude did not return valid JSON. Response: ${textBlock.text.slice(0, 200)}`);
+  }
+
+  return JSON.parse(jsonMatch[0]) as GeneratedAdventure;
 }
 
 // ─── Save to database ─────────────────────────────────────────────────────────

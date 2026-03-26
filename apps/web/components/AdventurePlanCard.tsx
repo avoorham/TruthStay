@@ -2,43 +2,33 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Mountain, Bed, Check } from "lucide-react";
+import {
+  ChevronDown, ChevronRight, Mountain, Bed,
+  Check, MapPin, ExternalLink, AlertCircle,
+} from "lucide-react";
 import { KomootEmbed } from "./KomootEmbed";
 import type {
   GeneratedAdventure,
   DayAlternativesMap,
   RouteAlternative,
-  AccommodationAlternative,
+  AccommodationStop,
+  AccommodationOption,
 } from "../lib/agent/adventure-agent";
 
 interface Props {
   adventure: GeneratedAdventure;
   dayAlternatives: DayAlternativesMap;
+  accommodationStops: AccommodationStop[];
   adventureId: string | null;
 }
 
-// Per-day selection state
-interface DaySelection {
-  routeIndex: number;        // 0 = main, 1/2 = alternatives
-  accommodationIndex: number;
+interface DayRouteSelection {
+  index: number;       // 0 = main, 1/2 = alternatives
+  end_location: string;
 }
 
-function formatDistance(km: number | null) {
-  if (!km) return null;
-  return `${km}km`;
-}
-
-function formatElevation(m: number | null) {
-  if (!m) return null;
-  return `${m}m ↑`;
-}
-
-function difficultyLabel(d: RouteAlternative["difficulty"]) {
-  return { easy: "Easier", moderate: "Main", hard: "Harder" }[d];
-}
-
-function difficultyColour(d: RouteAlternative["difficulty"]) {
-  return { easy: "text-green-600", moderate: "text-[#212121]", hard: "text-red-600" }[d];
+function bookingUrl(location: string) {
+  return `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(location)}&group_adults=1&no_rooms=1`;
 }
 
 async function recordSelection(
@@ -54,50 +44,57 @@ async function recordSelection(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ day_number: dayNumber, category, selected_index: selectedIndex, option_type: optionType }),
     });
-  } catch {
-    // non-fatal
-  }
+  } catch { /* non-fatal */ }
 }
 
-export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: Props) {
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function AdventurePlanCard({ adventure, dayAlternatives, accommodationStops, adventureId }: Props) {
   const router = useRouter();
+
+  // Phase: "routes" → user picks routes for all days → "accommodation" → user picks stays → "save"
+  const [phase, setPhase] = useState<"routes" | "accommodation">("routes");
+
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
-  const [selections, setSelections] = useState<Record<number, DaySelection>>({});
+  const [routeSelections, setRouteSelections] = useState<Record<number, DayRouteSelection>>({});
+  const [accSelections, setAccSelections] = useState<Record<string, number>>({}); // location → option index
   const [komootTourIds, setKomootTourIds] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
 
-  const toggleDay = (dayNumber: number) => {
-    setExpandedDays((prev) => {
-      const next = new Set(prev);
-      next.has(dayNumber) ? next.delete(dayNumber) : next.add(dayNumber);
-      return next;
-    });
+  const toggleDay = (n: number) =>
+    setExpandedDays((prev) => { const s = new Set(prev); s.has(n) ? s.delete(n) : s.add(n); return s; });
+
+  const getRouteSelection = (dayNumber: number): DayRouteSelection =>
+    routeSelections[dayNumber] ?? { index: 0, end_location: adventure.days.find(d => d.day_number === dayNumber)?.end_location ?? "" };
+
+  const selectRoute = (dayNumber: number, index: number, end_location: string) => {
+    setRouteSelections(prev => ({ ...prev, [dayNumber]: { index, end_location } }));
+    if (adventureId) recordSelection(adventureId, dayNumber, "route", index);
   };
 
-  const getSelection = (dayNumber: number): DaySelection =>
-    selections[dayNumber] ?? { routeIndex: 0, accommodationIndex: 0 };
-
-  const selectRoute = (dayNumber: number, index: number, optionType?: string) => {
-    setSelections((prev) => ({
-      ...prev,
-      [dayNumber]: { ...getSelection(dayNumber), routeIndex: index },
-    }));
-    if (adventureId) recordSelection(adventureId, dayNumber, "route", index, optionType);
+  // Detect if any alternative route ends in a different location than the main plan's accommodation stop
+  const getLocationMismatch = (dayNumber: number): string | null => {
+    const sel = getRouteSelection(dayNumber);
+    if (sel.index === 0) return null; // main route — no mismatch
+    const mainDay = adventure.days.find(d => d.day_number === dayNumber);
+    if (!mainDay) return null;
+    const stop = accommodationStops.find(s => s.night_numbers.includes(dayNumber));
+    if (!stop) return null;
+    if (sel.end_location && sel.end_location.toLowerCase() !== stop.location.toLowerCase()) {
+      return `This route ends in ${sel.end_location} instead of ${stop.location} — accommodation below is for ${stop.location}`;
+    }
+    return null;
   };
 
-  const selectAccommodation = (dayNumber: number, index: number, optionType?: string) => {
-    setSelections((prev) => ({
-      ...prev,
-      [dayNumber]: { ...getSelection(dayNumber), accommodationIndex: index },
-    }));
-    if (adventureId) recordSelection(adventureId, dayNumber, "accommodation", index, optionType);
+  const allDaysReviewed = adventure.days.every(d => expandedDays.has(d.day_number) || routeSelections[d.day_number] !== undefined);
+
+  const handleConfirmRoutes = () => {
+    setPhase("accommodation");
+    setExpandedDays(new Set());
   };
 
   const handleSave = async () => {
-    if (!adventureId) {
-      router.push("/mytrips");
-      return;
-    }
+    if (!adventureId) { router.push("/mytrips"); return; }
     setSaving(true);
     try {
       await fetch(`/api/adventures/${adventureId}`, {
@@ -106,9 +103,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: P
         body: JSON.stringify({ isSaved: true }),
       });
       router.push("/mytrips");
-    } catch {
-      setSaving(false);
-    }
+    } catch { setSaving(false); }
   };
 
   return (
@@ -124,181 +119,257 @@ export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: P
           <span>·</span>
           <span>{adventure.region}</span>
         </div>
+
+        {/* Phase indicator */}
+        <div className="flex gap-2 mt-3">
+          <span className={`text-xs px-2 py-0.5 font-semibold ${phase === "routes" ? "bg-black text-white" : "bg-[#e9ebef] text-[#717182]"}`}>
+            1 Routes
+          </span>
+          <span className={`text-xs px-2 py-0.5 font-semibold ${phase === "accommodation" ? "bg-black text-white" : "bg-[#e9ebef] text-[#717182]"}`}>
+            2 Accommodation
+          </span>
+        </div>
       </div>
 
-      {/* Days */}
-      <div className="divide-y divide-[#dadccb]">
-        {adventure.days.map((day) => {
-          const isExpanded = expandedDays.has(day.day_number);
-          const sel = getSelection(day.day_number);
-          const alts = dayAlternatives[String(day.day_number)];
-          const komootTourId = komootTourIds[day.day_number] ?? null;
+      {/* ── Phase 1: Routes ───────────────────────────────────────────────────── */}
+      {phase === "routes" && (
+        <>
+          <div className="divide-y divide-[#dadccb]">
+            {adventure.days.map((day) => {
+              const isExpanded = expandedDays.has(day.day_number);
+              const alts = dayAlternatives[String(day.day_number)];
+              const sel = getRouteSelection(day.day_number);
+              const mismatch = getLocationMismatch(day.day_number);
 
-          return (
-            <div key={day.day_number}>
-              {/* Day header — always visible */}
-              <button
-                onClick={() => toggleDay(day.day_number)}
-                className="w-full flex items-start justify-between px-4 py-3 text-left hover:bg-[#f8f8f5] transition-colors"
-              >
-                <div className="flex-1 min-w-0 pr-2">
-                  <p className="text-xs font-semibold text-[#717182] mb-0.5">Day {day.day_number}</p>
-                  <p className="text-sm font-semibold text-[#212121] leading-snug">{day.title}</p>
-                  <div className="flex gap-2 mt-1">
-                    {day.distance_km && (
-                      <span className="text-xs bg-[#e9ebef] text-[#212121] px-2 py-0.5">
-                        {formatDistance(day.distance_km)}
-                      </span>
-                    )}
-                    {day.elevation_gain_m && (
-                      <span className="text-xs bg-[#e9ebef] text-[#212121] px-2 py-0.5">
-                        {formatElevation(day.elevation_gain_m)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {isExpanded ? (
-                  <ChevronDown size={16} className="text-[#717182] mt-1 flex-shrink-0" />
-                ) : (
-                  <ChevronRight size={16} className="text-[#717182] mt-1 flex-shrink-0" />
-                )}
-              </button>
-
-              {/* Expanded content */}
-              {isExpanded && (
-                <div className="px-4 pb-4 space-y-4">
-                  {/* Description + route notes */}
-                  <p className="text-sm text-[#212121] leading-relaxed">{day.description}</p>
-                  {day.route_notes && (
-                    <p className="text-xs text-[#717182] leading-relaxed border-l-2 border-[#dadccb] pl-3">
-                      {day.route_notes}
-                    </p>
-                  )}
-
-                  {/* Route alternatives */}
-                  {alts?.routes && alts.routes.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Mountain size={12} className="text-[#717182]" />
-                        <p className="text-xs font-semibold text-[#717182] uppercase tracking-wide">Route options</p>
+              return (
+                <div key={day.day_number}>
+                  <button
+                    onClick={() => toggleDay(day.day_number)}
+                    className="w-full flex items-start justify-between px-4 py-3 text-left hover:bg-[#f8f8f5] transition-colors"
+                  >
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="text-xs font-semibold text-[#717182] mb-0.5">Day {day.day_number}</p>
+                      <p className="text-sm font-semibold text-[#212121] leading-snug">{day.title}</p>
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {day.distance_km && <span className="text-xs bg-[#e9ebef] text-[#212121] px-2 py-0.5">{day.distance_km}km</span>}
+                        {day.elevation_gain_m && <span className="text-xs bg-[#e9ebef] text-[#212121] px-2 py-0.5">{day.elevation_gain_m}m ↑</span>}
+                        {sel.index > 0 && (
+                          <span className="text-xs bg-black text-white px-2 py-0.5">
+                            {sel.index === 1 ? "Easier" : "Harder"} selected
+                          </span>
+                        )}
                       </div>
-                      <div className="space-y-2">
-                        {/* Main route as option 0 */}
-                        <RouteOption
-                          label="Main"
-                          title={day.title}
-                          distanceKm={day.distance_km}
-                          elevationM={day.elevation_gain_m}
-                          difficulty="moderate"
-                          description={day.description}
-                          isSelected={sel.routeIndex === 0}
-                          onSelect={() => selectRoute(day.day_number, 0)}
-                        />
-                        {alts.routes.map((alt, idx) => (
+                    </div>
+                    {isExpanded
+                      ? <ChevronDown size={16} className="text-[#717182] mt-1 flex-shrink-0" />
+                      : <ChevronRight size={16} className="text-[#717182] mt-1 flex-shrink-0" />
+                    }
+                  </button>
+
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-4">
+                      <p className="text-sm text-[#212121] leading-relaxed">{day.description}</p>
+                      {day.route_notes && (
+                        <p className="text-xs text-[#717182] leading-relaxed border-l-2 border-[#dadccb] pl-3">
+                          {day.route_notes}
+                        </p>
+                      )}
+
+                      {/* Route options */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <Mountain size={12} className="text-[#717182]" />
+                          <p className="text-xs font-semibold text-[#717182] uppercase tracking-wide">Route options</p>
+                        </div>
+                        <div className="space-y-2">
+                          {/* Main route */}
                           <RouteOption
-                            key={idx}
-                            label={difficultyLabel(alt.difficulty)}
-                            title={alt.title}
-                            distanceKm={alt.distance_km}
-                            elevationM={alt.elevation_gain_m}
-                            difficulty={alt.difficulty}
-                            description={alt.description}
-                            isSelected={sel.routeIndex === idx + 1}
-                            onSelect={() => selectRoute(day.day_number, idx + 1, alt.difficulty)}
+                            label="Main"
+                            title={day.title}
+                            distanceKm={day.distance_km}
+                            elevationM={day.elevation_gain_m}
+                            difficulty="moderate"
+                            description={day.description}
+                            endLocation={day.end_location}
+                            isSelected={sel.index === 0}
+                            onSelect={() => selectRoute(day.day_number, 0, day.end_location)}
                           />
-                        ))}
+                          {alts?.routes?.map((alt, idx) => (
+                            <RouteOption
+                              key={idx}
+                              label={idx === 0 ? "Easier" : "Harder"}
+                              title={alt.title}
+                              distanceKm={alt.distance_km}
+                              elevationM={alt.elevation_gain_m}
+                              difficulty={alt.difficulty}
+                              description={alt.description}
+                              endLocation={alt.end_location}
+                              isSelected={sel.index === idx + 1}
+                              onSelect={() => selectRoute(day.day_number, idx + 1, alt.end_location)}
+                            />
+                          ))}
+                        </div>
                       </div>
+
+                      {/* Location mismatch warning */}
+                      {mismatch && (
+                        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 px-3 py-2">
+                          <AlertCircle size={13} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-amber-700">{mismatch}</p>
+                        </div>
+                      )}
+
+                      {/* Komoot embed */}
+                      <KomootEmbed
+                        tourId={komootTourIds[day.day_number] ?? null}
+                        adventureId={adventureId}
+                        dayNumber={day.day_number}
+                        editable={true}
+                        onLinked={(id) => setKomootTourIds(prev => ({ ...prev, [day.day_number]: id }))}
+                        onUnlinked={() => setKomootTourIds(prev => { const n = { ...prev }; delete n[day.day_number]; return n; })}
+                      />
                     </div>
                   )}
-
-                  {/* Accommodation alternatives */}
-                  {alts?.accommodation && alts.accommodation.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Bed size={12} className="text-[#717182]" />
-                        <p className="text-xs font-semibold text-[#717182] uppercase tracking-wide">Where to stay</p>
-                      </div>
-                      <div className="space-y-2">
-                        {alts.accommodation.map((acc, idx) => (
-                          <AccommodationOption
-                            key={idx}
-                            acc={acc}
-                            isSelected={sel.accommodationIndex === idx}
-                            onSelect={() => selectAccommodation(day.day_number, idx, acc.type)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Komoot route embed */}
-                  <KomootEmbed
-                    tourId={komootTourId}
-                    adventureId={adventureId}
-                    dayNumber={day.day_number}
-                    editable={true}
-                    onLinked={(id) =>
-                      setKomootTourIds((prev) => ({ ...prev, [day.day_number]: id }))
-                    }
-                    onUnlinked={() =>
-                      setKomootTourIds((prev) => {
-                        const next = { ...prev };
-                        delete next[day.day_number];
-                        return next;
-                      })
-                    }
-                  />
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
 
-      {/* Save button */}
-      <div className="px-4 py-4 border-t border-[#dadccb]">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full bg-black text-white py-3 text-sm font-semibold disabled:opacity-50"
-        >
-          {saving ? "Saving…" : "Save this adventure"}
-        </button>
-      </div>
+          {/* Confirm routes CTA */}
+          <div className="px-4 py-4 border-t border-[#dadccb] space-y-2">
+            {!allDaysReviewed && (
+              <p className="text-xs text-[#717182] text-center">
+                Open each day to review and select your route
+              </p>
+            )}
+            <button
+              onClick={handleConfirmRoutes}
+              className="w-full bg-black text-white py-3 text-sm font-semibold"
+            >
+              Confirm routes → Choose accommodation
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Phase 2: Accommodation ────────────────────────────────────────────── */}
+      {phase === "accommodation" && (
+        <>
+          <div className="px-4 py-3 border-b border-[#dadccb] flex items-center justify-between">
+            <p className="text-sm font-semibold text-[#212121]">Where to stay</p>
+            <button
+              onClick={() => setPhase("routes")}
+              className="text-xs text-[#717182] hover:text-[#212121] underline"
+            >
+              ← Edit routes
+            </button>
+          </div>
+
+          {accommodationStops.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-[#717182]">No accommodation stops generated.</p>
+          ) : (
+            <div className="divide-y divide-[#dadccb]">
+              {accommodationStops.map((stop, stopIdx) => {
+                const selectedOptIdx = accSelections[stop.location] ?? 0;
+
+                return (
+                  <div key={stopIdx} className="px-4 py-4 space-y-3">
+                    {/* Stop header */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <MapPin size={13} className="text-[#212121]" />
+                          <p className="text-sm font-bold text-[#212121]">{stop.location}</p>
+                        </div>
+                        <p className="text-xs text-[#717182] mt-0.5 ml-5">
+                          {stop.night_numbers.length === 1
+                            ? `Night ${stop.night_numbers[0]}`
+                            : `Nights ${stop.night_numbers[0]}–${stop.night_numbers[stop.night_numbers.length - 1]}`}
+                          {stop.notes ? ` · ${stop.notes}` : ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Accommodation options */}
+                    <div className="space-y-2">
+                      {stop.options.map((opt, optIdx) => (
+                        <AccommodationCard
+                          key={optIdx}
+                          opt={opt}
+                          nightCount={stop.night_numbers.length}
+                          isSelected={selectedOptIdx === optIdx}
+                          location={stop.location}
+                          onSelect={() => {
+                            setAccSelections(prev => ({ ...prev, [stop.location]: optIdx }));
+                            if (adventureId) {
+                              recordSelection(adventureId, stop.night_numbers[0] ?? 1, "accommodation", optIdx, opt.type);
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Save CTA */}
+          <div className="px-4 py-4 border-t border-[#dadccb]">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full bg-black text-white py-3 text-sm font-semibold disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save this adventure"}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Route option card ────────────────────────────────────────────────────────
 
 interface RouteOptionProps {
   label: string;
   title: string;
   distanceKm: number | null;
   elevationM: number | null;
-  difficulty: RouteAlternative["difficulty"];
+  difficulty: RouteAlternative["difficulty"] | "moderate";
   description: string;
+  endLocation: string;
   isSelected: boolean;
   onSelect: () => void;
 }
 
-function RouteOption({ label, title, distanceKm, elevationM, difficulty, description, isSelected, onSelect }: RouteOptionProps) {
+const DIFFICULTY_COLOUR: Record<string, string> = {
+  easy: "text-green-600",
+  moderate: "text-[#212121]",
+  hard: "text-red-600",
+};
+
+function RouteOption({ label, title, distanceKm, elevationM, difficulty, description, endLocation, isSelected, onSelect }: RouteOptionProps) {
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left border px-3 py-2.5 transition-colors ${
-        isSelected ? "border-[#212121] bg-[#f8f8f5]" : "border-[#dadccb] hover:border-[#212121]"
-      }`}
+      className={`w-full text-left border px-3 py-2.5 transition-colors ${isSelected ? "border-[#212121] bg-[#f8f8f5]" : "border-[#dadccb] hover:border-[#212121]"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className={`text-xs font-semibold ${difficultyColour(difficulty)}`}>{label}</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-0.5">
+            <span className={`text-xs font-semibold ${DIFFICULTY_COLOUR[difficulty] ?? "text-[#212121]"}`}>{label}</span>
             {distanceKm && <span className="text-xs text-[#717182]">{distanceKm}km</span>}
             {elevationM && <span className="text-xs text-[#717182]">{elevationM}m ↑</span>}
           </div>
           <p className="text-xs font-medium text-[#212121] truncate">{title}</p>
-          <p className="text-xs text-[#717182] mt-0.5 leading-relaxed line-clamp-2">{description}</p>
+          <p className="text-xs text-[#717182] mt-0.5 line-clamp-2">{description}</p>
+          {endLocation && (
+            <p className="text-xs text-[#717182] mt-0.5">
+              <span className="font-medium">Ends:</span> {endLocation}
+            </p>
+          )}
         </div>
         {isSelected && <Check size={14} className="text-[#212121] flex-shrink-0 mt-0.5" />}
       </div>
@@ -306,33 +377,68 @@ function RouteOption({ label, title, distanceKm, elevationM, difficulty, descrip
   );
 }
 
-interface AccommodationOptionProps {
-  acc: AccommodationAlternative;
+// ─── Accommodation card ───────────────────────────────────────────────────────
+
+interface AccommodationCardProps {
+  opt: AccommodationOption;
+  nightCount: number;
+  location: string;
   isSelected: boolean;
   onSelect: () => void;
 }
 
-function AccommodationOption({ acc, isSelected, onSelect }: AccommodationOptionProps) {
-  const priceLabel = { budget: "Budget", mid: "Mid-range", luxury: "Luxury" }[acc.price_range];
-  const typeLabel = acc.type.charAt(0).toUpperCase() + acc.type.slice(1);
+const PRICE_RANGE_LABEL: Record<string, string> = { budget: "Budget", mid: "Mid-range", luxury: "Luxury" };
+
+function AccommodationCard({ opt, nightCount, location, isSelected, onSelect }: AccommodationCardProps) {
+  const totalEur = opt.price_per_night_eur
+    ? opt.price_per_night_eur * nightCount
+    : null;
 
   return (
-    <button
-      onClick={onSelect}
-      className={`w-full text-left border px-3 py-2.5 transition-colors ${
-        isSelected ? "border-[#212121] bg-[#f8f8f5]" : "border-[#dadccb] hover:border-[#212121]"
-      }`}
+    <div
+      className={`border transition-colors ${isSelected ? "border-[#212121]" : "border-[#dadccb]"}`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-xs font-semibold text-[#212121]">{acc.name}</span>
-            <span className="text-xs text-[#717182]">{typeLabel} · {priceLabel}</span>
+      <button
+        onClick={onSelect}
+        className="w-full text-left px-3 py-2.5 hover:bg-[#f8f8f5] transition-colors"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-xs font-semibold text-[#212121] truncate">{opt.name}</p>
+              {isSelected && <Check size={12} className="text-[#212121] flex-shrink-0" />}
+            </div>
+            <p className="text-xs text-[#717182]">
+              {opt.type.charAt(0).toUpperCase() + opt.type.slice(1)} · {PRICE_RANGE_LABEL[opt.price_range]}
+            </p>
+            <p className="text-xs text-[#717182] mt-1 line-clamp-2">{opt.description}</p>
           </div>
-          <p className="text-xs text-[#717182] leading-relaxed line-clamp-2">{acc.description}</p>
+          {opt.price_per_night_eur && (
+            <div className="flex-shrink-0 text-right">
+              <p className="text-sm font-bold text-[#212121]">€{opt.price_per_night_eur}</p>
+              <p className="text-xs text-[#717182]">/ night</p>
+              {nightCount > 1 && totalEur && (
+                <p className="text-xs text-[#717182] mt-0.5">€{totalEur} total</p>
+              )}
+            </div>
+          )}
         </div>
-        {isSelected && <Check size={14} className="text-[#212121] flex-shrink-0 mt-0.5" />}
+      </button>
+
+      {/* Book link — always visible */}
+      <div className="border-t border-[#dadccb] px-3 py-2 flex items-center justify-between">
+        <p className="text-xs text-[#717182]">Find availability</p>
+        <a
+          href={bookingUrl(`${opt.name} ${location}`)}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-1 text-xs font-semibold text-[#212121] hover:underline"
+        >
+          <ExternalLink size={11} />
+          Booking.com
+        </a>
       </div>
-    </button>
+    </div>
   );
 }

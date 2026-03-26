@@ -25,21 +25,39 @@ export interface RouteAlternative {
   elevation_gain_m: number | null;
   difficulty: "easy" | "moderate" | "hard";
   description: string;
+  end_location: string; // Town/village where this variant ends
 }
 
+export interface AccommodationOption {
+  name: string;
+  type: "camping" | "hostel" | "hotel" | "guesthouse" | "luxury";
+  price_range: "budget" | "mid" | "luxury";
+  price_per_night_eur: number | null;
+  description: string;
+}
+
+// Accommodation grouped by stop location, not per day
+export interface AccommodationStop {
+  location: string;
+  night_numbers: number[]; // e.g. [1, 2] = nights 1 and 2 spent here
+  notes: string;           // e.g. "2 nights — rest day on Day 2"
+  options: AccommodationOption[];
+}
+
+// day_alternatives now only contains route variants (no accommodation per day)
+export interface DayAlternatives {
+  routes: RouteAlternative[];
+}
+
+export type DayAlternativesMap = Record<string, DayAlternatives>;
+
+// Deprecated — kept for backward compat with old adventures in DB
 export interface AccommodationAlternative {
   name: string;
   type: "camping" | "hostel" | "hotel" | "guesthouse" | "luxury";
   price_range: "budget" | "mid" | "luxury";
   description: string;
 }
-
-export interface DayAlternatives {
-  routes: RouteAlternative[];
-  accommodation: AccommodationAlternative[];
-}
-
-export type DayAlternativesMap = Record<string, DayAlternatives>;
 
 export interface AdventureDayPlan {
   day_number: number;
@@ -48,6 +66,7 @@ export interface AdventureDayPlan {
   distance_km: number | null;
   elevation_gain_m: number | null;
   route_notes: string;
+  end_location: string; // Town/village where the day ends (determines accommodation stop)
   pois: Array<{
     poi_id: string;
     name: string;
@@ -70,6 +89,15 @@ export interface GeneratedAdventure {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+}
+
+// Full chat response when type === "adventure"
+export interface AdventureResponse {
+  type: "adventure";
+  adventure_id: string | null;
+  adventure: GeneratedAdventure;
+  day_alternatives: DayAlternativesMap;
+  accommodation_stops: AccommodationStop[];
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────

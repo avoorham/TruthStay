@@ -7,6 +7,7 @@ import { AdventurePlanCard } from "./AdventurePlanCard";
 import type {
   GeneratedAdventure,
   DayAlternativesMap,
+  AccommodationStop,
 } from "../lib/agent/adventure-agent";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ interface AdventureMessage {
   kind: "adventure";
   adventure: GeneratedAdventure;
   dayAlternatives: DayAlternativesMap;
+  accommodationStops: AccommodationStop[];
   adventureId: string | null;
   time: string;
 }
@@ -94,6 +96,7 @@ export function DiscoverChat() {
             kind: "adventure",
             adventure: data.adventure,
             dayAlternatives: data.day_alternatives ?? {},
+            accommodationStops: data.accommodation_stops ?? [],
             adventureId: data.adventure_id ?? null,
             time: formatTime(),
           },
@@ -146,6 +149,7 @@ export function DiscoverChat() {
                   <AdventurePlanCard
                     adventure={msg.adventure}
                     dayAlternatives={msg.dayAlternatives}
+                    accommodationStops={msg.accommodationStops}
                     adventureId={msg.adventureId}
                   />
                   <p suppressHydrationWarning className="text-xs mt-2 text-[#717182]">
@@ -179,12 +183,15 @@ export function DiscoverChat() {
 
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-[#e9ebef] px-4 py-3 text-sm text-[#717182]">
-              <div className="flex gap-1 items-center h-4">
-                <span className="w-1.5 h-1.5 bg-[#717182] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-1.5 h-1.5 bg-[#717182] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-1.5 h-1.5 bg-[#717182] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
+            <div className="bg-[#e9ebef] px-4 py-3 flex items-center gap-2.5">
+              <svg
+                className="animate-spin text-[#717182]"
+                width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2"
+              >
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+              </svg>
+              <span className="text-xs text-[#717182]">Thinking…</span>
             </div>
           </div>
         )}

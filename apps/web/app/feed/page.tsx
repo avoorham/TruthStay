@@ -30,9 +30,9 @@ const FEED_POSTS = [
     tripTitle: "Cycling through the Amalfi Coast was a dream come true. Every turn had a postcard view!",
     location: "Amalfi Coast, Italy",
     images: [
-      "https://images.unsplash.com/photo-1534113414509-0bd4d016608c?w=800&h=800&fit=crop",
-      "https://images.unsplash.com/photo-1523906630133-f6934a1ab2b9?w=800&h=800&fit=crop",
-      "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=800&h=800&fit=crop",
+      "https://images.unsplash.com/photo-1533587852082-9e05cf1a3b8f?w=800&h=800&fit=crop",
+      "https://images.unsplash.com/photo-1502680390469-be75c86b636f?w=800&h=800&fit=crop",
+      "https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=800&h=800&fit=crop",
     ],
     likes: 215,
     comments: [

@@ -54,12 +54,12 @@ export function ExploreMap() {
   }, []);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="w-full h-full">
       <Map
         {...viewState}
         onMove={(e) => setViewState(e.viewState)}
         mapboxAccessToken={MAPBOX_TOKEN}
-        mapStyle="mapbox://styles/mapbox/outdoors-v12"
+        mapStyle="mapbox://styles/mapbox/light-v11"
         style={{ width: "100%", height: "100%" }}
         onClick={() => setSelectedPOI(null)}
       >

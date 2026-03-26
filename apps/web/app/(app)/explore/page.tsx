@@ -1,39 +1,32 @@
-import { Search } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { ExploreMapLoader } from "../../../components/ExploreMapLoader";
 
 export default function ExplorePage() {
   return (
-    <div className="relative w-full" style={{ height: "calc(100vh - 4rem)" }}>
-      <ExploreMapLoader />
-
-      {/* Floating search bar */}
-      <div className="absolute top-4 left-4 right-4 z-10">
-        <div className="bg-white flex items-center gap-3 px-4 py-3 shadow-lg">
-          <Search size={18} className="text-[#717182] flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Search routes, stays, restaurants…"
-            className="flex-1 text-sm outline-none placeholder:text-[#717182] bg-transparent"
-          />
+    <div className="flex flex-col" style={{ height: "calc(100vh - 4rem)" }}>
+      {/* Header card */}
+      <div className="px-4 pt-12 pb-3 bg-white border-b border-[#dadccb]">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-lg font-bold text-[#212121]">Adventures in map area</h1>
+            <p className="text-xs text-[#717182] mt-0.5">All activities · All durations</p>
+          </div>
+          <button className="p-2 border border-[#dadccb]">
+            <SlidersHorizontal size={18} className="text-[#212121]" />
+          </button>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="absolute bottom-20 left-4 z-10 bg-white shadow-lg p-3">
-        <p className="text-xs font-semibold mb-2 text-[#212121]">Map key</p>
-        <div className="flex flex-col gap-1.5">
-          {[
-            { colour: "#16a34a", label: "Route / Trailhead" },
-            { colour: "#2563eb", label: "Accommodation" },
-            { colour: "#dc2626", label: "Food & Drink" },
-            { colour: "#7c3aed", label: "Bike Shop" },
-          ].map(({ colour, label }) => (
-            <div key={label} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colour }} />
-              <span className="text-xs text-[#717182]">{label}</span>
-            </div>
-          ))}
-        </div>
+      {/* Map — takes remaining height */}
+      <div className="flex-1 relative">
+        <ExploreMapLoader />
+      </div>
+
+      {/* Bottom CTA */}
+      <div className="bg-white border-t border-[#dadccb] px-4 py-3">
+        <button className="w-full bg-black text-white py-3 text-sm font-semibold">
+          14 adventures
+        </button>
       </div>
     </div>
   );

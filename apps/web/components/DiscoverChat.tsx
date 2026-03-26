@@ -137,7 +137,7 @@ export function DiscoverChat() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4 pb-24">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6 space-y-4 pb-24">
         {messages.map((msg, i) => {
           if (msg.kind === "adventure") {
             return (

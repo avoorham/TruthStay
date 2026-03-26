@@ -1,16 +1,10 @@
-import dynamic from "next/dynamic";
 import { Search } from "lucide-react";
-
-const ExploreMap = dynamic(
-  () => import("../../../components/ExploreMap").then((m) => m.ExploreMap),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#ececf0] animate-pulse" /> }
-);
+import { ExploreMapLoader } from "../../../components/ExploreMapLoader";
 
 export default function ExplorePage() {
   return (
     <div className="relative w-full" style={{ height: "calc(100vh - 4rem)" }}>
-      {/* Full-screen map */}
-      <ExploreMap />
+      <ExploreMapLoader />
 
       {/* Floating search bar */}
       <div className="absolute top-4 left-4 right-4 z-10">

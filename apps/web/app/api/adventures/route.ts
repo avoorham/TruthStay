@@ -31,7 +31,7 @@ export async function GET(_request: NextRequest) {
     .from("adventures")
     .select(`
       id, title, description, region, "activityType", "durationDays", "startDate", "createdAt",
-      adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes")
+      adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes", "komootTourId")
     `)
     .eq("userId", user.id)
     .eq("isSaved", true)

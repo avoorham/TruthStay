@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Mountain, Bed, Check } from "lucide-react";
+import { KomootEmbed } from "./KomootEmbed";
 import type {
   GeneratedAdventure,
   DayAlternativesMap,
@@ -62,6 +63,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: P
   const router = useRouter();
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([1]));
   const [selections, setSelections] = useState<Record<number, DaySelection>>({});
+  const [komootTourIds, setKomootTourIds] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
 
   const toggleDay = (dayNumber: number) => {
@@ -130,6 +132,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: P
           const isExpanded = expandedDays.has(day.day_number);
           const sel = getSelection(day.day_number);
           const alts = dayAlternatives[String(day.day_number)];
+          const komootTourId = komootTourIds[day.day_number] ?? null;
 
           return (
             <div key={day.day_number}>
@@ -227,6 +230,24 @@ export function AdventurePlanCard({ adventure, dayAlternatives, adventureId }: P
                       </div>
                     </div>
                   )}
+
+                  {/* Komoot route embed */}
+                  <KomootEmbed
+                    tourId={komootTourId}
+                    adventureId={adventureId}
+                    dayNumber={day.day_number}
+                    editable={true}
+                    onLinked={(id) =>
+                      setKomootTourIds((prev) => ({ ...prev, [day.day_number]: id }))
+                    }
+                    onUnlinked={() =>
+                      setKomootTourIds((prev) => {
+                        const next = { ...prev };
+                        delete next[day.day_number];
+                        return next;
+                      })
+                    }
+                  />
                 </div>
               )}
             </div>

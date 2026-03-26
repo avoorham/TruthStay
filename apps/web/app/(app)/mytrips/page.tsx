@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Calendar, MapPin, ChevronRight, ChevronDown, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { KomootEmbed } from "../../../components/KomootEmbed";
 
 interface AdventureDay {
   id: string;
@@ -12,6 +13,7 @@ interface AdventureDay {
   distanceKm: number | null;
   elevationGainM: number | null;
   routeNotes: string | null;
+  komootTourId: string | null;
 }
 
 interface SavedAdventure {
@@ -31,6 +33,8 @@ export default function MyTripsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SavedAdventure | null>(null);
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set());
+  // Per-day Komoot tour IDs — seeded from DB, updated when user links/unlinks
+  const [komootTourIds, setKomootTourIds] = useState<Record<number, string>>({});
 
   useEffect(() => {
     fetch("/api/adventures")
@@ -48,6 +52,17 @@ export default function MyTripsPage() {
     });
   };
 
+  const openAdventure = (adv: SavedAdventure) => {
+    setSelected(adv);
+    setExpandedDays(new Set());
+    // Seed Komoot IDs from DB data
+    const ids: Record<number, string> = {};
+    for (const day of adv.adventure_days ?? []) {
+      if (day.komootTourId) ids[day.dayNumber] = day.komootTourId;
+    }
+    setKomootTourIds(ids);
+  };
+
   // ── Detail view ──────────────────────────────────────────────────────────────
   if (selected) {
     const days = [...(selected.adventure_days ?? [])].sort(
@@ -59,7 +74,7 @@ export default function MyTripsPage() {
         {/* Header */}
         <div className="px-4 pt-12 pb-4 border-b border-[#dadccb] flex items-start gap-3">
           <button
-            onClick={() => { setSelected(null); setExpandedDays(new Set()); }}
+            onClick={() => { setSelected(null); setExpandedDays(new Set()); setKomootTourIds({}); }}
             className="text-[#212121] pt-0.5"
           >
             <ChevronRight size={20} className="rotate-180" strokeWidth={1.5} />
@@ -125,6 +140,22 @@ export default function MyTripsPage() {
                         {day.routeNotes}
                       </p>
                     )}
+                    <KomootEmbed
+                      tourId={komootTourIds[day.dayNumber] ?? null}
+                      adventureId={selected.id}
+                      dayNumber={day.dayNumber}
+                      editable={true}
+                      onLinked={(id) =>
+                        setKomootTourIds((prev) => ({ ...prev, [day.dayNumber]: id }))
+                      }
+                      onUnlinked={() =>
+                        setKomootTourIds((prev) => {
+                          const next = { ...prev };
+                          delete next[day.dayNumber];
+                          return next;
+                        })
+                      }
+                    />
                   </div>
                 )}
               </div>
@@ -178,7 +209,7 @@ export default function MyTripsPage() {
           {adventures.map((adv) => (
             <button
               key={adv.id}
-              onClick={() => { setSelected(adv); setExpandedDays(new Set()); }}
+              onClick={() => openAdventure(adv)}
               className="w-full text-left px-4 py-4 hover:bg-[#f8f8f5] transition-colors"
             >
               <div className="flex items-start justify-between gap-2">

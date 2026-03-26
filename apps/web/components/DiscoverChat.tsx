@@ -54,7 +54,7 @@ export function DiscoverChat() {
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Generation failed");
+        throw new Error(err.detail || err.error || "Generation failed");
       }
 
       const { adventure } = await res.json();
@@ -62,11 +62,12 @@ export function DiscoverChat() {
       const reply = formatAdventureReply(adventure);
       setMessages((prev) => [...prev, { role: "ai", text: reply, time: formatTime() }]);
     } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       setMessages((prev) => [
         ...prev,
         {
           role: "ai",
-          text: "Sorry, I couldn't generate an adventure right now. Try describing a specific region and activity — for example: \"7-day cycling trip in Mallorca\".",
+          text: `Sorry, I couldn't generate an adventure right now.\n\n${detail}`,
           time: formatTime(),
         },
       ]);
@@ -167,7 +168,7 @@ function extractActivity(text: string): string {
 function extractDuration(text: string): number {
   const match = text.match(/(\d+)\s*(?:day|night|week)/i);
   if (match) {
-    const n = parseInt(match[1]);
+    const n = parseInt(match[1] ?? "5");
     if (/week/i.test(match[0] ?? "")) return Math.min(n * 7, 14);
     return Math.min(Math.max(n, 1), 14);
   }

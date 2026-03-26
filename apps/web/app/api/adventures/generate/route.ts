@@ -77,14 +77,9 @@ export async function POST(request: NextRequest) {
   // 4. Run the agent (uses admin client for DB queries — bypasses RLS)
   const adminDb = createAdminClient();
 
+  let adventure;
   try {
-    const adventure = await generateAdventure(adminDb, input);
-    const adventureId = await saveAdventure(adminDb, user.id, requestPrompt, adventure);
-
-    return NextResponse.json({
-      adventure_id: adventureId,
-      adventure,
-    });
+    adventure = await generateAdventure(adminDb, input);
   } catch (err) {
     console.error("Adventure generation failed:", err);
     return NextResponse.json(
@@ -95,4 +90,17 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Save to DB best-effort — tables may not exist yet
+  let adventureId: string | null = null;
+  try {
+    adventureId = await saveAdventure(adminDb, user.id, requestPrompt, adventure);
+  } catch (err) {
+    console.warn("Adventure save skipped (DB tables may not exist yet):", err instanceof Error ? err.message : String(err));
+  }
+
+  return NextResponse.json({
+    adventure_id: adventureId,
+    adventure,
+  });
 }

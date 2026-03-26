@@ -7,14 +7,21 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
   },
   "devDependencies": {
     "@truthstay/typescript-config": "workspace:*",
+    "prisma": "^7.5.0",
     "typescript": "5.9.2"
   },
   "dependencies": {
+    "@prisma/client": "^7.5.0",
+    "@supabase/supabase-js": "^2.49.4",
     "@truthstay/types": "workspace:*",
-    "@supabase/supabase-js": "^2.49.4"
+    "dotenv": "^17.3.1"
   }
 }

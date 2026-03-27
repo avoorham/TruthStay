@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   chip: {
-    backgroundColor: colors.sheet,
+    backgroundColor: colors.aiBubble,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,

@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
+import { AntDesign, FontAwesome } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 
@@ -123,22 +124,22 @@ export default function AuthScreen() {
 
           <View style={styles.socialStack}>
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <View style={styles.socialIconWrap}>
-                <Text style={styles.socialIconApple}></Text>
+              <View style={[styles.socialIconWrap, { backgroundColor: "#000" }]}>
+                <FontAwesome name="apple" size={16} color="#fff" />
               </View>
               <Text style={styles.socialBtnText}>Continue with Apple</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <View style={[styles.socialIconWrap, styles.socialIconFbWrap]}>
-                <Text style={styles.socialIconFb}>f</Text>
+              <View style={[styles.socialIconWrap, { backgroundColor: "#1877F2" }]}>
+                <FontAwesome name="facebook" size={16} color="#fff" />
               </View>
               <Text style={styles.socialBtnText}>Continue with Facebook</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <View style={styles.socialIconWrap}>
-                <Text style={styles.socialIconG}>G</Text>
+              <View style={[styles.socialIconWrap, { backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border }]}>
+                <AntDesign name="google" size={15} color="#4285F4" />
               </View>
               <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>
@@ -435,10 +436,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#000",
   },
-  socialIconApple: { color: "#fff", fontSize: 17, lineHeight: 20, marginTop: -2 },
-  socialIconFbWrap: { backgroundColor: "#1877F2" },
-  socialIconFb: { color: "#fff", fontSize: 16, fontWeight: "800", lineHeight: 20 },
-  socialIconG: { color: "#4285F4", fontSize: 15, fontWeight: "700" },
   socialBtnText: {
     flex: 1,
     textAlign: "center",

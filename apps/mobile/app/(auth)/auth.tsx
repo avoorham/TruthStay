@@ -1,5 +1,6 @@
 import {
   Alert,
+  Dimensions,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -10,6 +11,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
@@ -87,15 +90,31 @@ export default function AuthScreen() {
       <View style={styles.root}>
         <StatusBar style="light" />
 
-        <ImageBackground source={BG_IMAGE} style={styles.photoBg} resizeMode="cover">
+        {/* Full-screen static background */}
+        <ImageBackground
+          source={BG_IMAGE}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        >
           <LinearGradient
-            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.0)"]}
-            style={styles.photoGradient}
+            colors={["rgba(0,0,0,0.18)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.25)"]}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
           />
         </ImageBackground>
 
-        <View style={styles.sheet}>
-          <View style={styles.pill} />
+        {/* Sheet scrolls up/down over the static image */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces
+        >
+          {/* Transparent spacer — shows the photo behind */}
+          <View style={styles.photoSpacer} />
+
+          <View style={styles.sheet}>
+            <View style={styles.pill} />
 
           <Text style={styles.heading}>Welcome to TruthStay</Text>
           <Text style={styles.sub}>Sport-first adventure planning</Text>
@@ -148,7 +167,8 @@ export default function AuthScreen() {
           <Text style={styles.legal}>
             By continuing you agree to our Terms of Service and Privacy Policy.
           </Text>
-        </View>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -360,17 +380,19 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   // ── Options ──
   root: { flex: 1, backgroundColor: "#111" },
-  photoBg: { height: 260 },
-  photoGradient: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  // Transparent gap at top — shows the photo; adjust height to taste
+  photoSpacer: { height: SCREEN_HEIGHT * 0.42 },
   sheet: {
-    flex: 1,
     backgroundColor: colors.card,
-    marginTop: -44,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: 40,
+    paddingBottom: 48,
+    // Ensure sheet fills remaining space so it doesn't look short
+    minHeight: SCREEN_HEIGHT * 0.62,
   },
   pill: {
     width: 40,

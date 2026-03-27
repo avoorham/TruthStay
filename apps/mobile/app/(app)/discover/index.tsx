@@ -191,8 +191,8 @@ export default function DiscoverScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={80}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -324,9 +324,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.inputBg,
     borderRadius: radius.xl,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingTop: spacing.sm + 2,
+    paddingBottom: spacing.sm + 2,
     fontSize: fontSize.base,
     color: colors.text,
+    textAlignVertical: "top",
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: 20,

@@ -1,134 +1,84 @@
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ImageBackground, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { router } from "expo-router";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 
-export default function AuthScreen() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [loading, setLoading] = useState(false);
+// High-res MTB cyclist on a hill — replace with a bundled asset once you have one
+const BG_IMAGE =
+  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&q=85";
 
-  async function handleAuth() {
-    setLoading(true);
-    if (mode === "login") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) Alert.alert("Sign in failed", error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email, password,
-        options: { data: { username, display_name: displayName } },
-      });
-      if (error) Alert.alert("Sign up failed", error.message);
-      else Alert.alert("Check your email", "We sent you a confirmation link.");
-    }
-    setLoading(false);
-  }
-
+export default function LandingScreen() {
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        {/* Wordmark */}
-        <View style={styles.header}>
-          <Text style={styles.wordmark}>TruthStay</Text>
-          <Text style={styles.tagline}>Sport-first adventure planning</Text>
-        </View>
+    <View style={styles.root}>
+      <StatusBar style="light" />
+      <ImageBackground source={{ uri: BG_IMAGE }} style={styles.bg} resizeMode="cover">
+        <LinearGradient
+          colors={["rgba(0,0,0,0.20)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.78)"]}
+          locations={[0, 0.38, 1]}
+          style={styles.gradient}
+        >
+          {/* Top bar */}
+          <View style={styles.top}>
+            <Text style={styles.welcome}>Welcome to TruthStay 👋</Text>
+          </View>
 
-        {/* Form */}
-        <View style={styles.form}>
-          {mode === "signup" && (
-            <>
-              <TextInput
-                style={styles.input}
-                placeholder="Display name"
-                placeholderTextColor={colors.muted}
-                value={displayName}
-                onChangeText={setDisplayName}
-                autoCapitalize="words"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Username"
-                placeholderTextColor={colors.muted}
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </>
-          )}
-
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.muted}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            autoCorrect={false}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={colors.muted}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-
-          <TouchableOpacity style={styles.btn} onPress={handleAuth} disabled={loading} activeOpacity={0.85}>
-            <Text style={styles.btnText}>
-              {loading ? "…" : mode === "login" ? "Sign in" : "Create account"}
+          {/* Bottom content */}
+          <View style={styles.bottom}>
+            <Text style={styles.headline}>
+              Sport-first{"\n"}adventures,{"\n"}honestly reviewed.
             </Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setMode(mode === "login" ? "signup" : "login")} style={styles.toggle}>
-            <Text style={styles.toggleText}>
-              {mode === "login" ? "No account? Sign up" : "Already have an account? Sign in"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <TouchableOpacity
+              style={styles.cta}
+              onPress={() => router.push("/(auth)/auth")}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.ctaText}>Let's Go!</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  inner: { flexGrow: 1, justifyContent: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.xxl },
-  header: { marginBottom: spacing.xl },
-  wordmark: { fontSize: fontSize.xxxl, fontWeight: "800", color: colors.text, letterSpacing: -1 },
-  tagline: { fontSize: fontSize.base, color: colors.muted, marginTop: spacing.xs },
-  form: { gap: spacing.sm },
-  input: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+  root: { flex: 1, backgroundColor: "#111" },
+  bg: { flex: 1 },
+  gradient: { flex: 1, paddingHorizontal: spacing.lg },
+  top: { paddingTop: 60 },
+  welcome: {
+    color: "rgba(255,255,255,0.92)",
     fontSize: fontSize.base,
-    color: colors.text,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
-  btn: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.md,
-    paddingVertical: 15,
+  bottom: {
+    flex: 1,
+    justifyContent: "flex-end",
+    paddingBottom: 52,
+    gap: spacing.xl,
+  },
+  headline: {
+    color: "#FFFFFF",
+    fontSize: 44,
+    fontWeight: "800",
+    lineHeight: 52,
+    letterSpacing: -1.2,
+  },
+  cta: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: radius.full,
+    paddingVertical: 18,
     alignItems: "center",
-    marginTop: spacing.xs,
   },
-  btnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
-  toggle: { paddingVertical: spacing.md, alignItems: "center" },
-  toggleText: { color: colors.muted, fontSize: fontSize.sm },
+  ctaText: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: fontSize.lg,
+    letterSpacing: 0.2,
+  },
 });

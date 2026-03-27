@@ -69,13 +69,13 @@ const styles = StyleSheet.create({
     letterSpacing: -1.2,
   },
   cta: {
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "#FFFFFF",
     borderRadius: radius.full,
     paddingVertical: 18,
     alignItems: "center",
   },
   ctaText: {
-    color: "#FFFFFF",
+    color: "#1A1A1A",
     fontWeight: "700",
     fontSize: fontSize.lg,
     letterSpacing: 0.2,

@@ -3,6 +3,7 @@
     "name": "TruthStay",
     "slug": "truthstay",
     "version": "1.0.0",
+    "scheme": "truthstay",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

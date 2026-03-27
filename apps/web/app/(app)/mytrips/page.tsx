@@ -39,7 +39,7 @@ export default function MyTripsPage() {
   useEffect(() => {
     fetch("/api/adventures")
       .then((r) => r.json())
-      .then((data) => setAdventures(data.adventures ?? []))
+      .then((data) => setAdventures(Array.isArray(data) ? data : (data.adventures ?? [])))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

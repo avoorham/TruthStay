@@ -20,12 +20,18 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.50.0
+        version: 2.100.0
       expo:
         specifier: ~55.0.8
         version: 55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2)
       expo-auth-session:
         specifier: ^55.0.9
         version: 55.0.9(expo@55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2)
+      expo-linear-gradient:
+        specifier: ~14.0.1
+        version: 14.0.2(expo@55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)
       expo-router:
         specifier: ~5.0.7
         version: 5.0.7(@types/react@19.2.2)(expo-constants@55.0.9)(expo-linking@55.0.8)(expo@55.0.8)(react-native-safe-area-context@5.4.0(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0))(react-native-screens@4.10.0(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)
@@ -2533,6 +2539,13 @@ packages:
     peerDependencies:
       expo: '*'
       react: '*'
+
+  expo-linear-gradient@14.0.2:
+    resolution: {integrity: sha512-nvac1sPUfFFJ4mY25UkvubpUV/olrBH+uQw5k+beqSvQaVQiUfFtYzfRr+6HhYBNb4AEsOtpsCRkpDww3M2iGQ==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
+      react-native: '*'
 
   expo-linking@55.0.8:
     resolution: {integrity: sha512-O9QgKAfEqKfsjL6IKs5p7pFAjo/3/TQwjMzzNPl8BCndbxWMPQfMeViXPYYNS9bA2ujUqrtF1OYhO6woI7GNQQ==}
@@ -7496,6 +7509,12 @@ snapshots:
     dependencies:
       expo: 55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2)
       react: 19.2.0
+
+  expo-linear-gradient@14.0.2(expo@55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      expo: 55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2)
+      react: 19.2.0
+      react-native: 0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)
 
   expo-linking@55.0.8(expo@55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@5.0.4(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0)))(expo-router@5.0.7)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.2)(react@19.2.0))(react@19.2.0)(typescript@5.9.2):
     dependencies:

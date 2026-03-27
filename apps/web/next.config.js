@@ -3,6 +3,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Allow mobile app to call API routes
+        source: "/api/(.*)",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Methods", value: "GET,POST,PATCH,OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type,Authorization" },
+        ],
+      },
+      {
         source: "/(.*)",
         headers: [
           {

@@ -27,8 +27,39 @@ interface DayRouteSelection {
   end_location: string;
 }
 
-function bookingUrl(location: string) {
-  return `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(location)}&group_adults=1&no_rooms=1`;
+function bookingUrl({
+  propertyName,
+  location,
+  checkin,
+  checkout,
+  adults = 1,
+  trackingLabel,
+}: {
+  propertyName: string;
+  location: string;
+  checkin?: string;   // YYYY-MM-DD
+  checkout?: string;  // YYYY-MM-DD
+  adults?: number;
+  trackingLabel?: string; // e.g. "adventure-abc123-night-1"
+}) {
+  const aid = process.env.NEXT_PUBLIC_BOOKING_AFFILIATE_ID;
+  const params = new URLSearchParams({
+    ss: `${propertyName} ${location}`,
+    group_adults: String(adults),
+    no_rooms: "1",
+  });
+  if (aid) params.set("aid", aid);
+  if (trackingLabel) params.set("label", trackingLabel);
+  if (checkin) params.set("checkin", checkin);
+  if (checkout) params.set("checkout", checkout);
+  return `https://www.booking.com/searchresults.html?${params.toString()}`;
+}
+
+// Compute ISO date string offset from a base date by N days
+function offsetDate(base: string, days: number): string {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 async function recordSelection(
@@ -382,17 +413,30 @@ function RouteOption({ label, title, distanceKm, elevationM, difficulty, descrip
 interface AccommodationCardProps {
   opt: AccommodationOption;
   nightCount: number;
+  nightNumbers: number[];
   location: string;
+  startDate: string | null;
+  adventureId: string | null;
   isSelected: boolean;
   onSelect: () => void;
 }
 
 const PRICE_RANGE_LABEL: Record<string, string> = { budget: "Budget", mid: "Mid-range", luxury: "Luxury" };
 
-function AccommodationCard({ opt, nightCount, location, isSelected, onSelect }: AccommodationCardProps) {
+function AccommodationCard({ opt, nightCount, nightNumbers, location, startDate, adventureId, isSelected, onSelect }: AccommodationCardProps) {
   const totalEur = opt.price_per_night_eur
     ? opt.price_per_night_eur * nightCount
     : null;
+
+  // Compute check-in/check-out from adventure start date if available
+  const checkin = startDate && nightNumbers.length > 0
+    ? offsetDate(startDate, (nightNumbers[0] ?? 1) - 1)
+    : undefined;
+  const checkout = startDate && nightNumbers.length > 0
+    ? offsetDate(startDate, nightNumbers[nightNumbers.length - 1] ?? 1)
+    : undefined;
+
+  const trackingLabel = adventureId ? `adventure-${adventureId}` : undefined;
 
   return (
     <div
@@ -429,7 +473,7 @@ function AccommodationCard({ opt, nightCount, location, isSelected, onSelect }: 
       <div className="border-t border-[#dadccb] px-3 py-2 flex items-center justify-between">
         <p className="text-xs text-[#717182]">Find availability</p>
         <a
-          href={bookingUrl(`${opt.name} ${location}`)}
+          href={bookingUrl({ propertyName: opt.name, location, checkin, checkout, trackingLabel })}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}

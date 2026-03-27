@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthUser } from "@/lib/auth/get-user";
 
 // PATCH /api/adventures/[id] — toggle isSaved
 export async function PATCH(
@@ -10,24 +9,7 @@ export async function PATCH(
 ) {
   const { id: adventureId } = await params;
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) =>
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          ),
-      },
-    }
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAuthUser(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: { isSaved: boolean };
@@ -43,7 +25,7 @@ export async function PATCH(
     .from("adventures")
     .update({ isSaved: body.isSaved })
     .eq("id", adventureId)
-    .eq("userId", user.id); // ensure user owns it
+    .eq("userId", user.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

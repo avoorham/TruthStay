@@ -1,5 +1,6 @@
 import {
   Alert,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,10 +10,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
+
+const BG_IMAGE = require("../../assets/landing-bg.jpg");
 
 type Screen = "options" | "signup" | "login";
 
@@ -70,10 +74,15 @@ export default function AuthScreen() {
   if (screen === "options") {
     return (
       <View style={styles.root}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
 
-        {/* Thin accent strip at top */}
-        <View style={styles.strip} />
+        {/* Photo background — top portion visible above the sheet */}
+        <ImageBackground source={BG_IMAGE} style={styles.photoBg} resizeMode="cover">
+          <LinearGradient
+            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.0)"]}
+            style={styles.photoGradient}
+          />
+        </ImageBackground>
 
         <View style={styles.sheet}>
           <View style={styles.pill} />
@@ -213,18 +222,19 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  root: { flex: 1, backgroundColor: "#111" },
 
-  // Options — decorative strip
-  strip: { height: 220, backgroundColor: colors.accent },
+  // Photo background strip — shows cyclist above the sheet
+  photoBg: { height: 260 },
+  photoGradient: { flex: 1 },
 
   // Bottom sheet card
   sheet: {
     flex: 1,
     backgroundColor: colors.card,
-    marginTop: -40,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    marginTop: -44,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: 40,

@@ -6,15 +6,13 @@ import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 
-// High-res MTB cyclist on a hill — replace with a bundled asset once you have one
-const BG_IMAGE =
-  "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&q=85";
+const BG_IMAGE = require("../../assets/landing-bg.jpg");
 
 export default function LandingScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <ImageBackground source={{ uri: BG_IMAGE }} style={styles.bg} resizeMode="cover">
+      <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
         <LinearGradient
           colors={["rgba(0,0,0,0.20)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.78)"]}
           locations={[0, 0.38, 1]}
@@ -22,7 +20,7 @@ export default function LandingScreen() {
         >
           {/* Top bar */}
           <View style={styles.top}>
-            <Text style={styles.welcome}>Welcome to TruthStay 👋</Text>
+            <Text style={styles.welcome}>Welcome to TruthStay</Text>
           </View>
 
           {/* Bottom content */}

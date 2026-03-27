@@ -74,12 +74,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingHorizontal: spacing.md,
     gap: spacing.xs,
+    alignItems: "flex-start",
   },
   chip: {
     backgroundColor: colors.sheet,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 10,
+    alignSelf: "flex-start",
   },
   chipText: {
     fontSize: fontSize.sm,

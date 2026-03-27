@@ -241,7 +241,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     color: colors.muted,
     lineHeight: 22,
-    paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
   },
   bubbleRow: {

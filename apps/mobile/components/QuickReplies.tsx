@@ -72,7 +72,6 @@ export function detectQuickReplies(text: string): string[] | null {
 const styles = StyleSheet.create({
   stack: {
     marginTop: spacing.sm,
-    paddingHorizontal: spacing.md,
     gap: spacing.xs,
     alignItems: "flex-start",
   },

@@ -1,11 +1,9 @@
 import {
   Alert,
-  Animated,
   Dimensions,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
-  PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,8 +14,8 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import { useRef, useState } from "react";
-import { FontAwesome, AntDesign } from "@expo/vector-icons";
+import { useState } from "react";
+import { FontAwesome } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 
@@ -25,9 +23,6 @@ const BG_IMAGE = require("../../assets/landing-bg.jpg");
 const GOOGLE_LOGO = require("../../assets/google-logo.png");
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-const PEEK_Y = SCREEN_HEIGHT * 0.40;
-const FULL_Y = 0;
-const SNAP_THRESHOLD = 60;
 
 type Screen = "options" | "signup" | "login";
 
@@ -42,45 +37,6 @@ export default function AuthScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ── Bottom sheet drag ─────────────────────────────────────────────────────
-  const translateY = useRef(new Animated.Value(PEEK_Y)).current;
-  const lastY = useRef(PEEK_Y);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, { dy }) => Math.abs(dy) > 8,
-      onPanResponderGrant: () => {
-        translateY.setOffset(lastY.current);
-        translateY.setValue(0);
-      },
-      onPanResponderMove: (_, { dy }) => {
-        const next = lastY.current + dy;
-        if (next >= FULL_Y && next <= PEEK_Y) {
-          translateY.setValue(dy);
-        }
-      },
-      onPanResponderRelease: (_, { dy, vy }) => {
-        translateY.flattenOffset();
-        const snapTo =
-          vy < -0.4 || dy < -SNAP_THRESHOLD
-            ? FULL_Y
-            : vy > 0.4 || dy > SNAP_THRESHOLD
-            ? PEEK_Y
-            : lastY.current < PEEK_Y / 2
-            ? FULL_Y
-            : PEEK_Y;
-        lastY.current = snapTo;
-        Animated.spring(translateY, {
-          toValue: snapTo,
-          useNativeDriver: true,
-          tension: 70,
-          friction: 12,
-        }).start();
-      },
-    })
-  ).current;
-
-  // ── Auth handlers ─────────────────────────────────────────────────────────
   async function handleSignUp() {
     if (!username || !email || !password) {
       Alert.alert("Missing fields", "Please fill in all fields.");
@@ -126,30 +82,34 @@ export default function AuthScreen() {
   if (screen === "options") {
     return (
       <View style={styles.root}>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
 
-        {/* Static full-screen background */}
+        {/* Full-screen static background */}
         <ImageBackground
           source={BG_IMAGE}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
-        />
-
-        {/* Draggable sheet */}
-        <Animated.View
-          style={[styles.sheet, { transform: [{ translateY }] }]}
         >
-          {/* Pill drag handle */}
-          <View style={styles.pillArea} {...panResponder.panHandlers}>
-            <View style={styles.pill} />
-          </View>
+          <LinearGradient
+            colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.2)"]}
+            locations={[0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        </ImageBackground>
 
-          {/* Scrollable content inside the sheet */}
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.sheetContent}
-          >
+        {/* Sheet scrolls up over the static photo */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
+          {/* Transparent spacer — shows the photo */}
+          <View style={styles.photoSpacer} />
+
+          <View style={styles.sheet}>
+            <View style={styles.pill} />
+
             <Text style={styles.heading}>Welcome to TruthStay</Text>
             <Text style={styles.sub}>Sport-first adventure planning</Text>
 
@@ -175,9 +135,7 @@ export default function AuthScreen() {
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Social buttons */}
             <View style={styles.socialStack}>
-              {/* Apple */}
               <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
                 <View style={[styles.socialIconCircle, { backgroundColor: "rgba(0,0,0,0.08)" }]}>
                   <FontAwesome name="apple" size={20} color="#000" />
@@ -185,7 +143,6 @@ export default function AuthScreen() {
                 <Text style={styles.socialBtnText}>Continue with Apple</Text>
               </TouchableOpacity>
 
-              {/* Facebook */}
               <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
                 <View style={[styles.socialIconCircle, { backgroundColor: "rgba(24,119,242,0.10)" }]}>
                   <FontAwesome name="facebook" size={18} color="#1877F2" />
@@ -193,7 +150,6 @@ export default function AuthScreen() {
                 <Text style={styles.socialBtnText}>Continue with Facebook</Text>
               </TouchableOpacity>
 
-              {/* Google */}
               <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
                 <View style={[styles.socialIconCircle, { backgroundColor: "rgba(66,133,244,0.08)" }]}>
                   <Image source={GOOGLE_LOGO} style={styles.googleLogo} resizeMode="contain" />
@@ -205,8 +161,8 @@ export default function AuthScreen() {
             <Text style={styles.legal}>
               By continuing you agree to our Terms of Service and Privacy Policy.
             </Text>
-          </ScrollView>
-        </Animated.View>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -354,36 +310,27 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   // ── Options ──
-  root: { flex: 1, backgroundColor: "#f0f0ec" },
-
-  // Draggable sheet — absolutely positioned so it slides over the photo
+  root: { flex: 1, backgroundColor: "#111" },
+  scrollView: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  photoSpacer: { height: SCREEN_HEIGHT * 0.42 },
   sheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
     backgroundColor: colors.card,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    // sheet starts at PEEK_Y so its content begins below the image peek area
-    marginTop: PEEK_Y,
-  },
-  pillArea: {
-    paddingVertical: spacing.sm,
-    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: 48,
+    minHeight: SCREEN_HEIGHT * 0.62,
   },
   pill: {
     width: 40,
     height: 4,
     backgroundColor: colors.border,
     borderRadius: radius.full,
+    alignSelf: "center",
+    marginBottom: spacing.lg,
   },
-  sheetContent: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: 48,
-  },
-
   heading: {
     fontSize: fontSize.xxl,
     fontWeight: "800",
@@ -396,7 +343,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: spacing.xl,
   },
-
   btnPrimary: {
     backgroundColor: colors.text,
     borderRadius: radius.md,
@@ -414,7 +360,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   btnSecondaryText: { color: colors.text, fontWeight: "600", fontSize: fontSize.base },
-
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -423,7 +368,6 @@ const styles = StyleSheet.create({
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.muted, fontSize: fontSize.sm, fontWeight: "500" },
-
   socialStack: { gap: spacing.sm },
   socialBtn: {
     flexDirection: "row",
@@ -442,10 +386,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  googleLogo: {
-    width: 20,
-    height: 20,
-  },
+  googleLogo: { width: 20, height: 20 },
   socialBtnText: {
     flex: 1,
     textAlign: "center",

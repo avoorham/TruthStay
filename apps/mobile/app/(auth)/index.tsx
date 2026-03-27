@@ -11,20 +11,17 @@ const BG_IMAGE = require("../../assets/landing-bg.jpg");
 export default function LandingScreen() {
   return (
     <View style={styles.root}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
-        {/* Light fade at bottom only — keeps the pale sky clean at the top */}
         <LinearGradient
-          colors={["transparent", "transparent", "rgba(255,255,255,0.55)"]}
-          locations={[0, 0.55, 1]}
+          colors={["rgba(0,0,0,0.20)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.78)"]}
+          locations={[0, 0.38, 1]}
           style={styles.gradient}
         >
-          {/* Top — big black title over the pale sky */}
           <View style={styles.top}>
             <Text style={styles.welcome}>Welcome to TruthStay</Text>
           </View>
 
-          {/* Bottom content */}
           <View style={styles.bottom}>
             <Text style={styles.headline}>
               Sport-first{"\n"}adventures,{"\n"}honestly reviewed.
@@ -45,15 +42,15 @@ export default function LandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#f0f0ec" },
+  root: { flex: 1, backgroundColor: "#111" },
   bg: { flex: 1 },
   gradient: { flex: 1, paddingHorizontal: spacing.lg },
-  top: { paddingTop: 64 },
+  top: { paddingTop: 60 },
   welcome: {
-    color: "#1A1A1A",
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: -0.5,
+    color: "rgba(255,255,255,0.92)",
+    fontSize: fontSize.base,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   bottom: {
     flex: 1,
@@ -62,7 +59,7 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
   headline: {
-    color: "#1A1A1A",
+    color: "#FFFFFF",
     fontSize: 44,
     fontWeight: "800",
     lineHeight: 52,
@@ -75,7 +72,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   ctaText: {
-    color: "#1A1A1A",
+    color: colors.text,
     fontWeight: "700",
     fontSize: fontSize.lg,
     letterSpacing: 0.2,

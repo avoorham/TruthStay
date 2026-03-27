@@ -112,19 +112,27 @@ export default function AuthScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Social buttons — visual placeholders */}
-          <View style={styles.socialRow}>
+          {/* Social buttons */}
+          <View style={styles.socialStack}>
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <Text style={styles.socialIcon}>🍎</Text>
-              <Text style={styles.socialLabel}>Apple</Text>
+              <View style={styles.socialIconWrap}>
+                <Text style={styles.socialIconApple}></Text>
+              </View>
+              <Text style={styles.socialBtnText}>Continue with Apple</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <Text style={styles.socialIcon}>𝒇</Text>
-              <Text style={styles.socialLabel}>Facebook</Text>
+              <View style={[styles.socialIconWrap, styles.socialIconFbWrap]}>
+                <Text style={styles.socialIconFb}>f</Text>
+              </View>
+              <Text style={styles.socialBtnText}>Continue with Facebook</Text>
             </TouchableOpacity>
+
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
-              <Text style={styles.socialIcon}>G</Text>
-              <Text style={styles.socialLabel}>Google</Text>
+              <View style={styles.socialIconWrap}>
+                <Text style={styles.socialIconG}>G</Text>
+              </View>
+              <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>
           </View>
 
@@ -296,18 +304,53 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.muted, fontSize: fontSize.sm, fontWeight: "500" },
 
-  socialRow: { flexDirection: "row", gap: spacing.sm },
+  socialStack: { gap: spacing.sm },
   socialBtn: {
-    flex: 1,
-    borderWidth: 1.5,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingVertical: 14,
-    alignItems: "center",
-    gap: 4,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
   },
-  socialIcon: { fontSize: 18 },
-  socialLabel: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "500" },
+  socialIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#000",
+  },
+  socialIconApple: {
+    color: "#fff",
+    fontSize: 17,
+    lineHeight: 20,
+    marginTop: -2,
+  },
+  socialIconFbWrap: {
+    backgroundColor: "#1877F2",
+  },
+  socialIconFb: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  socialIconG: {
+    color: "#4285F4",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  socialBtnText: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: fontSize.base,
+    fontWeight: "600",
+    color: colors.text,
+    marginRight: 28, // offset to visually centre the text past the icon
+  },
 
   legal: {
     fontSize: fontSize.xs,

@@ -24,19 +24,31 @@ export default function AuthScreen() {
   const [screen, setScreen] = useState<Screen>("options");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSignUp() {
-    if (!email || !password) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+    if (!username || !email || !password) {
+      Alert.alert("Missing fields", "Please fill in all fields.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Passwords don't match", "Please check your password.");
+      return;
+    }
+    if (!agreedToTerms) {
+      Alert.alert("Terms required", "Please agree to the terms and conditions.");
       return;
     }
     setLoading(true);
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { display_name: displayName || email.split("@")[0] } },
+      options: { data: { username: username.trim(), display_name: username.trim() } },
     });
     setLoading(false);
 
@@ -45,8 +57,6 @@ export default function AuthScreen() {
       return;
     }
 
-    // If email confirmation is disabled in Supabase, data.session is set immediately.
-    // Otherwise, prompt the user to check their email.
     if (!data.session) {
       Alert.alert(
         "Almost there!",
@@ -76,7 +86,6 @@ export default function AuthScreen() {
       <View style={styles.root}>
         <StatusBar style="light" />
 
-        {/* Photo background — top portion visible above the sheet */}
         <ImageBackground source={BG_IMAGE} style={styles.photoBg} resizeMode="cover">
           <LinearGradient
             colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.0)"]}
@@ -112,7 +121,6 @@ export default function AuthScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Social buttons */}
           <View style={styles.socialStack}>
             <TouchableOpacity style={styles.socialBtn} activeOpacity={0.8}>
               <View style={styles.socialIconWrap}>
@@ -144,84 +152,203 @@ export default function AuthScreen() {
     );
   }
 
-  // ── Sign Up / Login form ──────────────────────────────────────────────────
+  // ── Sign Up form ──────────────────────────────────────────────────────────
+  if (screen === "signup") {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.formRoot}
+      >
+        <StatusBar style="dark" />
+        <ScrollView
+          contentContainerStyle={styles.formScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back button */}
+          <TouchableOpacity onPress={() => setScreen("options")} style={styles.backBtn}>
+            <Text style={styles.backChevron}>‹</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.formHeading}>Create Account</Text>
+          <Text style={styles.formSub}>
+            Join our community and experience sport-first adventure planning
+          </Text>
+
+          {/* Username */}
+          <Text style={styles.label}>Username</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your username"
+              placeholderTextColor={colors.subtle}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          {/* Email */}
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              placeholderTextColor={colors.subtle}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoCorrect={false}
+            />
+          </View>
+
+          {/* Password */}
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon]}
+              placeholder="Enter your password"
+              placeholderTextColor={colors.subtle}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeBtn}
+            >
+              <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Confirm Password */}
+          <Text style={styles.label}>Confirm Password</Text>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={[styles.input, styles.inputWithIcon]}
+              placeholder="Confirm your password"
+              placeholderTextColor={colors.subtle}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirm}
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirm(!showConfirm)}
+              style={styles.eyeBtn}
+            >
+              <Text style={styles.eyeIcon}>{showConfirm ? "🙈" : "👁"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Terms */}
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => setAgreedToTerms(!agreedToTerms)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+              {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.termsText}>
+              By agreeing to the terms and conditions, you are entering into a legally
+              binding contract with the service provider.
+            </Text>
+          </TouchableOpacity>
+
+          {/* Continue */}
+          <TouchableOpacity
+            style={styles.continueBtn}
+            onPress={handleSignUp}
+            disabled={loading}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.continueBtnText}>
+              {loading ? "Creating account…" : "Continue"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setScreen("login")}
+            style={styles.switchRow}
+          >
+            <Text style={styles.switchText}>
+              Already have an account?{" "}
+              <Text style={styles.switchLink}>Login</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Login form ────────────────────────────────────────────────────────────
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.root}
+      style={styles.formRoot}
     >
       <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={styles.formScroll}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.formHeader}>
-          <TouchableOpacity onPress={() => setScreen("options")} style={styles.back}>
-            <Text style={styles.backText}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.heading}>
-            {screen === "signup" ? "Create account" : "Welcome back"}
-          </Text>
-          <Text style={styles.sub}>
-            {screen === "signup"
-              ? "Join the TruthStay community"
-              : "Sign in to your account"}
-          </Text>
-        </View>
+        <TouchableOpacity onPress={() => setScreen("options")} style={styles.backBtn}>
+          <Text style={styles.backChevron}>‹</Text>
+        </TouchableOpacity>
 
-        <View style={styles.inputs}>
-          {screen === "signup" && (
-            <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              placeholderTextColor={colors.muted}
-              value={displayName}
-              onChangeText={setDisplayName}
-              autoCapitalize="words"
-            />
-          )}
+        <Text style={styles.formHeading}>Welcome back</Text>
+        <Text style={styles.formSub}>Sign in to your TruthStay account</Text>
+
+        <Text style={styles.label}>Email</Text>
+        <View style={styles.inputWrap}>
           <TextInput
             style={styles.input}
-            placeholder="Email address"
-            placeholderTextColor={colors.muted}
+            placeholder="Enter your email"
+            placeholderTextColor={colors.subtle}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             autoCorrect={false}
           />
+        </View>
+
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.inputWrap}>
           <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={colors.muted}
+            style={[styles.input, styles.inputWithIcon]}
+            placeholder="Enter your password"
+            placeholderTextColor={colors.subtle}
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
           />
+          <TouchableOpacity
+            onPress={() => setShowPassword(!showPassword)}
+            style={styles.eyeBtn}
+          >
+            <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+          </TouchableOpacity>
         </View>
 
         <TouchableOpacity
-          style={styles.btnPrimary}
-          onPress={screen === "signup" ? handleSignUp : handleLogin}
+          style={styles.continueBtn}
+          onPress={handleLogin}
           disabled={loading}
-          activeOpacity={0.88}
+          activeOpacity={0.85}
         >
-          <Text style={styles.btnPrimaryText}>
-            {loading ? "…" : screen === "signup" ? "Create account" : "Sign in"}
+          <Text style={styles.continueBtnText}>
+            {loading ? "Signing in…" : "Sign in"}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => setScreen(screen === "signup" ? "login" : "signup")}
-          style={styles.switchRow}
-        >
+        <TouchableOpacity onPress={() => setScreen("signup")} style={styles.switchRow}>
           <Text style={styles.switchText}>
-            {screen === "signup"
-              ? "Already have an account? "
-              : "No account? "}
-            <Text style={styles.switchLink}>
-              {screen === "signup" ? "Sign in" : "Sign up"}
-            </Text>
+            No account?{" "}
+            <Text style={styles.switchLink}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -230,13 +357,10 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  // ── Options ──
   root: { flex: 1, backgroundColor: "#111" },
-
-  // Photo background strip — shows cyclist above the sheet
   photoBg: { height: 260 },
   photoGradient: { flex: 1 },
-
-  // Bottom sheet card
   sheet: {
     flex: 1,
     backgroundColor: colors.card,
@@ -255,7 +379,6 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: spacing.lg,
   },
-
   heading: {
     fontSize: fontSize.xxl,
     fontWeight: "800",
@@ -268,7 +391,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: spacing.xl,
   },
-
   btnPrimary: {
     backgroundColor: colors.text,
     borderRadius: radius.md,
@@ -276,11 +398,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.sm,
   },
-  btnPrimaryText: {
-    color: colors.inverse,
-    fontWeight: "700",
-    fontSize: fontSize.base,
-  },
+  btnPrimaryText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
   btnSecondary: {
     borderWidth: 1.5,
     borderColor: colors.border,
@@ -289,12 +407,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing.sm,
   },
-  btnSecondaryText: {
-    color: colors.text,
-    fontWeight: "600",
-    fontSize: fontSize.base,
-  },
-
+  btnSecondaryText: { color: colors.text, fontWeight: "600", fontSize: fontSize.base },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -303,7 +416,6 @@ const styles = StyleSheet.create({
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.muted, fontSize: fontSize.sm, fontWeight: "500" },
-
   socialStack: { gap: spacing.sm },
   socialBtn: {
     flexDirection: "row",
@@ -323,35 +435,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#000",
   },
-  socialIconApple: {
-    color: "#fff",
-    fontSize: 17,
-    lineHeight: 20,
-    marginTop: -2,
-  },
-  socialIconFbWrap: {
-    backgroundColor: "#1877F2",
-  },
-  socialIconFb: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "800",
-    lineHeight: 20,
-  },
-  socialIconG: {
-    color: "#4285F4",
-    fontSize: 15,
-    fontWeight: "700",
-  },
+  socialIconApple: { color: "#fff", fontSize: 17, lineHeight: 20, marginTop: -2 },
+  socialIconFbWrap: { backgroundColor: "#1877F2" },
+  socialIconFb: { color: "#fff", fontSize: 16, fontWeight: "800", lineHeight: 20 },
+  socialIconG: { color: "#4285F4", fontSize: 15, fontWeight: "700" },
   socialBtnText: {
     flex: 1,
     textAlign: "center",
     fontSize: fontSize.base,
     fontWeight: "600",
     color: colors.text,
-    marginRight: 28, // offset to visually centre the text past the icon
+    marginRight: 28,
   },
-
   legal: {
     fontSize: fontSize.xs,
     color: colors.subtle,
@@ -360,28 +455,127 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  // Form scroll
+  // ── Sign Up / Login form ──
+  formRoot: { flex: 1, backgroundColor: "#F2F2F7" },
   formScroll: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xxl,
+    paddingTop: 56,
     paddingBottom: 40,
   },
-  formHeader: { marginBottom: spacing.xl },
-  back: { marginBottom: spacing.md },
-  backText: { color: colors.muted, fontSize: fontSize.base },
-  inputs: { gap: spacing.sm, marginBottom: spacing.md },
-  input: {
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.xl,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backChevron: {
+    fontSize: 24,
+    color: colors.text,
+    lineHeight: 28,
+    marginLeft: -2,
+  },
+  formHeading: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: -0.5,
+    marginBottom: spacing.xs,
+  },
+  formSub: {
+    fontSize: fontSize.sm,
+    color: colors.muted,
+    lineHeight: 20,
+    marginBottom: spacing.xl,
+  },
+  label: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  input: {
+    flex: 1,
     paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    paddingVertical: 15,
     fontSize: fontSize.base,
     color: colors.text,
   },
+  inputWithIcon: { paddingRight: 44 },
+  eyeBtn: {
+    position: "absolute",
+    right: spacing.md,
+    padding: 4,
+  },
+  eyeIcon: { fontSize: 16 },
+
+  // Terms
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 4,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+    flexShrink: 0,
+    backgroundColor: colors.card,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  checkmark: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  termsText: {
+    flex: 1,
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    lineHeight: 17,
+  },
+
+  // Continue button
+  continueBtn: {
+    backgroundColor: "#E5E5EA",
+    borderRadius: radius.lg,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: spacing.md,
+  },
+  continueBtnText: {
+    fontSize: fontSize.base,
+    fontWeight: "600",
+    color: colors.text,
+  },
+
   switchRow: { paddingVertical: spacing.md, alignItems: "center" },
   switchText: { color: colors.muted, fontSize: fontSize.sm },
-  switchLink: { color: colors.accent, fontWeight: "700" },
+  switchLink: { color: "#007AFF", fontWeight: "700" },
 });

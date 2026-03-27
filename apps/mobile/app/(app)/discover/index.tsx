@@ -126,22 +126,28 @@ export default function DiscoverScreen() {
     }
 
     const isUser = item.role === "user";
-    return (
-      <View>
-        <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-          <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-            <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-              {item.text}
-            </Text>
-          </View>
-        </View>
-        {/* Quick reply chips below AI message */}
-        {!isUser && item.quickReplies && item.quickReplies.length > 0 && (
+    const hasOptions = !isUser && item.quickReplies && item.quickReplies.length > 0;
+
+    // AI message with options — show question plainly, options as the focus
+    if (hasOptions) {
+      return (
+        <View style={styles.questionBlock}>
+          <Text style={styles.questionText}>{item.text}</Text>
           <QuickReplies
-            options={item.quickReplies}
+            options={item.quickReplies!}
             onSelect={(opt) => send(opt)}
           />
-        )}
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
+        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
+          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
+            {item.text}
+          </Text>
+        </View>
       </View>
     );
   }, [send]);
@@ -226,6 +232,17 @@ const styles = StyleSheet.create({
   },
   adventureWrapper: {
     marginVertical: spacing.sm,
+  },
+  questionBlock: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  questionText: {
+    fontSize: fontSize.base,
+    color: colors.muted,
+    lineHeight: 22,
+    paddingHorizontal: spacing.md,
+    marginBottom: spacing.sm,
   },
   bubbleRow: {
     flexDirection: "row",

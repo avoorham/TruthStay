@@ -11,14 +11,15 @@ const BG_IMAGE = require("../../assets/landing-bg.jpg");
 export default function LandingScreen() {
   return (
     <View style={styles.root}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
+        {/* Light fade at bottom only — keeps the pale sky clean at the top */}
         <LinearGradient
-          colors={["rgba(0,0,0,0.20)", "rgba(0,0,0,0.0)", "rgba(0,0,0,0.78)"]}
-          locations={[0, 0.38, 1]}
+          colors={["transparent", "transparent", "rgba(255,255,255,0.55)"]}
+          locations={[0, 0.55, 1]}
           style={styles.gradient}
         >
-          {/* Top bar */}
+          {/* Top — big black title over the pale sky */}
           <View style={styles.top}>
             <Text style={styles.welcome}>Welcome to TruthStay</Text>
           </View>
@@ -44,15 +45,15 @@ export default function LandingScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "#111" },
+  root: { flex: 1, backgroundColor: "#f0f0ec" },
   bg: { flex: 1 },
   gradient: { flex: 1, paddingHorizontal: spacing.lg },
-  top: { paddingTop: 60 },
+  top: { paddingTop: 64 },
   welcome: {
-    color: "rgba(255,255,255,0.92)",
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    color: "#1A1A1A",
+    fontSize: 30,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   bottom: {
     flex: 1,
@@ -61,20 +62,20 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
   headline: {
-    color: "#FFFFFF",
+    color: "#1A1A1A",
     fontSize: 44,
     fontWeight: "800",
     lineHeight: 52,
     letterSpacing: -1.2,
   },
   cta: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#1A1A1A",
     borderRadius: radius.full,
     paddingVertical: 18,
     alignItems: "center",
   },
   ctaText: {
-    color: colors.text,
+    color: "#FFFFFF",
     fontWeight: "700",
     fontSize: fontSize.lg,
     letterSpacing: 0.2,

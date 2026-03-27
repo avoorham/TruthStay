@@ -48,9 +48,9 @@ const styles = StyleSheet.create({
   top: { paddingTop: 60 },
   welcome: {
     color: "rgba(255,255,255,0.92)",
-    fontSize: fontSize.base,
-    fontWeight: "600",
-    letterSpacing: 0.2,
+    fontSize: fontSize.xxl,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   bottom: {
     flex: 1,

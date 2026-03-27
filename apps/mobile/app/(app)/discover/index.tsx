@@ -16,7 +16,13 @@ import type {
 // ─── Markdown / message parsing ───────────────────────────────────────────────
 
 function stripMd(text: string) {
-  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    .replace(/  +/g, " ")
+    .trim();
 }
 
 /** Split AI text into a display string + optional button options.

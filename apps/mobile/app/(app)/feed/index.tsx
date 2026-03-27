@@ -1,10 +1,11 @@
 import {
   Dimensions, FlatList, Image, StyleSheet, Text,
-  TouchableOpacity, View, Platform,
+  TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import { LinearGradient } from "expo-linear-gradient";
+import { Feather } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing, ACTIVITY_EMOJI } from "../../../lib/theme";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -135,14 +136,21 @@ function FullScreenPost({ post }: { post: typeof MOCK_POSTS[0] }) {
       {/* Right action rail */}
       <View style={styles.rail}>
         <ActionBtn
-          icon={liked ? "❤️" : "🤍"}
+          name="heart"
           count={post.likes + (liked ? 1 : 0)}
+          active={liked}
+          activeColor="#FF4D6A"
           onPress={() => setLiked(l => !l)}
         />
-        <ActionBtn icon="💬" count={post.comments} onPress={() => {}} />
-        <ActionBtn icon="↗️" count={post.shares} onPress={() => {}} />
-        <ActionBtn icon={saved ? "🔖" : "🏷️"} count={null} onPress={() => setSaved(s => !s)} />
-        <ActionBtn icon="•••" count={null} onPress={() => {}} />
+        <ActionBtn name="message-circle" count={post.comments} onPress={() => {}} />
+        <ActionBtn name="send" count={post.shares} onPress={() => {}} />
+        <ActionBtn
+          name="bookmark"
+          count={null}
+          active={saved}
+          activeColor={colors.inverse}
+          onPress={() => setSaved(s => !s)}
+        />
       </View>
 
       {/* Bottom info */}
@@ -174,11 +182,24 @@ function FullScreenPost({ post }: { post: typeof MOCK_POSTS[0] }) {
   );
 }
 
-function ActionBtn({ icon, count, onPress }: { icon: string; count: number | null; onPress: () => void }) {
+function ActionBtn({
+  name, count, active = false, activeColor = colors.inverse, onPress,
+}: {
+  name: React.ComponentProps<typeof Feather>["name"];
+  count: number | null;
+  active?: boolean;
+  activeColor?: string;
+  onPress: () => void;
+}) {
+  const iconColor = active ? activeColor : colors.inverse;
   return (
     <TouchableOpacity style={styles.actionBtn} onPress={onPress} activeOpacity={0.75}>
-      <Text style={styles.actionIcon}>{icon}</Text>
-      {count !== null && <Text style={styles.actionCount}>{count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count}</Text>}
+      <Feather name={name} size={28} color={iconColor} />
+      {count !== null && (
+        <Text style={styles.actionCount}>
+          {count >= 1000 ? `${(count / 1000).toFixed(1)}k` : count}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -277,8 +298,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.lg,
   },
-  actionBtn: { alignItems: "center", gap: 4 },
-  actionIcon: { fontSize: 26 },
+  actionBtn: { alignItems: "center", gap: 6 },
   actionCount: { fontSize: fontSize.sm, color: colors.inverse, fontWeight: "600" },
   info: {
     position: "absolute",

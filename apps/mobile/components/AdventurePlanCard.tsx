@@ -144,6 +144,8 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
                         difficulty="moderate"
                         description={day.description}
                         endLocation={day.end_location}
+                        activityType={adventure.activity_type}
+                        region={adventure.region}
                         isSelected={sel.index === 0}
                         onSelect={() => selectRoute(day.day_number, 0, day.end_location)}
                       />
@@ -157,6 +159,8 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
                           difficulty={alt.difficulty}
                           description={alt.description}
                           endLocation={alt.end_location}
+                          activityType={adventure.activity_type}
+                          region={adventure.region}
                           isSelected={sel.index === idx + 1}
                           onSelect={() => selectRoute(day.day_number, idx + 1, alt.end_location)}
                         />

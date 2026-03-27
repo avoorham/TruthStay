@@ -1,28 +1,27 @@
 import {
   Linking, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { colors, fontSize, radius, spacing, shadow } from "../lib/theme";
 import type { AccommodationOption } from "../lib/adventure-types";
 
-const TYPE_EMOJI: Record<string, string> = {
-  camping: "⛺",
-  hostel: "🛏️",
-  hotel: "🏨",
-  guesthouse: "🏡",
-  luxury: "🏰",
+const TYPE_CONFIG: Record<string, { icon: string; gradient: [string, string] }> = {
+  camping:    { icon: "⛺", gradient: ["#3D7A50", "#1E4D33"] },
+  hostel:     { icon: "🛏", gradient: ["#4A7FA5", "#2D5F80"] },
+  hotel:      { icon: "🏨", gradient: ["#B08A50", "#7A5C30"] },
+  guesthouse: { icon: "🏡", gradient: ["#7B6FA5", "#5A4A80"] },
+  luxury:     { icon: "✦", gradient: ["#2C2C2C", "#111111"] },
 };
 
-const PRICE_STARS: Record<string, number> = { budget: 2, mid: 3, luxury: 5 };
+const RATING: Record<string, string> = { budget: "3.8", mid: "4.3", luxury: "4.8" };
 
-function StarRating({ count }: { count: number }) {
-  return (
-    <View style={styles.stars}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Text key={i} style={[styles.star, i < count && styles.starFilled]}>★</Text>
-      ))}
-    </View>
-  );
-}
+const TYPE_LABEL: Record<string, string> = {
+  camping: "Campsite",
+  hostel: "Hostel",
+  hotel: "Hotel",
+  guesthouse: "Guesthouse",
+  luxury: "Luxury Hotel",
+};
 
 interface Props {
   opt: AccommodationOption;
@@ -64,9 +63,8 @@ function offsetDate(base: string, days: number): string {
 export function AccommodationTile({
   opt, nightCount, nightNumbers, location, startDate, adventureId, isSelected, onSelect,
 }: Props) {
-  const stars = PRICE_STARS[opt.price_range] ?? 3;
-  const emoji = TYPE_EMOJI[opt.type] ?? "🏨";
-  const totalEur = opt.price_per_night_eur ? opt.price_per_night_eur * nightCount : null;
+  const config = TYPE_CONFIG[opt.type] ?? TYPE_CONFIG.hotel;
+  const rating = RATING[opt.price_range] ?? "4.2";
 
   const checkin = startDate && nightNumbers.length > 0
     ? offsetDate(startDate, (nightNumbers[0] ?? 1) - 1) : undefined;
@@ -83,41 +81,66 @@ export function AccommodationTile({
     <TouchableOpacity
       style={[styles.card, isSelected && styles.cardSelected]}
       onPress={onSelect}
-      activeOpacity={0.85}
+      activeOpacity={0.88}
     >
-      {/* Left: coloured icon block */}
-      <View style={[styles.imageBlock, isSelected && styles.imageBlockSelected]}>
-        <Text style={styles.typeEmoji}>{emoji}</Text>
-        <StarRating count={stars} />
-      </View>
+      {/* Left: photo placeholder */}
+      <View style={styles.imageWrap}>
+        <LinearGradient
+          colors={config.gradient}
+          style={styles.imagePlaceholder}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.typeIcon}>{config.icon}</Text>
+        </LinearGradient>
 
-      {/* Right: info */}
-      <View style={styles.info}>
-        <View style={styles.nameRow}>
-          <Text style={styles.name} numberOfLines={1}>{opt.name}</Text>
-          {isSelected && (
+        {/* Rating badge */}
+        <View style={styles.ratingBadge}>
+          <Text style={styles.ratingText}>★ {rating}</Text>
+        </View>
+
+        {/* Selected checkmark overlay */}
+        {isSelected && (
+          <View style={styles.selectedOverlay}>
             <View style={styles.checkCircle}>
               <Text style={styles.checkMark}>✓</Text>
             </View>
-          )}
+          </View>
+        )}
+      </View>
+
+      {/* Right: content */}
+      <View style={styles.content}>
+        <View style={styles.nameRow}>
+          <Text style={styles.name} numberOfLines={1}>{opt.name}</Text>
         </View>
 
-        <Text style={styles.type}>{opt.type.charAt(0).toUpperCase() + opt.type.slice(1)}</Text>
+        <Text style={styles.type}>{TYPE_LABEL[opt.type] ?? opt.type}</Text>
         <Text style={styles.desc} numberOfLines={2}>{opt.description}</Text>
 
-        <View style={styles.bottomRow}>
-          {opt.price_per_night_eur ? (
-            <View>
-              <Text style={styles.price}>€{opt.price_per_night_eur}<Text style={styles.priceUnit}>/night</Text></Text>
-              {nightCount > 1 && totalEur && (
-                <Text style={styles.total}>€{totalEur} total</Text>
-              )}
-            </View>
-          ) : (
-            <Text style={styles.priceUnit}>Price on request</Text>
-          )}
+        <View style={styles.locationRow}>
+          <Text style={styles.locationDot}>📍</Text>
+          <Text style={styles.locationText} numberOfLines={1}>{location}</Text>
+        </View>
 
-          <TouchableOpacity style={styles.bookBtn} onPress={handleBook} activeOpacity={0.8}>
+        <View style={styles.footer}>
+          <View>
+            <Text style={styles.fromLabel}>From</Text>
+            {opt.price_per_night_eur ? (
+              <Text style={styles.price}>
+                €{opt.price_per_night_eur}
+                <Text style={styles.priceUnit}> /Night</Text>
+              </Text>
+            ) : (
+              <Text style={styles.price}>On request</Text>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.bookBtn}
+            onPress={(e) => { e.stopPropagation?.(); handleBook(); }}
+            activeOpacity={0.8}
+          >
             <Text style={styles.bookText}>Book →</Text>
           </TouchableOpacity>
         </View>
@@ -125,6 +148,8 @@ export function AccommodationTile({
     </TouchableOpacity>
   );
 }
+
+const IMG_WIDTH = 110;
 
 const styles = StyleSheet.create({
   card: {
@@ -137,69 +162,131 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   cardSelected: {
-    borderColor: colors.text,
+    borderColor: colors.accent,
+    borderWidth: 2,
   },
-  imageBlock: {
-    width: 80,
-    backgroundColor: colors.sheet,
+
+  // ── Image block ──────────────────────────────────────────────────────────────
+  imageWrap: {
+    width: IMG_WIDTH,
+    position: "relative",
+  },
+  imagePlaceholder: {
+    width: IMG_WIDTH,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
-    padding: spacing.sm,
+    minHeight: 130,
   },
-  imageBlockSelected: {
-    backgroundColor: colors.accentLight,
+  typeIcon: {
+    fontSize: 32,
   },
-  typeEmoji: { fontSize: 28 },
-  stars: { flexDirection: "row" },
-  star: { fontSize: 9, color: colors.border },
-  starFilled: { color: "#F59E0B" },
-  info: {
+  ratingBadge: {
+    position: "absolute",
+    top: spacing.sm,
+    left: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  ratingText: {
+    fontSize: fontSize.xs,
+    color: "#FFD700",
+    fontWeight: "700",
+  },
+  selectedOverlay: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkMark: {
+    fontSize: 11,
+    color: colors.inverse,
+    fontWeight: "800",
+  },
+
+  // ── Content ──────────────────────────────────────────────────────────────────
+  content: {
     flex: 1,
-    padding: spacing.md,
+    padding: spacing.sm + 2,
     gap: 3,
+    justifyContent: "space-between",
   },
   nameRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   name: {
     fontSize: fontSize.sm,
     fontWeight: "700",
     color: colors.text,
     flex: 1,
+    lineHeight: 18,
   },
-  checkCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.text,
+  type: {
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    marginTop: 1,
+  },
+  desc: {
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  locationRow: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginLeft: spacing.xs,
+    gap: 3,
+    marginTop: 2,
   },
-  checkMark: { fontSize: 10, color: colors.inverse, fontWeight: "700" },
-  type: { fontSize: fontSize.xs, color: colors.muted },
-  desc: { fontSize: fontSize.xs, color: colors.muted, lineHeight: 17 },
-  bottomRow: {
+  locationDot: { fontSize: 10 },
+  locationText: {
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    flex: 1,
+  },
+  footer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
     marginTop: spacing.xs,
   },
+  fromLabel: {
+    fontSize: fontSize.xs - 1,
+    color: colors.muted,
+    lineHeight: 14,
+  },
   price: {
     fontSize: fontSize.base,
     fontWeight: "800",
     color: colors.text,
+    lineHeight: 20,
   },
-  priceUnit: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "400" },
-  total: { fontSize: fontSize.xs, color: colors.muted },
+  priceUnit: {
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    fontWeight: "400",
+  },
   bookBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs + 1,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
   },
-  bookText: { fontSize: fontSize.xs, color: colors.inverse, fontWeight: "700" },
+  bookText: {
+    fontSize: fontSize.xs,
+    color: colors.inverse,
+    fontWeight: "700",
+  },
 });

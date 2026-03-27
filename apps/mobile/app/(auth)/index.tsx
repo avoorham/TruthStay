@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   gradient: { flex: 1, paddingHorizontal: spacing.lg },
   top: { paddingTop: 60 },
   welcome: {
-    color: "rgba(255,255,255,0.92)",
+    color: "#1A1A1A",
     fontSize: fontSize.xxl,
     fontWeight: "800",
     letterSpacing: -0.5,

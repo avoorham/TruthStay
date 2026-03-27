@@ -13,6 +13,46 @@ import type {
   GeneratedAdventure, DayAlternativesMap, AccommodationStop,
 } from "../../../lib/adventure-types";
 
+// ─── Markdown / message parsing ───────────────────────────────────────────────
+
+function stripMd(text: string) {
+  return text.replace(/\*\*(.*?)\*\*/g, "$1").replace(/\*(.*?)\*/g, "$1");
+}
+
+/** Split AI text into a display string + optional button options.
+ *  Detects bullet lists (lines starting with - or •) and extracts them. */
+function parseAiMessage(text: string): { display: string; options: string[] | null } {
+  // First check keyword-based quick replies
+  const keywordReplies = detectQuickReplies(text);
+  if (keywordReplies) {
+    return { display: stripMd(text), options: keywordReplies };
+  }
+
+  // Then check for bullet-point lists in the message
+  const lines = text.split("\n");
+  const bulletOptions: string[] = [];
+  const nonBulletLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^[-•*]\s+/.test(trimmed)) {
+      const content = trimmed.replace(/^[-•*]\s+/, "").trim();
+      bulletOptions.push(stripMd(content));
+    } else {
+      nonBulletLines.push(line);
+    }
+  }
+
+  if (bulletOptions.length >= 2) {
+    return {
+      display: stripMd(nonBulletLines.join("\n").trim()),
+      options: bulletOptions,
+    };
+  }
+
+  return { display: stripMd(text), options: null };
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TextMsg {
@@ -20,7 +60,8 @@ interface TextMsg {
   kind: "text";
   role: "ai" | "user";
   text: string;
-  quickReplies?: string[] | null;
+  display: string;
+  options: string[] | null;
 }
 
 interface AdventureMsg {
@@ -35,18 +76,19 @@ interface AdventureMsg {
 type Msg = TextMsg | AdventureMsg;
 
 function uid() { return Math.random().toString(36).slice(2); }
-function formatTime() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+const LINE_HEIGHT = 22;
+const MIN_INPUT_HEIGHT = LINE_HEIGHT + 16; // ~1 line + padding
+const MAX_INPUT_HEIGHT = LINE_HEIGHT * 8 + 16; // 8 lines + padding
+
+function makeAiMsg(text: string): TextMsg {
+  const { display, options } = parseAiMessage(text);
+  return { id: uid(), kind: "text", role: "ai", text, display, options };
 }
 
-const INITIAL: TextMsg = {
-  id: uid(),
-  kind: "text",
-  role: "ai",
-  text: "Hi! I'm your TruthStay adventure planner. I specialise in sport-first holidays — cycling, hiking, trail running, climbing, and more. What activity are you planning for?",
-  quickReplies: ["Cycling", "MTB", "Hiking", "Trail Running", "Climbing", "Skiing", "Kayaking"],
-};
+const INITIAL: TextMsg = makeAiMsg(
+  "Hi! I'm your TruthStay adventure planner. I specialise in sport-first holidays — cycling, hiking, trail running, climbing, and more. What activity are you planning for?"
+);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -55,6 +97,7 @@ export default function DiscoverScreen() {
   const [messages, setMessages] = useState<Msg[]>([INITIAL]);
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [loading, setLoading] = useState(false);
   const listRef = useRef<FlatList>(null);
 
@@ -66,8 +109,12 @@ export default function DiscoverScreen() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
     setInput("");
+    setInputHeight(MIN_INPUT_HEIGHT);
 
-    const userMsg: TextMsg = { id: uid(), kind: "text", role: "user", text: trimmed };
+    const userMsg: TextMsg = {
+      id: uid(), kind: "text", role: "user",
+      text: trimmed, display: trimmed, options: null,
+    };
     setMessages((prev) => [...prev, userMsg]);
     scrollToBottom();
 
@@ -79,8 +126,7 @@ export default function DiscoverScreen() {
 
       if (data.type === "adventure") {
         const adventureMsg: AdventureMsg = {
-          id: uid(),
-          kind: "adventure",
+          id: uid(), kind: "adventure",
           adventure: data.adventure,
           dayAlternatives: data.day_alternatives ?? {},
           accommodationStops: data.accommodation_stops ?? [],
@@ -90,21 +136,13 @@ export default function DiscoverScreen() {
         setHistory(updatedHistory);
       } else {
         const aiText: string = data.text ?? "Could you tell me a bit more?";
-        const replies = detectQuickReplies(aiText);
-        const aiMsg: TextMsg = {
-          id: uid(), kind: "text", role: "ai",
-          text: aiText,
-          quickReplies: replies,
-        };
+        const aiMsg = makeAiMsg(aiText);
         setMessages((prev) => [...prev, aiMsg]);
         setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      setMessages((prev) => [
-        ...prev,
-        { id: uid(), kind: "text", role: "ai", text: `Sorry, something went wrong.\n\n${detail}` },
-      ]);
+      setMessages((prev) => [...prev, makeAiMsg(`Sorry, something went wrong.\n\n${detail}`)]);
     } finally {
       setLoading(false);
       scrollToBottom();
@@ -126,17 +164,15 @@ export default function DiscoverScreen() {
     }
 
     const isUser = item.role === "user";
-    const hasOptions = !isUser && item.quickReplies && item.quickReplies.length > 0;
 
-    // AI message with options — show question plainly, options as the focus
-    if (hasOptions) {
+    // AI message with options — plain question text + buttons
+    if (!isUser && item.options && item.options.length > 0) {
       return (
         <View style={styles.questionBlock}>
-          <Text style={styles.questionText}>{item.text}</Text>
-          <QuickReplies
-            options={item.quickReplies!}
-            onSelect={(opt) => send(opt)}
-          />
+          {item.display ? (
+            <Text style={styles.questionText}>{item.display}</Text>
+          ) : null}
+          <QuickReplies options={item.options} onSelect={(opt) => send(opt)} />
         </View>
       );
     }
@@ -145,7 +181,7 @@ export default function DiscoverScreen() {
       <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
           <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-            {item.text}
+            {item.display}
           </Text>
         </View>
       </View>
@@ -188,14 +224,20 @@ export default function DiscoverScreen() {
       {/* Input bar */}
       <View style={[styles.inputBar, { paddingBottom: insets.bottom + spacing.sm }]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { height: Math.min(inputHeight, MAX_INPUT_HEIGHT) }]}
           value={input}
           onChangeText={setInput}
           onSubmitEditing={() => send(input)}
+          onContentSizeChange={(e) => {
+            const h = e.nativeEvent.contentSize.height + 16;
+            setInputHeight(Math.max(MIN_INPUT_HEIGHT, h));
+          }}
           placeholder="Type a message…"
           placeholderTextColor={colors.muted}
           returnKeyType="send"
           multiline
+          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+          blurOnSubmit
         />
         <TouchableOpacity
           style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
@@ -219,24 +261,15 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     backgroundColor: colors.bg,
   },
-  headerTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: "700",
-    color: colors.text,
-  },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
   list: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
     flexGrow: 1,
   },
-  adventureWrapper: {
-    marginVertical: spacing.sm,
-  },
-  questionBlock: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.xs,
-  },
+  adventureWrapper: { marginVertical: spacing.sm },
+  questionBlock: { marginTop: spacing.sm, marginBottom: spacing.xs },
   questionText: {
     fontSize: fontSize.base,
     color: colors.muted,
@@ -258,11 +291,7 @@ const styles = StyleSheet.create({
   },
   bubbleAi: { backgroundColor: colors.aiBubble },
   bubbleUser: { backgroundColor: colors.userBubble },
-  bubbleText: {
-    fontSize: fontSize.base,
-    color: colors.text,
-    lineHeight: 22,
-  },
+  bubbleText: { fontSize: fontSize.base, color: colors.text, lineHeight: 22 },
   bubbleTextUser: { color: colors.inverse },
   thinkingRow: {
     flexDirection: "row",
@@ -298,15 +327,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     fontSize: fontSize.base,
     color: colors.text,
-    maxHeight: 100,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
   sendBtnDisabled: { backgroundColor: colors.border },
   sendIcon: { fontSize: fontSize.lg, color: colors.inverse, fontWeight: "700" },

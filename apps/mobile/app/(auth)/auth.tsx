@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import { useState } from "react";
-import { FontAwesome } from "@expo/vector-icons";
+import { FontAwesome, Feather } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
 
@@ -210,7 +210,7 @@ export default function AuthScreen() {
               placeholder="Enter your password" placeholderTextColor={colors.subtle}
               value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-              <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+              <Feather name={showPassword ? "eye-off" : "eye"} size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
 
@@ -221,7 +221,7 @@ export default function AuthScreen() {
               value={confirmPassword} onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirm} />
             <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)} style={styles.eyeBtn}>
-              <Text style={styles.eyeIcon}>{showConfirm ? "🙈" : "👁"}</Text>
+              <Feather name={showConfirm ? "eye-off" : "eye"} size={18} color={colors.muted} />
             </TouchableOpacity>
           </View>
 
@@ -231,7 +231,7 @@ export default function AuthScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
-              {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+              {agreedToTerms && <Feather name="check" size={12} color="#fff" />}
             </View>
             <Text style={styles.termsText}>
               By agreeing to the terms and conditions, you are entering into a legally
@@ -466,7 +466,6 @@ const styles = StyleSheet.create({
   },
   inputWithIcon: { paddingRight: 44 },
   eyeBtn: { position: "absolute", right: spacing.md, padding: 4 },
-  eyeIcon: { fontSize: 16 },
   termsRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -487,7 +486,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   checkboxChecked: { backgroundColor: colors.accent, borderColor: colors.accent },
-  checkmark: { color: "#fff", fontSize: 11, fontWeight: "700" },
   termsText: { flex: 1, fontSize: fontSize.xs, color: colors.muted, lineHeight: 17 },
   continueBtn: {
     backgroundColor: "#E5E5EA",

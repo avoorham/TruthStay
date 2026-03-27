@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { colors, fontSize, radius, spacing } from "../lib/theme";
 
 interface Props {
@@ -8,12 +8,7 @@ interface Props {
 
 export function QuickReplies({ options, onSelect }: Props) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      style={styles.container}
-    >
+    <View style={styles.stack}>
       {options.map((opt) => (
         <TouchableOpacity
           key={opt}
@@ -24,7 +19,7 @@ export function QuickReplies({ options, onSelect }: Props) {
           <Text style={styles.chipText}>{opt}</Text>
         </TouchableOpacity>
       ))}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -75,24 +70,20 @@ export function detectQuickReplies(text: string): string[] | null {
 }
 
 const styles = StyleSheet.create({
-  container: { marginTop: spacing.sm },
-  row: {
-    flexDirection: "row",
-    gap: spacing.sm,
+  stack: {
+    marginTop: spacing.sm,
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xs,
+    gap: spacing.xs,
   },
   chip: {
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    borderRadius: radius.full,
+    backgroundColor: colors.sheet,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 12,
   },
   chipText: {
     fontSize: fontSize.sm,
-    color: colors.accent,
-    fontWeight: "600",
+    color: colors.text,
+    fontWeight: "500",
   },
 });

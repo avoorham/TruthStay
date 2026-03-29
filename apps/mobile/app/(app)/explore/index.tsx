@@ -533,7 +533,8 @@ function AdventureCard({
   const [photoIndex, setPhotoIndex] = useState(0);
 
   return (
-    <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.95}>
+    <View style={cardStyles.card}>
+      {/* Photo carousel — receives horizontal swipes directly */}
       <ScrollView
         horizontal
         pagingEnabled
@@ -556,10 +557,12 @@ function AdventureCard({
       </ScrollView>
 
       <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.65)"]}
+        colors={["transparent", "rgba(0,0,0,0.72)"]}
         style={cardStyles.gradient}
+        pointerEvents="none"
       />
 
+      {/* Heart button */}
       <TouchableOpacity
         style={cardStyles.heartBtn}
         onPress={onToggleSaved}
@@ -572,7 +575,16 @@ function AdventureCard({
         />
       </TouchableOpacity>
 
-      <View style={cardStyles.textOverlay} pointerEvents="none">
+      {/* Text overlay — tap opens modal, swipe on photo still works above */}
+      <TouchableOpacity style={cardStyles.textOverlay} onPress={onPress} activeOpacity={0.85}>
+        <View style={cardStyles.activityIconRow}>
+          {adventure.activityTypes.map(type => {
+            const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+            return (
+              <MaterialCommunityIcons key={type} name={iconName} size={16} color="rgba(255,255,255,0.9)" />
+            );
+          })}
+        </View>
         <View style={cardStyles.titleRow}>
           <Text style={cardStyles.cardTitle} numberOfLines={1}>{adventure.title}</Text>
           <View style={cardStyles.dots}>
@@ -584,8 +596,8 @@ function AdventureCard({
         <Text style={cardStyles.cardSubtitle}>
           {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
         </Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1179,6 +1191,11 @@ const cardStyles = StyleSheet.create({
     position: "absolute",
     bottom: 0, left: 0, right: 0,
     padding: 12,
+  },
+  activityIconRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 6,
   },
   titleRow: {
     flexDirection: "row",

@@ -17,9 +17,8 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
 const SCREEN_H      = Dimensions.get("window").height;
 const SCREEN_W      = Dimensions.get("window").width;
-const SNAP_PEEK     = SCREEN_H - 90;
-const SNAP_HALF     = SCREEN_H * 0.45;
-const SNAP_EXPANDED = SCREEN_H * 0.12;
+const SNAP_PEEK = SCREEN_H - 90;
+const SNAP_FULL = 0;
 const CARD_W        = SCREEN_W - 32;
 const CARD_H        = 260;
 
@@ -732,7 +731,7 @@ function ImpressionsSheet({
   onCardPress: (adv: Adventure) => void;
   impressionsY: Animated.Value;
 }) {
-  const snapStateRef = useRef<"peek" | "half" | "expanded">("peek");
+  const snapStateRef = useRef<"peek" | "full">("peek");
 
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) =>
@@ -750,21 +749,16 @@ function ImpressionsSheet({
       const { vy } = g;
 
       let target: number;
-      if (vy > 0.5) {
-        target = snapStateRef.current === "expanded" ? SNAP_HALF : SNAP_PEEK;
-      } else if (vy < -0.5) {
-        target = snapStateRef.current === "peek" ? SNAP_HALF : SNAP_EXPANDED;
+      if (vy < -0.3) {
+        target = SNAP_FULL;
+      } else if (vy > 0.3) {
+        target = SNAP_PEEK;
       } else {
-        const opts = [
-          { v: SNAP_PEEK,     d: Math.abs(currentY - SNAP_PEEK) },
-          { v: SNAP_HALF,     d: Math.abs(currentY - SNAP_HALF) },
-          { v: SNAP_EXPANDED, d: Math.abs(currentY - SNAP_EXPANDED) },
-        ];
-        target = opts.reduce((a, b) => (a.d < b.d ? a : b)).v;
+        const midpoint = SNAP_PEEK / 2;
+        target = currentY < midpoint ? SNAP_FULL : SNAP_PEEK;
       }
 
-      snapStateRef.current =
-        target === SNAP_PEEK ? "peek" : target === SNAP_HALF ? "half" : "expanded";
+      snapStateRef.current = target === SNAP_PEEK ? "peek" : "full";
       Animated.spring(impressionsY, {
         toValue: target, useNativeDriver: true, tension: 65, friction: 11,
       }).start();

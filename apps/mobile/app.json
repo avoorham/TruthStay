@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.truthstay"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,7 +34,7 @@
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsVersion": "11.0.0"
+          "RNMapboxMapsVersion": "11.18.2"
         }
       ]
     ]

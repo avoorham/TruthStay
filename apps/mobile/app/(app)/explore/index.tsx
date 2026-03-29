@@ -577,14 +577,6 @@ function AdventureCard({
 
       {/* Text overlay — tap opens modal, swipe on photo still works above */}
       <TouchableOpacity style={cardStyles.textOverlay} onPress={onPress} activeOpacity={0.85}>
-        <View style={cardStyles.activityIconRow}>
-          {adventure.activityTypes.map(type => {
-            const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-            return (
-              <MaterialCommunityIcons key={type} name={iconName} size={16} color="rgba(255,255,255,0.9)" />
-            );
-          })}
-        </View>
         <View style={cardStyles.titleRow}>
           <Text style={cardStyles.cardTitle} numberOfLines={1}>{adventure.title}</Text>
           <View style={cardStyles.dots}>
@@ -593,9 +585,17 @@ function AdventureCard({
             ))}
           </View>
         </View>
-        <Text style={cardStyles.cardSubtitle}>
-          {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
-        </Text>
+        <View style={cardStyles.subtitleRow}>
+          {adventure.activityTypes.map(type => {
+            const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+            return (
+              <MaterialCommunityIcons key={type} name={iconName} size={14} color="rgba(255,255,255,0.85)" />
+            );
+          })}
+          <Text style={cardStyles.cardSubtitle}>
+            {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
+          </Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -744,6 +744,7 @@ function ImpressionsSheet({
   onCardPress: (adv: Adventure) => void;
   impressionsY: Animated.Value;
 }) {
+  const insets = useSafeAreaInsets();
   const snapStateRef = useRef<"peek" | "half" | "expanded">("peek");
 
   const panResponder = useMemo(() => PanResponder.create({
@@ -798,7 +799,7 @@ function ImpressionsSheet({
         showsVerticalScrollIndicator={false}
         snapToInterval={CARD_H + 16}
         decelerationRate="fast"
-        contentContainerStyle={impStyles.listContent}
+        contentContainerStyle={[impStyles.listContent, { paddingBottom: insets.bottom + 24 }]}
         renderItem={({ item }) => (
           <AdventureCard
             adventure={item}
@@ -1212,10 +1213,11 @@ const cardStyles = StyleSheet.create({
     bottom: 0, left: 0, right: 0,
     padding: 12,
   },
-  activityIconRow: {
+  subtitleRow: {
     flexDirection: "row",
-    gap: 6,
-    marginBottom: 6,
+    alignItems: "center",
+    gap: 5,
+    marginTop: 3,
   },
   titleRow: {
     flexDirection: "row",

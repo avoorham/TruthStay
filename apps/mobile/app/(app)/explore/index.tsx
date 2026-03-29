@@ -885,10 +885,11 @@ export default function ExploreScreen() {
 
     if (props?.cluster) {
       const coords = (feature.geometry as GeoJSON.Point).coordinates;
+      const expansionZoom = (props.expansion_zoom as number) ?? 0;
       cameraRef.current?.setCamera({
         centerCoordinate: coords as [number, number],
-        zoomLevel: Math.max((props.expansion_zoom as number) ?? 0, PILL_ZOOM + 1),
-        animationDuration: 400,
+        zoomLevel: Math.max(expansionZoom, zoom + 2, PILL_ZOOM + 1),
+        animationDuration: 500,
       });
     } else if (props?.id) {
       const adventure = MOCK_ADVENTURES.find(a => a.id === String(props.id));
@@ -959,7 +960,14 @@ export default function ExploreScreen() {
               id={adv.id}
               coordinate={adv.coords}
               anchor={{ x: 0, y: 1 }}
-              onSelected={() => showSheet(adv)}
+              onSelected={() => {
+                cameraRef.current?.setCamera({
+                  centerCoordinate: adv.coords,
+                  zoomLevel: Math.max(zoom, 8),
+                  animationDuration: 400,
+                });
+                showSheet(adv);
+              }}
             >
               <PillPin adventure={adv} />
             </PointAnnotation>

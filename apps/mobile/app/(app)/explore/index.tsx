@@ -50,7 +50,7 @@ interface Adventure {
 interface FilterState {
   activities: string[];
   duration: string | null;
-  budgetRange: [number, number];
+  maxBudget: number;
   level: string | null;
   rating: number | null;
   region: string | null;
@@ -59,7 +59,7 @@ interface FilterState {
 const DEFAULT_FILTERS: FilterState = {
   activities: [],
   duration: null,
-  budgetRange: [PRICE_MIN, PRICE_MAX],
+  maxBudget: PRICE_MAX,
   level: null,
   rating: null,
   region: null,
@@ -250,14 +250,12 @@ function matchesDuration(days: number, duration: string | null): boolean {
 }
 
 function applyFilters(adventures: Adventure[], filters: FilterState): Adventure[] {
-  const [priceMin, priceMax] = filters.budgetRange;
-  const budgetActive = priceMin > PRICE_MIN || priceMax < PRICE_MAX;
   return adventures.filter(a => {
     if (filters.activities.length > 0 && !a.activityTypes.some(t => filters.activities.includes(t))) return false;
     if (!matchesDuration(a.days, filters.duration)) return false;
-    if (budgetActive) {
+    if (filters.maxBudget < PRICE_MAX) {
       const price = BUDGET_PRICE[a.budget] ?? 250;
-      if (price < priceMin || price > priceMax) return false;
+      if (price > filters.maxBudget) return false;
     }
     if (filters.level && a.level !== filters.level) return false;
     if (filters.rating !== null && a.rating < filters.rating) return false;
@@ -269,7 +267,7 @@ function applyFilters(adventures: Adventure[], filters: FilterState): Adventure[
 function countActiveFilters(filters: FilterState): number {
   let n = filters.activities.length;
   if (filters.duration) n++;
-  if (filters.budgetRange[0] > PRICE_MIN || filters.budgetRange[1] < PRICE_MAX) n++;
+  if (filters.maxBudget < PRICE_MAX) n++;
   if (filters.level) n++;
   if (filters.rating !== null) n++;
   if (filters.region) n++;
@@ -315,22 +313,18 @@ function formatBudget(budget: string): string {
   return map[budget] ?? "$";
 }
 
-// ─── Range slider ─────────────────────────────────────────────────────────────
+// ─── Budget slider ────────────────────────────────────────────────────────────
 
 function RangeSlider({
-  low, high, onChange,
+  high, onChange,
 }: {
-  low: number;
   high: number;
-  onChange: (low: number, high: number) => void;
+  onChange: (high: number) => void;
 }) {
   const trackWidthRef = useRef(1);
-  const lowRef        = useRef(low);
   const highRef       = useRef(high);
-  lowRef.current  = low;
-  highRef.current = high;
-  const startLow  = useRef(low);
-  const startHigh = useRef(high);
+  highRef.current     = high;
+  const startHigh     = useRef(high);
 
   const toPercent = (v: number) => (v - PRICE_MIN) / (PRICE_MAX - PRICE_MIN);
   const toValue   = (p: number) =>
@@ -338,60 +332,38 @@ function RangeSlider({
       Math.max(PRICE_MIN, Math.min(PRICE_MAX, p * (PRICE_MAX - PRICE_MIN) + PRICE_MIN)) / 100,
     ) * 100;
 
-  const lowPan = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { startLow.current = lowRef.current; },
-    onPanResponderMove: (_, g) => {
-      const delta  = g.dx / trackWidthRef.current;
-      const newLow = toValue(toPercent(startLow.current) + delta);
-      onChange(Math.min(newLow, highRef.current - 100), highRef.current);
-    },
-  }), [onChange]);
-
-  const highPan = useMemo(() => PanResponder.create({
+  const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onPanResponderGrant: () => { startHigh.current = highRef.current; },
     onPanResponderMove: (_, g) => {
       const delta   = g.dx / trackWidthRef.current;
       const newHigh = toValue(toPercent(startHigh.current) + delta);
-      onChange(lowRef.current, Math.max(newHigh, lowRef.current + 100));
+      onChange(Math.max(newHigh, PRICE_MIN + 100));
     },
   }), [onChange]);
 
-  const lowPct  = toPercent(low)  * 100;
   const highPct = toPercent(high) * 100;
   const HANDLE  = 22;
+  const label   = high >= PRICE_MAX ? "Any" : `Up to $${high.toLocaleString()}`;
 
   return (
     <View style={rangeStyles.wrapper}>
-      <View style={rangeStyles.labelRow}>
-        <Text style={rangeStyles.priceLabel}>${low.toLocaleString()}</Text>
-        <Text style={rangeStyles.priceLabel}>
-          {high >= PRICE_MAX ? `$${PRICE_MAX.toLocaleString()}+` : `$${high.toLocaleString()}`}
-        </Text>
-      </View>
+      <Text style={rangeStyles.priceLabel}>{label}</Text>
       <View
-        style={rangeStyles.trackContainer}
+        style={[rangeStyles.trackContainer, { marginTop: 14 }]}
         onLayout={e => { trackWidthRef.current = e.nativeEvent.layout.width; }}
       >
         <View style={rangeStyles.track} />
         <View style={[rangeStyles.selectedRange, {
-          left: `${lowPct}%` as any,
-          width: `${highPct - lowPct}%` as any,
+          left: 0,
+          width: `${highPct}%` as any,
         }]} />
-        <View
-          style={[rangeStyles.handle, {
-            left: `${lowPct}%` as any,
-            transform: [{ translateX: -(HANDLE / 2) }],
-          }]}
-          {...lowPan.panHandlers}
-        />
         <View
           style={[rangeStyles.handle, {
             left: `${highPct}%` as any,
             transform: [{ translateX: -(HANDLE / 2) }],
           }]}
-          {...highPan.panHandlers}
+          {...pan.panHandlers}
         />
       </View>
     </View>
@@ -482,9 +454,8 @@ function FilterSheet({
           <View style={filterStyles.section}>
             <Text style={filterStyles.sectionTitle}>Budget</Text>
             <RangeSlider
-              low={filters.budgetRange[0]}
-              high={filters.budgetRange[1]}
-              onChange={(lo, hi) => onChange({ ...filters, budgetRange: [lo, hi] })}
+              high={filters.maxBudget}
+              onChange={hi => onChange({ ...filters, maxBudget: hi })}
             />
           </View>
 
@@ -1276,12 +1247,7 @@ const filterStyles = StyleSheet.create({
 
 const rangeStyles = StyleSheet.create({
   wrapper: { paddingVertical: 8 },
-  labelRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  priceLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  priceLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text, marginBottom: 4 },
   trackContainer: { height: 30, marginHorizontal: 4 },
   track: {
     position: "absolute",

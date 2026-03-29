@@ -7,13 +7,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
 import { MOCK_TRIPS, MOCK_TRIP_META, type TripMeta } from "../../../lib/mock-trips";
-import {
-  colors, fontSize, radius, spacing, shadow,
-  ACTIVITY_EMOJI, ACTIVITY_COLOR,
-} from "../../../lib/theme";
+import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+
+const ACTIVITY_ICON: Record<string, string> = {
+  cycling:       "bike",
+  road_cycling:  "bike-fast",
+  mtb:           "bike-fast",
+  hiking:        "hiking",
+  trail_running: "run",
+  climbing:      "carabiner",
+  skiing:        "ski",
+  kayaking:      "kayaking",
+  gravel:        "bike",
+  bikepacking:   "bike",
+  other:         "map-marker-outline",
+};
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -127,19 +138,48 @@ function StopCard({
 
 // ─── Accommodation card ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta }: { meta: TripMeta }) {
+function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId: string }) {
+  const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
+
   return (
-    <View style={accomStyles.card}>
-      <View style={accomStyles.icon}>
-        <Text style={{ fontSize: 20 }}>🏨</Text>
+    <View style={stopStyles.row}>
+      {/* Timeline circle — home icon, accent colour */}
+      <View style={stopStyles.timeline}>
+        <View style={[stopStyles.circle, { backgroundColor: colors.accent }]}>
+          <Feather name="home" size={14} color="#FFFFFF" />
+        </View>
       </View>
-      <View style={accomStyles.info}>
-        <Text style={accomStyles.title}>{meta.accommodation}</Text>
-        <Text style={accomStyles.sub}>{meta.nights} · From €{meta.pricePerNight}/night</Text>
+
+      {/* Same card body as StopCard */}
+      <View style={stopStyles.card}>
+        <Image
+          source={{ uri: photoUrl }}
+          style={stopStyles.photo}
+          resizeMode="cover"
+        />
+        <View style={stopStyles.info}>
+          <Text style={stopStyles.title}>{meta.accommodation}</Text>
+          <View style={stopStyles.infoRow}>
+            <Feather name="moon" size={11} color={colors.muted} />
+            <Text style={stopStyles.infoText}>{meta.nights}</Text>
+          </View>
+          <View style={stopStyles.infoRow}>
+            <Feather name="tag" size={11} color={colors.muted} />
+            <Text style={stopStyles.infoText}>From €{meta.pricePerNight}/night</Text>
+          </View>
+        </View>
+        <View style={stopStyles.actionRow}>
+          <TouchableOpacity style={stopStyles.actionBtn}>
+            <Feather name="info" size={13} color={colors.text} />
+            <Text style={stopStyles.actionText}>View details</Text>
+          </TouchableOpacity>
+          <View style={stopStyles.actionDivider} />
+          <TouchableOpacity style={stopStyles.actionBtn}>
+            <Feather name="external-link" size={13} color={colors.text} />
+            <Text style={stopStyles.actionText}>Book</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      <TouchableOpacity style={accomStyles.linkBtn}>
-        <Feather name="external-link" size={15} color={colors.accent} />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -343,10 +383,9 @@ export default function TripDetailScreen() {
   }
 
   const sortedDays = [...(adventure.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber);
-  const meta       = MOCK_TRIP_META[adventure.id] ?? null;
-  const actColor   = ACTIVITY_COLOR[adventure.activityType] ?? colors.accent;
-  const emoji      = ACTIVITY_EMOJI[adventure.activityType] ?? "🏔️";
-  const heroUrl    = `https://picsum.photos/seed/${adventure.id}/800/600`;
+  const meta        = MOCK_TRIP_META[adventure.id] ?? null;
+  const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+  const heroUrl     = `https://picsum.photos/seed/${adventure.id}/800/600`;
   const currentDay = sortedDays.find(d => d.dayNumber === selectedDay) ?? sortedDays[0];
 
   return (
@@ -357,9 +396,14 @@ export default function TripDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
-          <Feather name="map" size={22} color={colors.text} />
-        </TouchableOpacity>
+        <View style={detailStyles.headerRight}>
+          <TouchableOpacity style={detailStyles.headerBtn}>
+            <Feather name="user-plus" size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
+            <Feather name="map" size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -373,10 +417,12 @@ export default function TripDetailScreen() {
           <View style={detailStyles.heroText}>
             <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
             <View style={detailStyles.heroMeta}>
-              <Text style={detailStyles.heroMetaText}>📍 {adventure.region}</Text>
+              <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
+              <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
               <Text style={detailStyles.heroMetaDot}>·</Text>
+              <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
               <Text style={detailStyles.heroMetaText}>
-                {emoji} {adventure.activityType.replace(/_/g, " ")}
+                {adventure.activityType.replace(/_/g, " ")}
               </Text>
               <Text style={detailStyles.heroMetaDot}>·</Text>
               <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
@@ -428,7 +474,7 @@ export default function TripDetailScreen() {
             />
 
             {/* Accommodation */}
-            {meta && <AccommodationCard meta={meta} />}
+            {meta && <AccommodationCard meta={meta} adventureId={adventure.id} />}
           </View>
         )}
 
@@ -467,6 +513,7 @@ const detailStyles = StyleSheet.create({
     width: 40, height: 40,
     alignItems: "center", justifyContent: "center",
   },
+  headerRight: { flexDirection: "row", alignItems: "center" },
   headerTitle: {
     fontSize: fontSize.base,
     fontWeight: "700",
@@ -595,32 +642,6 @@ const stopStyles = StyleSheet.create({
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
 });
 
-const accomStyles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-    ...shadow.sm,
-  },
-  icon: {
-    width: 44, height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.sheet,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  info: { flex: 1, gap: 3 },
-  title: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
-  sub: { fontSize: fontSize.xs, color: colors.muted },
-  linkBtn: {
-    width: 36, height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
 
 const mapStyles = StyleSheet.create({
   topBar: {

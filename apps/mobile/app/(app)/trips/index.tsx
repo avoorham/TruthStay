@@ -6,13 +6,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, type AdventureRow } from "../../../lib/api";
 import { MOCK_TRIPS } from "../../../lib/mock-trips";
-import {
-  colors, fontSize, radius, spacing, shadow,
-  ACTIVITY_EMOJI,
-} from "../../../lib/theme";
+import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+
+const ACTIVITY_ICON: Record<string, string> = {
+  cycling:       "bike",
+  road_cycling:  "bike-fast",
+  mtb:           "bike-fast",
+  hiking:        "hiking",
+  trail_running: "run",
+  climbing:      "carabiner",
+  skiing:        "ski",
+  kayaking:      "kayaking",
+  gravel:        "bike",
+  bikepacking:   "bike",
+  other:         "map-marker-outline",
+};
 
 const SCREEN_W = Dimensions.get("window").width;
 
@@ -42,7 +53,7 @@ function formatDateRange(startDate: string | null, durationDays: number): string
 
 function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPress: () => void }) {
   const status = tripStatus(adventure);
-  const emoji = ACTIVITY_EMOJI[adventure.activityType] ?? "🏔️";
+  const iconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   const statusLabel = status === "current" ? "In Progress" : status === "upcoming" ? "Upcoming" : "Completed";
   const statusColor = status === "current" ? colors.easy : status === "upcoming" ? colors.accent : colors.muted;
   const photoUrl = `https://picsum.photos/seed/${adventure.id}/800/500`;
@@ -66,12 +77,16 @@ function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPres
       <View style={styles.textOverlay}>
         <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
         <View style={styles.subtitleRow}>
+          <MaterialCommunityIcons name={iconName} size={14} color="rgba(255,255,255,0.85)" />
           <Text style={styles.subtitleText}>
-            {emoji}  {formatDateRange(adventure.startDate, adventure.durationDays)}
+            {formatDateRange(adventure.startDate, adventure.durationDays)}
           </Text>
         </View>
         <View style={styles.bottomRow}>
-          <Text style={styles.regionText} numberOfLines={1}>📍 {adventure.region}</Text>
+          <View style={styles.regionRow}>
+            <Feather name="map-pin" size={11} color="rgba(255,255,255,0.65)" />
+            <Text style={styles.regionText} numberOfLines={1}>{adventure.region}</Text>
+          </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
             <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
               {statusLabel}
@@ -181,7 +196,7 @@ export default function TripsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>🗺️</Text>
+            <Feather name="map" size={52} color={colors.border} />
             <Text style={styles.emptyText}>{EMPTY_MESSAGES[tab]}</Text>
           </View>
         }
@@ -250,7 +265,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     lineHeight: 22,
   },
-  subtitleRow: { flexDirection: "row", alignItems: "center" },
+  subtitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   subtitleText: { color: "rgba(255,255,255,0.85)", fontSize: fontSize.sm },
   bottomRow: {
     flexDirection: "row",
@@ -258,6 +273,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 2,
   },
+  regionRow: { flexDirection: "row", alignItems: "center", gap: 3, flex: 1 },
   regionText: { color: "rgba(255,255,255,0.7)", fontSize: fontSize.xs, flex: 1 },
   statusBadge: {
     paddingHorizontal: 8,
@@ -271,7 +287,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl * 2,
     gap: spacing.md,
   },
-  emptyEmoji: { fontSize: 52 },
+
   emptyText: {
     fontSize: fontSize.base,
     color: colors.muted,

@@ -16,10 +16,11 @@ import { colors, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
 const SCREEN_H      = Dimensions.get("window").height;
+const SCREEN_W      = Dimensions.get("window").width;
 const SNAP_PEEK     = SCREEN_H - 90;
 const SNAP_HALF     = SCREEN_H * 0.45;
 const SNAP_EXPANDED = SCREEN_H * 0.12;
-const CARD_W        = 280;
+const CARD_W        = SCREEN_W - 32;
 const CARD_H        = 260;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -781,10 +782,9 @@ function ImpressionsSheet({
 
       <FlatList
         data={adventures}
-        horizontal
         keyExtractor={a => a.id}
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={CARD_W + 16}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={CARD_H + 16}
         decelerationRate="fast"
         contentContainerStyle={impStyles.listContent}
         renderItem={({ item }) => (

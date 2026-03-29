@@ -1,15 +1,20 @@
 import {
-  ActivityIndicator, FlatList, RefreshControl,
-  StyleSheet, Text, TouchableOpacity, View,
+  Dimensions, FlatList, Image, StyleSheet,
+  Text, TouchableOpacity, View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import { getMyAdventures, type AdventureRow } from "../../../lib/api";
+import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import {
   colors, fontSize, radius, spacing, shadow,
-  ACTIVITY_EMOJI, ACTIVITY_COLOR,
+  ACTIVITY_EMOJI,
 } from "../../../lib/theme";
+
+const SCREEN_W = Dimensions.get("window").width;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,226 +38,244 @@ function formatDateRange(startDate: string | null, durationDays: number): string
   return `${start.toLocaleDateString("en-GB", opts)} – ${end.toLocaleDateString("en-GB", { ...opts, year: "numeric" })}`;
 }
 
-// ─── Trip card ────────────────────────────────────────────────────────────────
+// ─── Trip photo card ──────────────────────────────────────────────────────────
 
-function TripCard({ adventure, onPress }: { adventure: AdventureRow; onPress: () => void }) {
+function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPress: () => void }) {
   const status = tripStatus(adventure);
   const emoji = ACTIVITY_EMOJI[adventure.activityType] ?? "🏔️";
-  const actColor = ACTIVITY_COLOR[adventure.activityType] ?? colors.accent;
-
-  const statusLabel = status === "current" ? "🟢 In Progress" : status === "upcoming" ? "Upcoming" : "Completed";
+  const statusLabel = status === "current" ? "In Progress" : status === "upcoming" ? "Upcoming" : "Completed";
   const statusColor = status === "current" ? colors.easy : status === "upcoming" ? colors.accent : colors.muted;
+  const photoUrl = `https://picsum.photos/seed/${adventure.id}/800/500`;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      {/* Colour bar */}
-      <View style={[styles.cardBar, { backgroundColor: actColor }]} />
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
+      <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
 
-      <View style={styles.cardContent}>
-        {/* Top row */}
-        <View style={styles.cardTop}>
-          <View style={[styles.activityBadge, { backgroundColor: actColor + "22" }]}>
-            <Text style={styles.activityEmoji}>{emoji}</Text>
-            <Text style={[styles.activityLabel, { color: actColor }]}>
-              {adventure.activityType.replace("_", " ")}
+      {/* Heart */}
+      <View style={styles.heartBtn}>
+        <Feather name="heart" size={15} color="#FFFFFF" />
+      </View>
+
+      {/* Gradient */}
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.75)"]}
+        style={styles.gradient}
+      />
+
+      {/* Text overlay */}
+      <View style={styles.textOverlay}>
+        <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
+        <View style={styles.subtitleRow}>
+          <Text style={styles.subtitleText}>
+            {emoji}  {formatDateRange(adventure.startDate, adventure.durationDays)}
+          </Text>
+        </View>
+        <View style={styles.bottomRow}>
+          <Text style={styles.regionText} numberOfLines={1}>📍 {adventure.region}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
+            <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
+              {statusLabel}
             </Text>
           </View>
-          <Text style={[styles.statusBadge, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
-
-        {/* Title + region */}
-        <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
-        <Text style={styles.cardRegion}>📍 {adventure.region}</Text>
-
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <StatChip label={`${adventure.durationDays} days`} />
-          <StatChip label={formatDateRange(adventure.startDate, adventure.durationDays)} />
         </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-function StatChip({ label }: { label: string }) {
+// ─── Tab strip ────────────────────────────────────────────────────────────────
+
+type TabKey = "current" | "upcoming" | "past";
+const TAB_LABELS: Record<TabKey, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
+
+function TabStrip({ tabs, active, onChange }: { tabs: TabKey[]; active: TabKey; onChange: (t: TabKey) => void }) {
   return (
-    <View style={styles.chip}>
-      <Text style={styles.chipText}>{label}</Text>
+    <View style={styles.tabStrip}>
+      {tabs.map(t => (
+        <TouchableOpacity
+          key={t}
+          style={[styles.tabPill, active === t && styles.tabPillActive]}
+          onPress={() => onChange(t)}
+        >
+          <Text style={[styles.tabText, active === t && styles.tabTextActive]}>{TAB_LABELS[t]}</Text>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 }
 
-// ─── Section header ───────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
 
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCount}>
-        <Text style={styles.sectionCountText}>{count}</Text>
-      </View>
-    </View>
-  );
-}
+const EMPTY_MESSAGES: Record<TabKey, string> = {
+  current: "No active trips right now.",
+  upcoming: "No upcoming adventures yet.\nPlan one in Discover!",
+  past: "No completed trips yet.\nYour adventures will appear here.",
+};
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
-
-type ListItem =
-  | { type: "header"; title: string; count: number }
-  | { type: "card"; adventure: AdventureRow }
-  | { type: "empty"; label: string };
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [adventures, setAdventures] = useState<AdventureRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [tab, setTab] = useState<TabKey>("upcoming");
 
   const load = useCallback(async () => {
     try {
       const data = await getMyAdventures();
       setAdventures(data);
-    } catch { /* show empty */ }
-    finally { setLoading(false); setRefreshing(false); }
+    } catch { /* fall through to mock */ }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) {
-    return (
-      <View style={[styles.center, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={colors.accent} />
-      </View>
-    );
-  }
+  // Merge real + mock, deduplicating by id
+  const allTrips = useMemo(() => {
+    const ids = new Set(adventures.map(a => a.id));
+    return [...adventures, ...MOCK_TRIPS.filter(m => !ids.has(m.id))];
+  }, [adventures]);
 
-  // Sort: current first, then upcoming by date, then past (newest first)
-  const current = adventures.filter(a => tripStatus(a) === "current");
-  const upcoming = adventures
-    .filter(a => tripStatus(a) === "upcoming")
-    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
-  const past = adventures
-    .filter(a => tripStatus(a) === "past")
-    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""));
+  // Dynamic tabs: only show "Current" if a trip is active
+  const hasCurrent = useMemo(() => allTrips.some(a => tripStatus(a) === "current"), [allTrips]);
+  const availableTabs = useMemo<TabKey[]>(
+    () => [...(hasCurrent ? ["current" as TabKey] : []), "upcoming", "past"],
+    [hasCurrent],
+  );
 
-  const listData: ListItem[] = [];
+  // Auto-select best starting tab
+  useEffect(() => {
+    setTab(hasCurrent ? "current" : "upcoming");
+  }, [hasCurrent]);
 
-  if (current.length > 0) {
-    listData.push({ type: "header", title: "Current", count: current.length });
-    current.forEach(a => listData.push({ type: "card", adventure: a }));
-  }
-  if (upcoming.length > 0) {
-    listData.push({ type: "header", title: "Upcoming", count: upcoming.length });
-    upcoming.forEach(a => listData.push({ type: "card", adventure: a }));
-  }
-  if (past.length > 0) {
-    listData.push({ type: "header", title: "Past", count: past.length });
-    past.forEach(a => listData.push({ type: "card", adventure: a }));
-  }
-  if (adventures.length === 0) {
-    listData.push({ type: "empty", label: "No saved adventures yet. Plan one in Discover!" });
-  }
+  const tripsForTab = useMemo(
+    () =>
+      allTrips
+        .filter(a => tripStatus(a) === tab)
+        .sort((a, b) =>
+          tab === "past"
+            ? (b.startDate ?? "").localeCompare(a.startDate ?? "")
+            : (a.startDate ?? "").localeCompare(b.startDate ?? ""),
+        ),
+    [allTrips, tab],
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Trips</Text>
+        <TabStrip tabs={availableTabs} active={tab} onChange={setTab} />
       </View>
 
+      {/* List */}
       <FlatList
-        data={listData}
-        keyExtractor={(item, i) => `${item.type}-${i}`}
-        renderItem={({ item }) => {
-          if (item.type === "header") {
-            return <SectionHeader title={item.title} count={item.count} />;
-          }
-          if (item.type === "empty") {
-            return (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyEmoji}>🗺️</Text>
-                <Text style={styles.emptyText}>{item.label}</Text>
-              </View>
-            );
-          }
-          return (
-            <TripCard
-              adventure={item.adventure}
-              onPress={() => router.push(`/(app)/trips/${item.adventure.id}`)}
-            />
-          );
-        }}
+        data={tripsForTab}
+        keyExtractor={a => a.id}
+        renderItem={({ item }) => (
+          <TripPhotoCard
+            adventure={item}
+            onPress={() => router.push(`/(app)/trips/${item.id}`)}
+          />
+        )}
         contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />
-        }
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyEmoji}>🗺️</Text>
+            <Text style={styles.emptyText}>{EMPTY_MESSAGES[tab]}</Text>
+          </View>
+        }
       />
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-  },
-  headerTitle: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
-  list: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: spacing.sm,
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
   },
-  sectionTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
-  sectionCount: {
-    backgroundColor: colors.accent,
+  headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  tabStrip: { flexDirection: "row", gap: spacing.sm },
+  tabPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
     borderRadius: radius.full,
-    width: 22,
-    height: 22,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  tabPillActive: { backgroundColor: colors.text, borderColor: colors.text },
+  tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
+  tabTextActive: { color: colors.inverse },
+  list: { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
+  card: {
+    width: SCREEN_W - 32,
+    height: 220,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: colors.sheet,
+    ...shadow.md,
+  },
+  heartBtn: {
+    position: "absolute",
+    top: 12, right: 12,
+    width: 34, height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 2,
   },
-  sectionCountText: { fontSize: fontSize.xs, color: colors.inverse, fontWeight: "700" },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    flexDirection: "row",
-    overflow: "hidden",
-    ...shadow.md,
-    marginBottom: spacing.xs,
+  gradient: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    height: "60%",
   },
-  cardBar: { width: 4 },
-  cardContent: { flex: 1, padding: spacing.md, gap: spacing.sm },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  activityBadge: {
+  textOverlay: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    padding: 14,
+    gap: 5,
+  },
+  cardTitle: {
+    color: "#FFFFFF",
+    fontSize: fontSize.lg,
+    fontWeight: "700",
+    lineHeight: 22,
+  },
+  subtitleRow: { flexDirection: "row", alignItems: "center" },
+  subtitleText: { color: "rgba(255,255,255,0.85)", fontSize: fontSize.sm },
+  bottomRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    marginTop: 2,
+  },
+  regionText: { color: "rgba(255,255,255,0.7)", fontSize: fontSize.xs, flex: 1 },
+  statusBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radius.full,
+    borderWidth: 1,
   },
-  activityEmoji: { fontSize: fontSize.sm },
-  activityLabel: { fontSize: fontSize.xs, fontWeight: "600", textTransform: "capitalize" },
-  statusBadge: { fontSize: fontSize.xs, fontWeight: "600" },
-  cardTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.text, lineHeight: 21 },
-  cardRegion: { fontSize: fontSize.sm, color: colors.muted },
-  statsRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
-  chip: {
-    backgroundColor: colors.sheet,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+  statusText: { fontSize: fontSize.xs, fontWeight: "700" },
+  emptyBox: {
+    alignItems: "center",
+    paddingVertical: spacing.xxl * 2,
+    gap: spacing.md,
   },
-  chipText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "500" },
-  emptyBox: { alignItems: "center", paddingVertical: spacing.xxl, gap: spacing.md },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: fontSize.base, color: colors.muted, textAlign: "center" },
+  emptyEmoji: { fontSize: 52 },
+  emptyText: {
+    fontSize: fontSize.base,
+    color: colors.muted,
+    textAlign: "center",
+    lineHeight: 24,
+  },
 });

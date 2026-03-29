@@ -17,6 +17,10 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
 const SCREEN_H      = Dimensions.get("window").height;
 const SCREEN_W      = Dimensions.get("window").width;
+const PRICE_MIN     = 0;
+const PRICE_MAX     = 3000;
+// Maps adventure budget category to a representative price for range filtering
+const BUDGET_PRICE: Record<string, number> = { budget: 250, mid: 1000, luxury: 2500 };
 const SNAP_PEEK     = SCREEN_H - 90;
 const SNAP_HALF     = SCREEN_H * 0.45;
 const SNAP_EXPANDED = SCREEN_H * 0.12;
@@ -46,7 +50,7 @@ interface Adventure {
 interface FilterState {
   activities: string[];
   duration: string | null;
-  budget: string | null;
+  budgetRange: [number, number];
   level: string | null;
   rating: number | null;
   region: string | null;
@@ -55,7 +59,7 @@ interface FilterState {
 const DEFAULT_FILTERS: FilterState = {
   activities: [],
   duration: null,
-  budget: null,
+  budgetRange: [PRICE_MIN, PRICE_MAX],
   level: null,
   rating: null,
   region: null,
@@ -220,12 +224,6 @@ const DURATION_OPTIONS = [
   { key: "14+", label: "2+ weeks" },
 ];
 
-const BUDGET_OPTIONS = [
-  { key: "budget", label: "Budget" },
-  { key: "mid", label: "Mid-range" },
-  { key: "luxury", label: "Luxury" },
-];
-
 const LEVEL_OPTIONS = [
   { key: "beginner", label: "Beginner" },
   { key: "intermediate", label: "Intermediate" },
@@ -252,10 +250,15 @@ function matchesDuration(days: number, duration: string | null): boolean {
 }
 
 function applyFilters(adventures: Adventure[], filters: FilterState): Adventure[] {
+  const [priceMin, priceMax] = filters.budgetRange;
+  const budgetActive = priceMin > PRICE_MIN || priceMax < PRICE_MAX;
   return adventures.filter(a => {
     if (filters.activities.length > 0 && !a.activityTypes.some(t => filters.activities.includes(t))) return false;
     if (!matchesDuration(a.days, filters.duration)) return false;
-    if (filters.budget && a.budget !== filters.budget) return false;
+    if (budgetActive) {
+      const price = BUDGET_PRICE[a.budget] ?? 250;
+      if (price < priceMin || price > priceMax) return false;
+    }
     if (filters.level && a.level !== filters.level) return false;
     if (filters.rating !== null && a.rating < filters.rating) return false;
     if (filters.region && a.region !== filters.region) return false;
@@ -266,7 +269,7 @@ function applyFilters(adventures: Adventure[], filters: FilterState): Adventure[
 function countActiveFilters(filters: FilterState): number {
   let n = filters.activities.length;
   if (filters.duration) n++;
-  if (filters.budget) n++;
+  if (filters.budgetRange[0] > PRICE_MIN || filters.budgetRange[1] < PRICE_MAX) n++;
   if (filters.level) n++;
   if (filters.rating !== null) n++;
   if (filters.region) n++;
@@ -310,6 +313,89 @@ function formatDuration(days: number): string {
 function formatBudget(budget: string): string {
   const map: Record<string, string> = { budget: "$", mid: "$$", luxury: "$$$" };
   return map[budget] ?? "$";
+}
+
+// ─── Range slider ─────────────────────────────────────────────────────────────
+
+function RangeSlider({
+  low, high, onChange,
+}: {
+  low: number;
+  high: number;
+  onChange: (low: number, high: number) => void;
+}) {
+  const trackWidthRef = useRef(1);
+  const lowRef        = useRef(low);
+  const highRef       = useRef(high);
+  lowRef.current  = low;
+  highRef.current = high;
+  const startLow  = useRef(low);
+  const startHigh = useRef(high);
+
+  const toPercent = (v: number) => (v - PRICE_MIN) / (PRICE_MAX - PRICE_MIN);
+  const toValue   = (p: number) =>
+    Math.round(
+      Math.max(PRICE_MIN, Math.min(PRICE_MAX, p * (PRICE_MAX - PRICE_MIN) + PRICE_MIN)) / 100,
+    ) * 100;
+
+  const lowPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { startLow.current = lowRef.current; },
+    onPanResponderMove: (_, g) => {
+      const delta  = g.dx / trackWidthRef.current;
+      const newLow = toValue(toPercent(startLow.current) + delta);
+      onChange(Math.min(newLow, highRef.current - 100), highRef.current);
+    },
+  }), [onChange]);
+
+  const highPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { startHigh.current = highRef.current; },
+    onPanResponderMove: (_, g) => {
+      const delta   = g.dx / trackWidthRef.current;
+      const newHigh = toValue(toPercent(startHigh.current) + delta);
+      onChange(lowRef.current, Math.max(newHigh, lowRef.current + 100));
+    },
+  }), [onChange]);
+
+  const lowPct  = toPercent(low)  * 100;
+  const highPct = toPercent(high) * 100;
+  const HANDLE  = 22;
+
+  return (
+    <View style={rangeStyles.wrapper}>
+      <View style={rangeStyles.labelRow}>
+        <Text style={rangeStyles.priceLabel}>${low.toLocaleString()}</Text>
+        <Text style={rangeStyles.priceLabel}>
+          {high >= PRICE_MAX ? `$${PRICE_MAX.toLocaleString()}+` : `$${high.toLocaleString()}`}
+        </Text>
+      </View>
+      <View
+        style={rangeStyles.trackContainer}
+        onLayout={e => { trackWidthRef.current = e.nativeEvent.layout.width; }}
+      >
+        <View style={rangeStyles.track} />
+        <View style={[rangeStyles.selectedRange, {
+          left: `${lowPct}%` as any,
+          width: `${highPct - lowPct}%` as any,
+        }]} />
+        <View
+          style={[rangeStyles.handle, {
+            left: `${lowPct}%` as any,
+            transform: [{ translateX: -(HANDLE / 2) }],
+          }]}
+          {...lowPan.panHandlers}
+        />
+        <View
+          style={[rangeStyles.handle, {
+            left: `${highPct}%` as any,
+            transform: [{ translateX: -(HANDLE / 2) }],
+          }]}
+          {...highPan.panHandlers}
+        />
+      </View>
+    </View>
+  );
 }
 
 // ─── Filter sheet ─────────────────────────────────────────────────────────────
@@ -393,15 +479,14 @@ function FilterSheet({
             ))}
           </FilterSection>
 
-          <FilterSection title="Budget">
-            {BUDGET_OPTIONS.map(o => (
-              <FilterChip
-                key={o.key} label={o.label}
-                active={filters.budget === o.key}
-                onPress={() => onChange({ ...filters, budget: filters.budget === o.key ? null : o.key })}
-              />
-            ))}
-          </FilterSection>
+          <View style={filterStyles.section}>
+            <Text style={filterStyles.sectionTitle}>Budget</Text>
+            <RangeSlider
+              low={filters.budgetRange[0]}
+              high={filters.budgetRange[1]}
+              onChange={(lo, hi) => onChange({ ...filters, budgetRange: [lo, hi] })}
+            />
+          </View>
 
           <FilterSection title="Experience level">
             {LEVEL_OPTIONS.map(o => (
@@ -1187,6 +1272,40 @@ const filterStyles = StyleSheet.create({
   chipActive: { backgroundColor: colors.text, borderColor: colors.text },
   chipText: { fontSize: fontSize.sm, color: colors.text, fontWeight: "500" },
   chipTextActive: { color: colors.inverse },
+});
+
+const rangeStyles = StyleSheet.create({
+  wrapper: { paddingVertical: 8 },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  priceLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  trackContainer: { height: 30, marginHorizontal: 4 },
+  track: {
+    position: "absolute",
+    top: 13, left: 0, right: 0,
+    height: 4,
+    backgroundColor: colors.border,
+    borderRadius: 2,
+  },
+  selectedRange: {
+    position: "absolute",
+    top: 13,
+    height: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  handle: {
+    position: "absolute",
+    top: 4,
+    width: 22, height: 22,
+    borderRadius: 11,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: colors.accent,
+  },
 });
 
 const cardStyles = StyleSheet.create({

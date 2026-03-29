@@ -818,6 +818,8 @@ export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const cameraRef = useRef<Camera>(null);
+  const mapRef    = useRef<MapView>(null);
+  const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -825,6 +827,7 @@ export default function ExploreScreen() {
   const [expandedAdventure, setExpandedAdventure] = useState<Adventure | null>(null);
   const [zoom, setZoom] = useState(3.8);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [mapBounds, setMapBounds] = useState<[[number, number], [number, number]] | null>(null);
 
   const sheetY      = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const impressionsY = useRef(new Animated.Value(SNAP_PEEK)).current;
@@ -834,6 +837,15 @@ export default function ExploreScreen() {
   const activeFilterCount = countActiveFilters(filters);
   const unclusteredIds    = useMemo(() => getUnclusteredIds(filtered, zoom), [filtered, zoom]);
   const publicAdventures  = useMemo(() => filtered.filter(a => a.uploadedBy === null), [filtered]);
+
+  const visiblePublicAdventures = useMemo(() => {
+    if (!mapBounds) return publicAdventures;
+    const [[maxLng, maxLat], [minLng, minLat]] = mapBounds;
+    return publicAdventures.filter(a => {
+      const [lng, lat] = a.coords;
+      return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+    });
+  }, [publicAdventures, mapBounds]);
 
   const toggleSaved = useCallback((id: string) => {
     setSavedIds(prev => {
@@ -886,13 +898,21 @@ export default function ExploreScreen() {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         styleURL="mapbox://styles/mapbox/outdoors-v12"
         onPress={hideSheet}
         logoEnabled={false}
         attributionEnabled={false}
         scaleBarEnabled={false}
-        onCameraChanged={(state) => setZoom(state.properties.zoom)}
+        onCameraChanged={(state) => {
+          setZoom(state.properties.zoom);
+          if (boundsTimer.current) clearTimeout(boundsTimer.current);
+          boundsTimer.current = setTimeout(async () => {
+            const bounds = await mapRef.current?.getVisibleBounds();
+            if (bounds) setMapBounds(bounds as [[number, number], [number, number]]);
+          }, 150);
+        }}
       >
         <Camera
           ref={cameraRef}
@@ -980,7 +1000,7 @@ export default function ExploreScreen() {
       />
 
       <ImpressionsSheet
-        adventures={publicAdventures}
+        adventures={visiblePublicAdventures}
         savedIds={savedIds}
         onToggleSaved={toggleSaved}
         onCardPress={setExpandedAdventure}

@@ -7,7 +7,6 @@ import {
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
-import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -243,7 +242,10 @@ function InviteFriendsModal({
             </View>
 
             <View style={invStyles.qrBox}>
-              <QRCode value={inviteCode} size={200} color={colors.text} backgroundColor="#FFFFFF" />
+              {/* QR code requires a native rebuild — shown as placeholder until then */}
+              <View style={invStyles.qrPlaceholder}>
+                <MaterialCommunityIcons name="qrcode" size={120} color={colors.text} />
+              </View>
             </View>
 
             <View style={invStyles.orRow}>
@@ -1383,6 +1385,7 @@ const invStyles = StyleSheet.create({
     padding: spacing.xl, marginVertical: spacing.md,
     borderWidth: 1, borderColor: colors.border,
   },
+  qrPlaceholder: { width: 200, height: 200, alignItems: "center", justifyContent: "center" },
   codeRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.lg,

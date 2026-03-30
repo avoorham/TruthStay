@@ -357,6 +357,15 @@ function DaySelector({
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const pillX = useRef<number[]>([]);
+  const containerW = useRef(0);
+  const contentW = useRef(0);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
+
+  function updateFades(scrollX: number) {
+    setShowLeft(scrollX > 10);
+    setShowRight(contentW.current > containerW.current + 10 && scrollX < contentW.current - containerW.current - 10);
+  }
 
   useEffect(() => {
     const x = pillX.current[activeIdx];
@@ -371,7 +380,17 @@ function DaySelector({
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
         contentContainerStyle={mapStyles.selectorContent}
+        onLayout={e => {
+          containerW.current = e.nativeEvent.layout.width;
+          updateFades(0);
+        }}
+        onContentSizeChange={w => {
+          contentW.current = w;
+          setShowRight(w > containerW.current + 10);
+        }}
+        onScroll={e => updateFades(e.nativeEvent.contentOffset.x)}
       >
         {stops.map((s, i) => (
           <TouchableOpacity
@@ -386,20 +405,8 @@ function DaySelector({
           </TouchableOpacity>
         ))}
       </ScrollView>
-      {/* Fade left edge */}
-      <LinearGradient
-        colors={[colors.card, "transparent"]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={mapStyles.fadeLeft}
-        pointerEvents="none"
-      />
-      {/* Fade right edge */}
-      <LinearGradient
-        colors={["transparent", colors.card]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={mapStyles.fadeRight}
-        pointerEvents="none"
-      />
+      {showLeft && <LinearGradient colors={[colors.card, "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={mapStyles.fadeLeft} pointerEvents="none" />}
+      {showRight && <LinearGradient colors={["transparent", colors.card]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={mapStyles.fadeRight} pointerEvents="none" />}
     </View>
   );
 }
@@ -551,6 +558,15 @@ function ItineraryDayTabs({
 }: { days: AdventureDayRow[]; selectedDay: number; onSelect: (d: number) => void }) {
   const scrollRef = useRef<ScrollView>(null);
   const pillX = useRef<number[]>([]);
+  const containerW = useRef(0);
+  const contentW = useRef(0);
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
+
+  function updateFades(scrollX: number) {
+    setShowLeft(scrollX > 10);
+    setShowRight(contentW.current > containerW.current + 10 && scrollX < contentW.current - containerW.current - 10);
+  }
 
   useEffect(() => {
     const idx = days.findIndex(d => d.dayNumber === selectedDay);
@@ -566,7 +582,17 @@ function ItineraryDayTabs({
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
         contentContainerStyle={detailStyles.dayTabScroll}
+        onLayout={e => {
+          containerW.current = e.nativeEvent.layout.width;
+          updateFades(0);
+        }}
+        onContentSizeChange={w => {
+          contentW.current = w;
+          setShowRight(w > containerW.current + 10);
+        }}
+        onScroll={e => updateFades(e.nativeEvent.contentOffset.x)}
       >
         {days.map((d, i) => (
           <TouchableOpacity
@@ -581,8 +607,8 @@ function ItineraryDayTabs({
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <LinearGradient colors={[colors.card, "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={detailStyles.tabFadeLeft} pointerEvents="none" />
-      <LinearGradient colors={["transparent", colors.card]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={detailStyles.tabFadeRight} pointerEvents="none" />
+      {showLeft && <LinearGradient colors={[colors.card, "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={detailStyles.tabFadeLeft} pointerEvents="none" />}
+      {showRight && <LinearGradient colors={["transparent", colors.card]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={detailStyles.tabFadeRight} pointerEvents="none" />}
     </View>
   );
 }
@@ -609,7 +635,7 @@ export default function TripDetailScreen() {
   if (!adventure) {
     return (
       <View style={[detailStyles.container, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.replace("/(app)/trips")}>
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
@@ -631,7 +657,7 @@ export default function TripDetailScreen() {
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={detailStyles.header}>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.replace("/(app)/trips")}>
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>

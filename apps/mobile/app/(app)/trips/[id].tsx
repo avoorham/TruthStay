@@ -2,7 +2,7 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  Dimensions, Image, KeyboardAvoidingView, Modal, Platform,
+  Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
@@ -241,7 +241,14 @@ function InviteFriendsModal({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => {
+        if (Keyboard.isVisible()) { Keyboard.dismiss(); } else { handleClose(); }
+      }}
+    >
       <KeyboardAvoidingView
         style={{ flex: 1, justifyContent: "flex-end" }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -289,6 +296,7 @@ function InviteFriendsModal({
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 style={{ flexShrink: 1 }}
               >
                 <View style={invStyles.headerRow}>

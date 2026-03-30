@@ -64,7 +64,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="profile/index"
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => <TabIcon name="user" focused={focused} />,

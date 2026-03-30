@@ -368,25 +368,26 @@ function InviteFriendsModal({
                     <View style={invStyles.orLine} />
                   </View>
 
-                  {/* Search field */}
-                  <View style={invStyles.searchWrap}>
-                    <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
-                    <TextInput
-                      style={invStyles.searchInput}
-                      value={searchText}
-                      onChangeText={setSearchText}
-                      placeholder="Write username or email…"
-                      placeholderTextColor={colors.subtle}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </View>
                 </ScrollView>
+
+                {/* Search field — outside ScrollView so it's always visible */}
+                <View style={invStyles.searchWrap}>
+                  <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
+                  <TextInput
+                    style={invStyles.searchInput}
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    placeholder="Write username or email…"
+                    placeholderTextColor={colors.subtle}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
 
                 {/* Suggestions — outside ScrollView so they're always visible above keyboard */}
                 {suggestions.length > 0 && (
                   <View style={invStyles.suggestionList}>
-                    {suggestions.map(u => (
+                    {suggestions.slice(0, 2).map(u => (
                       <TouchableOpacity
                         key={u.id}
                         style={invStyles.suggestionRow}
@@ -1304,7 +1305,7 @@ const invStyles = StyleSheet.create({
   sheet: {
     backgroundColor: colors.card,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: spacing.lg, paddingBottom: spacing.xl,
+    padding: spacing.lg, paddingBottom: spacing.md,
     maxHeight: "88%",
   },
   handle: {
@@ -1320,7 +1321,7 @@ const invStyles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
     alignItems: "center", justifyContent: "center",
   },
-  title: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, marginBottom: 2 },
+  title: { fontSize: fontSize.xl, fontWeight: "700", color: colors.text, marginBottom: 2 },
   subtitle: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18 },
 
   // Trip card

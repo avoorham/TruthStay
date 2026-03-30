@@ -113,29 +113,49 @@ function ReviewSection({
 const PERMISSIONS: Permission[] = ["Editor", "Suggest edits", "Viewer"];
 
 function PermissionPicker({
-  current, onSelect, onClose,
-}: { current: Permission; onSelect: (p: Permission) => void; onClose: () => void }) {
+  current, onSelect, onRemove, onClose,
+}: {
+  current: Permission;
+  onSelect: (p: Permission) => void;
+  onRemove: () => void;
+  onClose: () => void;
+}) {
   return (
-    <TouchableOpacity style={invStyles.pickerBackdrop} activeOpacity={1} onPress={onClose}>
-      <View style={invStyles.pickerCard}>
-        {PERMISSIONS.map(p => (
-          <TouchableOpacity
-            key={p}
-            style={invStyles.pickerRow}
-            onPress={() => { onSelect(p); onClose(); }}
-          >
-            <Text style={[invStyles.pickerOption, p === current && invStyles.pickerOptionActive]}>{p}</Text>
-            {p === current && <Feather name="check" size={14} color={colors.accent} />}
-          </TouchableOpacity>
-        ))}
-      </View>
-    </TouchableOpacity>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={invStyles.pickerOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+          <View style={invStyles.pickerCard}>
+            {PERMISSIONS.map(p => (
+              <TouchableOpacity
+                key={p}
+                style={invStyles.pickerRow}
+                onPress={() => { onSelect(p); onClose(); }}
+              >
+                <Text style={[invStyles.pickerOption, p === current && invStyles.pickerOptionActive]}>{p}</Text>
+                {p === current && <Feather name="check" size={14} color={colors.accent} />}
+              </TouchableOpacity>
+            ))}
+            <View style={invStyles.pickerDivider} />
+            <TouchableOpacity
+              style={invStyles.pickerRow}
+              onPress={() => { onRemove(); onClose(); }}
+            >
+              <Text style={invStyles.pickerRemove}>Remove</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 
 function CollaboratorRow({
-  collab, onChangeRole,
-}: { collab: Collaborator; onChangeRole: (p: Permission) => void }) {
+  collab, onChangeRole, onRemove,
+}: {
+  collab: Collaborator;
+  onChangeRole: (p: Permission) => void;
+  onRemove: () => void;
+}) {
   const [showPicker, setShowPicker] = useState(false);
   const isOwner = collab.role === "owner";
 
@@ -155,10 +175,7 @@ function CollaboratorRow({
         </View>
       ) : (
         <>
-          <TouchableOpacity
-            style={invStyles.permBtn}
-            onPress={() => setShowPicker(true)}
-          >
+          <TouchableOpacity style={invStyles.permBtn} onPress={() => setShowPicker(true)}>
             <Text style={invStyles.permBtnText}>{collab.role}</Text>
             <Feather name="chevron-down" size={12} color={colors.muted} />
           </TouchableOpacity>
@@ -166,6 +183,7 @@ function CollaboratorRow({
             <PermissionPicker
               current={collab.role as Permission}
               onSelect={onChangeRole}
+              onRemove={onRemove}
               onClose={() => setShowPicker(false)}
             />
           )}
@@ -311,6 +329,7 @@ function InviteFriendsModal({
                         onChangeRole={p => setCollabs(prev =>
                           prev.map((x, xi) => xi === i ? { ...x, role: p } : x),
                         )}
+                        onRemove={() => setCollabs(prev => prev.filter((_, xi) => xi !== i))}
                       />
                     ))}
                   </View>
@@ -1324,20 +1343,23 @@ const invStyles = StyleSheet.create({
   permBtnText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.text },
 
   // Permission picker
-  pickerBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 },
+  pickerOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.25)",
+    justifyContent: "center", alignItems: "center",
+  },
   pickerCard: {
-    position: "absolute", right: spacing.md, bottom: spacing.xl,
     backgroundColor: colors.card, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border,
-    ...shadow.md, zIndex: 21,
-    paddingVertical: 4, minWidth: 140,
+    ...shadow.md, minWidth: 190, overflow: "hidden",
   },
   pickerRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing.md, paddingVertical: 10,
+    paddingHorizontal: spacing.md, paddingVertical: 12,
   },
   pickerOption: { fontSize: fontSize.sm, color: colors.text },
   pickerOptionActive: { fontWeight: "700", color: colors.accent },
+  pickerDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md },
+  pickerRemove: { fontSize: fontSize.sm, color: "#E03E3E", fontWeight: "600" },
 
   // Divider
   orRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.md },

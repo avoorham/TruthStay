@@ -6,7 +6,7 @@ export interface MockUser {
   name: string;
 }
 
-export type Permission = "Can Edit" | "Can Suggest" | "Can View";
+export type Permission = "Editor" | "Suggest edits" | "Viewer";
 
 export interface Collaborator {
   user: MockUser;
@@ -35,12 +35,12 @@ const ME: MockUser = { id: "me", username: "you", name: "You" };
 export const MOCK_COLLABORATORS: Record<string, Collaborator[]> = {
   "mock-1": [
     { user: ME,           role: "owner" },
-    { user: MOCK_USERS[5], role: "Can Edit" },
-    { user: MOCK_USERS[6], role: "Can View" },
+    { user: MOCK_USERS[5], role: "Editor" },
+    { user: MOCK_USERS[6], role: "Viewer" },
   ],
   "mock-2": [
     { user: ME,           role: "owner" },
-    { user: MOCK_USERS[7], role: "Can Edit" },
+    { user: MOCK_USERS[7], role: "Editor" },
   ],
   "mock-3": [
     { user: ME, role: "owner" },

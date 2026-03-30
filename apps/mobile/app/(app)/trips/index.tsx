@@ -62,11 +62,6 @@ function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPres
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
       <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
 
-      {/* Heart */}
-      <View style={styles.heartBtn}>
-        <Feather name="heart" size={15} color="#FFFFFF" />
-      </View>
-
       {/* Gradient */}
       <LinearGradient
         colors={["transparent", "rgba(0,0,0,0.75)"]}

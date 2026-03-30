@@ -361,14 +361,14 @@ function InviteFriendsModal({
                     </View>
                   </View>
 
-                  {/* Divider */}
-                  <View style={invStyles.orRow}>
-                    <View style={invStyles.orLine} />
-                    <Text style={invStyles.orText}>or</Text>
-                    <View style={invStyles.orLine} />
-                  </View>
-
                 </ScrollView>
+
+                {/* Divider — outside ScrollView so it stays visible */}
+                <View style={invStyles.orRow}>
+                  <View style={invStyles.orLine} />
+                  <Text style={invStyles.orText}>or</Text>
+                  <View style={invStyles.orLine} />
+                </View>
 
                 {/* Search field — outside ScrollView so it's always visible */}
                 <View style={invStyles.searchWrap}>
@@ -1306,7 +1306,7 @@ const invStyles = StyleSheet.create({
     backgroundColor: colors.card,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     padding: spacing.lg, paddingBottom: spacing.md,
-    maxHeight: "88%",
+    maxHeight: "92%",
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,

@@ -64,13 +64,17 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile/index"
+        name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ focused }) => <TabIcon name="user" focused={focused} />,
         }}
       />
-      <Tabs.Screen name="trips/[id]" options={{ href: null }} />
+      <Tabs.Screen name="trips/[id]"             options={{ href: null }} />
+      <Tabs.Screen name="profile/friends"        options={{ href: null, tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="profile/notifications"  options={{ href: null, tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="profile/language"       options={{ href: null, tabBarStyle: { display: "none" } }} />
+      <Tabs.Screen name="profile/info"           options={{ href: null, tabBarStyle: { display: "none" } }} />
     </Tabs>
   );
 }

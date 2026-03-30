@@ -2,7 +2,7 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  Dimensions, Image, Keyboard, KeyboardAvoidingView, Modal, Platform,
+  Animated, Dimensions, Image, Keyboard, Modal, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
@@ -193,6 +193,10 @@ function CollaboratorRow({
   );
 }
 
+function isValidEmail(text: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim());
+}
+
 function InviteFriendsModal({
   visible, onClose, adventure,
 }: { visible: boolean; onClose: () => void; adventure: AdventureRow }) {
@@ -204,6 +208,27 @@ function InviteFriendsModal({
   );
   const [inviteSent, setInviteSent] = useState(false);
   const [toast, setToast] = useState("");
+  const kbOffset = useRef(new Animated.Value(0)).current;
+
+  // Smooth keyboard lift via Animated — avoids the shake that KeyboardAvoidingView causes
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      e => Animated.timing(kbOffset, {
+        toValue: e.endCoordinates.height,
+        duration: Platform.OS === "ios" ? (e.duration ?? 250) : 200,
+        useNativeDriver: false,
+      }).start(),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => Animated.timing(kbOffset, { toValue: 0, duration: 200, useNativeDriver: false }).start(),
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, [kbOffset]);
+
+  // Reset offset when modal closes
+  useEffect(() => { if (!visible) kbOffset.setValue(0); }, [visible, kbOffset]);
 
   // Reset "Invite sent" as soon as user types again
   useEffect(() => {
@@ -215,7 +240,7 @@ function InviteFriendsModal({
     ...selected.map(u => u.id),
   ];
   const suggestions = searchUsers(searchText, excludeIds);
-  const canInvite = selected.length > 0 || searchText.trim().length > 0;
+  const canInvite = selected.length > 0 || isValidEmail(searchText);
   const inviteCode = `TRIP-${adventure.id.toUpperCase()}`;
 
   function showToast(msg: string) {
@@ -226,13 +251,14 @@ function InviteFriendsModal({
   function handleInvite() {
     if (!canInvite) return;
     const newCollabs: Collaborator[] = selected.map(u => ({ user: u, role: "Viewer" as Permission }));
-    setCollabs(prev => [...prev, ...newCollabs]);
+    if (newCollabs.length > 0) setCollabs(prev => [...prev, ...newCollabs]);
     setSelected([]);
     setSearchText("");
     setInviteSent(true);
   }
 
   function handleClose() {
+    Keyboard.dismiss();
     setShowQR(false);
     setSearchText("");
     setSelected([]);
@@ -241,130 +267,123 @@ function InviteFriendsModal({
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => {
-        if (Keyboard.isVisible()) { Keyboard.dismiss(); } else { handleClose(); }
-      }}
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: "flex-end" }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={handleClose} />
 
-        <View style={invStyles.sheet}>
-          <View style={invStyles.handle} />
+        <Animated.View style={{ marginBottom: kbOffset }}>
+          <View style={invStyles.sheet}>
+            <View style={invStyles.handle} />
 
-          {showQR ? (
-            /* ── QR view ─────────────────────────────────────────────── */
-            <>
-              <View style={invStyles.headerRow}>
-                <View>
-                  <Text style={invStyles.title}>Invite to Trip</Text>
-                  <Text style={invStyles.subtitle}>Scan this QR code to join the trip instantly.</Text>
-                </View>
-                <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(false)}>
-                  <Feather name="link" size={18} color={colors.text} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={invStyles.qrBox}>
-                <View style={invStyles.qrPlaceholder}>
-                  <MaterialCommunityIcons name="qrcode" size={120} color={colors.text} />
-                </View>
-              </View>
-
-              <View style={invStyles.orRow}>
-                <View style={invStyles.orLine} />
-                <Text style={invStyles.orText}>or enter the invite code manually</Text>
-                <View style={invStyles.orLine} />
-              </View>
-
-              <View style={invStyles.codeRow}>
-                <Text style={invStyles.codeText}>{inviteCode}</Text>
-                <TouchableOpacity onPress={() => showToast("Code copied!")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Feather name="copy" size={16} color={colors.muted} />
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            /* ── Share sheet ─────────────────────────────────────────── */
-            <>
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                style={{ flexShrink: 1 }}
-              >
+            {showQR ? (
+              /* ── QR view ─────────────────────────────────────────────── */
+              <>
                 <View style={invStyles.headerRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={invStyles.title}>Share trip itinerary</Text>
-                    <Text style={invStyles.subtitle}>
-                      Give your friends access to this trip and start collaborating in real time.
-                    </Text>
+                  <View>
+                    <Text style={invStyles.title}>Invite to Trip</Text>
+                    <Text style={invStyles.subtitle}>Scan this QR code to join the trip instantly.</Text>
                   </View>
-                  <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(true)}>
-                    <MaterialCommunityIcons name="qrcode" size={20} color={colors.text} />
+                  <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(false)}>
+                    <Feather name="link" size={18} color={colors.text} />
                   </TouchableOpacity>
                 </View>
 
-                {/* Trip card */}
-                <View style={invStyles.tripCard}>
-                  <View style={invStyles.tripCardTop}>
-                    <View style={invStyles.tripIconCircle}>
-                      <MaterialCommunityIcons name="map-marker-outline" size={18} color={colors.accent} />
-                    </View>
+                <View style={invStyles.qrBox}>
+                  <View style={invStyles.qrPlaceholder}>
+                    <MaterialCommunityIcons name="qrcode" size={120} color={colors.text} />
+                  </View>
+                </View>
+
+                <View style={invStyles.orRow}>
+                  <View style={invStyles.orLine} />
+                  <Text style={invStyles.orText}>or enter the invite code manually</Text>
+                  <View style={invStyles.orLine} />
+                </View>
+
+                <View style={invStyles.codeRow}>
+                  <Text style={invStyles.codeText}>{inviteCode}</Text>
+                  <TouchableOpacity onPress={() => showToast("Code copied!")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Feather name="copy" size={16} color={colors.muted} />
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              /* ── Share sheet ─────────────────────────────────────────── */
+              <>
+                {/* Scrollable content: header, trip card, divider, search field */}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  style={{ flexShrink: 1 }}
+                >
+                  <View style={invStyles.headerRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={invStyles.tripCardTitle} numberOfLines={1}>{adventure.title}</Text>
-                      <Text style={invStyles.tripCardSub}>{collabs.length} Friend{collabs.length !== 1 ? "s" : ""}</Text>
+                      <Text style={invStyles.title}>Share trip itinerary</Text>
+                      <Text style={invStyles.subtitle}>
+                        Give your friends access to this trip and start collaborating in real time.
+                      </Text>
                     </View>
-                    <TouchableOpacity style={invStyles.copyLinkBtn} onPress={() => showToast("Link copied!")}>
-                      <Feather name="copy" size={13} color={colors.text} />
-                      <Text style={invStyles.copyLinkText}>Copy link</Text>
+                    <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(true)}>
+                      <MaterialCommunityIcons name="qrcode" size={20} color={colors.text} />
                     </TouchableOpacity>
                   </View>
 
-                  {/* Friends list */}
-                  <View style={invStyles.friendsBox}>
-                    <Text style={invStyles.friendsLabel}>Friends</Text>
-                    {collabs.map((c, i) => (
-                      <CollaboratorRow
-                        key={c.user.id + i}
-                        collab={c}
-                        onChangeRole={p => setCollabs(prev =>
-                          prev.map((x, xi) => xi === i ? { ...x, role: p } : x),
-                        )}
-                        onRemove={() => setCollabs(prev => prev.filter((_, xi) => xi !== i))}
-                      />
-                    ))}
+                  {/* Trip card */}
+                  <View style={invStyles.tripCard}>
+                    <View style={invStyles.tripCardTop}>
+                      <View style={invStyles.tripIconCircle}>
+                        <MaterialCommunityIcons name="map-marker-outline" size={18} color={colors.accent} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={invStyles.tripCardTitle} numberOfLines={1}>{adventure.title}</Text>
+                        <Text style={invStyles.tripCardSub}>{collabs.length} Friend{collabs.length !== 1 ? "s" : ""}</Text>
+                      </View>
+                      <TouchableOpacity style={invStyles.copyLinkBtn} onPress={() => showToast("Link copied!")}>
+                        <Feather name="copy" size={13} color={colors.text} />
+                        <Text style={invStyles.copyLinkText}>Copy link</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Friends list */}
+                    <View style={invStyles.friendsBox}>
+                      <Text style={invStyles.friendsLabel}>Friends</Text>
+                      {collabs.map((c, i) => (
+                        <CollaboratorRow
+                          key={c.user.id + i}
+                          collab={c}
+                          onChangeRole={p => setCollabs(prev =>
+                            prev.map((x, xi) => xi === i ? { ...x, role: p } : x),
+                          )}
+                          onRemove={() => setCollabs(prev => prev.filter((_, xi) => xi !== i))}
+                        />
+                      ))}
+                    </View>
                   </View>
-                </View>
 
-                {/* Divider */}
-                <View style={invStyles.orRow}>
-                  <View style={invStyles.orLine} />
-                  <Text style={invStyles.orText}>or</Text>
-                  <View style={invStyles.orLine} />
-                </View>
+                  {/* Divider */}
+                  <View style={invStyles.orRow}>
+                    <View style={invStyles.orLine} />
+                    <Text style={invStyles.orText}>or</Text>
+                    <View style={invStyles.orLine} />
+                  </View>
 
-                {/* Search */}
-                <View style={invStyles.searchWrap}>
-                  <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
-                  <TextInput
-                    style={invStyles.searchInput}
-                    value={searchText}
-                    onChangeText={setSearchText}
-                    placeholder="Write username or email…"
-                    placeholderTextColor={colors.subtle}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
+                  {/* Search field */}
+                  <View style={invStyles.searchWrap}>
+                    <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
+                    <TextInput
+                      style={invStyles.searchInput}
+                      value={searchText}
+                      onChangeText={setSearchText}
+                      placeholder="Write username or email…"
+                      placeholderTextColor={colors.subtle}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </ScrollView>
 
-                {/* Suggestions */}
+                {/* Suggestions — outside ScrollView so they're always visible above keyboard */}
                 {suggestions.length > 0 && (
                   <View style={invStyles.suggestionList}>
                     {suggestions.map(u => (
@@ -386,7 +405,7 @@ function InviteFriendsModal({
                   </View>
                 )}
 
-                {/* Selected chips */}
+                {/* Selected chips — outside ScrollView so they stay visible */}
                 {selected.length > 0 && (
                   <View style={invStyles.chipRow}>
                     {selected.map(u => (
@@ -401,27 +420,27 @@ function InviteFriendsModal({
                     ))}
                   </View>
                 )}
-              </ScrollView>
 
-              {/* Pinned invite button */}
-              <TouchableOpacity
-                style={[invStyles.inviteBtn, !canInvite && invStyles.inviteBtnDisabled]}
-                onPress={handleInvite}
-                disabled={!canInvite}
-              >
-                <Text style={invStyles.inviteBtnText}>{inviteSent ? "Invite sent" : "Invite"}</Text>
-              </TouchableOpacity>
-            </>
-          )}
+                {/* Pinned invite button */}
+                <TouchableOpacity
+                  style={[invStyles.inviteBtn, !canInvite && invStyles.inviteBtnDisabled]}
+                  onPress={handleInvite}
+                  disabled={!canInvite}
+                >
+                  <Text style={invStyles.inviteBtnText}>{inviteSent ? "Invite sent" : "Invite"}</Text>
+                </TouchableOpacity>
+              </>
+            )}
 
-          {/* Toast */}
-          {toast !== "" && (
-            <View style={invStyles.toast} pointerEvents="none">
-              <Text style={invStyles.toastText}>{toast}</Text>
-            </View>
-          )}
-        </View>
-      </KeyboardAvoidingView>
+            {/* Toast */}
+            {toast !== "" && (
+              <View style={invStyles.toast} pointerEvents="none">
+                <Text style={invStyles.toastText}>{toast}</Text>
+              </View>
+            )}
+          </View>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }

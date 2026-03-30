@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
+import QRCode from "react-native-qrcode-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -14,6 +15,10 @@ import { getMyAdventures, type AdventureRow, type AdventureDayRow } from "../../
 import {
   MOCK_TRIPS, MOCK_TRIP_META, type TripMeta, type RestaurantStop, type Booking,
 } from "../../../lib/mock-trips";
+import {
+  MOCK_COLLABORATORS, MOCK_USERS, searchUsers,
+  type MockUser, type Permission, type Collaborator,
+} from "../../../lib/mock-users";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
@@ -101,6 +106,285 @@ function ReviewSection({
         <Text style={reviewStyles.photoBtnText}>Add photo</Text>
       </TouchableOpacity>
     </View>
+  );
+}
+
+// ─── Invite friends modal ─────────────────────────────────────────────────────
+
+const PERMISSIONS: Permission[] = ["Can Edit", "Can Suggest", "Can View"];
+
+function PermissionPicker({
+  current, onSelect, onClose,
+}: { current: Permission; onSelect: (p: Permission) => void; onClose: () => void }) {
+  return (
+    <TouchableOpacity style={invStyles.pickerBackdrop} activeOpacity={1} onPress={onClose}>
+      <View style={invStyles.pickerCard}>
+        {PERMISSIONS.map(p => (
+          <TouchableOpacity
+            key={p}
+            style={invStyles.pickerRow}
+            onPress={() => { onSelect(p); onClose(); }}
+          >
+            <Text style={[invStyles.pickerOption, p === current && invStyles.pickerOptionActive]}>{p}</Text>
+            {p === current && <Feather name="check" size={14} color={colors.accent} />}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function CollaboratorRow({
+  collab, onChangeRole,
+}: { collab: Collaborator; onChangeRole: (p: Permission) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const isOwner = collab.role === "owner";
+
+  return (
+    <View style={invStyles.collabRow}>
+      <Image
+        source={{ uri: `https://picsum.photos/seed/${collab.user.id}/80/80` }}
+        style={invStyles.collabAvatar}
+      />
+      <View style={invStyles.collabInfo}>
+        <Text style={invStyles.collabName}>{collab.user.name}</Text>
+        <Text style={invStyles.collabUsername}>@{collab.user.username}</Text>
+      </View>
+      {isOwner ? (
+        <View style={invStyles.ownerBadge}>
+          <Text style={invStyles.ownerText}>Owner</Text>
+        </View>
+      ) : (
+        <>
+          <TouchableOpacity
+            style={invStyles.permBtn}
+            onPress={() => setShowPicker(true)}
+          >
+            <Text style={invStyles.permBtnText}>{collab.role}</Text>
+            <Feather name="chevron-down" size={12} color={colors.muted} />
+          </TouchableOpacity>
+          {showPicker && (
+            <PermissionPicker
+              current={collab.role as Permission}
+              onSelect={onChangeRole}
+              onClose={() => setShowPicker(false)}
+            />
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+function InviteFriendsModal({
+  visible, onClose, adventure,
+}: { visible: boolean; onClose: () => void; adventure: AdventureRow }) {
+  const [showQR, setShowQR] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [selected, setSelected] = useState<MockUser[]>([]);
+  const [collabs, setCollabs] = useState<Collaborator[]>(
+    MOCK_COLLABORATORS[adventure.id] ?? [{ user: { id: "me", username: "you", name: "You" }, role: "owner" }],
+  );
+  const [toast, setToast] = useState("");
+
+  const excludeIds = [
+    ...collabs.map(c => c.user.id),
+    ...selected.map(u => u.id),
+  ];
+  const suggestions = searchUsers(searchText, excludeIds);
+
+  const inviteCode = `TRIP-${adventure.id.toUpperCase()}`;
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
+  }
+
+  function handleCopyLink() {
+    showToast("Link copied!");
+  }
+
+  function handleCopyCode() {
+    showToast("Code copied!");
+  }
+
+  function handleInvite() {
+    const newCollabs: Collaborator[] = selected.map(u => ({ user: u, role: "Can View" as Permission }));
+    setCollabs(prev => [...prev, ...newCollabs]);
+    setSelected([]);
+    setSearchText("");
+    showToast("Invitation sent!");
+  }
+
+  function handleClose() {
+    setShowQR(false);
+    setSearchText("");
+    setSelected([]);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <TouchableOpacity style={invStyles.backdrop} activeOpacity={1} onPress={handleClose} />
+      <View style={invStyles.sheet}>
+        <View style={invStyles.handle} />
+
+        {showQR ? (
+          /* ── QR view ─────────────────────────────────────────────── */
+          <>
+            <View style={invStyles.headerRow}>
+              <View>
+                <Text style={invStyles.title}>Invite to Trip</Text>
+                <Text style={invStyles.subtitle}>Scan this QR code to join the trip instantly.</Text>
+              </View>
+              <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(false)}>
+                <Feather name="link" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={invStyles.qrBox}>
+              <QRCode value={inviteCode} size={200} color={colors.text} backgroundColor="#FFFFFF" />
+            </View>
+
+            <View style={invStyles.orRow}>
+              <View style={invStyles.orLine} />
+              <Text style={invStyles.orText}>or enter the invite code manually</Text>
+              <View style={invStyles.orLine} />
+            </View>
+
+            <View style={invStyles.codeRow}>
+              <Text style={invStyles.codeText}>{inviteCode}</Text>
+              <TouchableOpacity onPress={handleCopyCode} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Feather name="copy" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          /* ── Share sheet ─────────────────────────────────────────── */
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View style={invStyles.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={invStyles.title}>Share trip itinerary</Text>
+                <Text style={invStyles.subtitle}>
+                  Give your friends access to this trip and start collaborating in real time.
+                </Text>
+              </View>
+              <TouchableOpacity style={invStyles.iconBtn} onPress={() => setShowQR(true)}>
+                <MaterialCommunityIcons name="qrcode" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Trip card */}
+            <View style={invStyles.tripCard}>
+              <View style={invStyles.tripCardTop}>
+                <View style={invStyles.tripIconCircle}>
+                  <MaterialCommunityIcons
+                    name="map-marker-outline"
+                    size={18}
+                    color={colors.accent}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={invStyles.tripCardTitle} numberOfLines={1}>{adventure.title}</Text>
+                  <Text style={invStyles.tripCardSub}>{collabs.length} Friend{collabs.length !== 1 ? "s" : ""}</Text>
+                </View>
+                <TouchableOpacity style={invStyles.copyLinkBtn} onPress={handleCopyLink}>
+                  <Feather name="copy" size={13} color={colors.text} />
+                  <Text style={invStyles.copyLinkText}>Copy link</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Friends list */}
+              <View style={invStyles.friendsBox}>
+                <Text style={invStyles.friendsLabel}>Friends</Text>
+                {collabs.map((c, i) => (
+                  <CollaboratorRow
+                    key={c.user.id + i}
+                    collab={c}
+                    onChangeRole={p => setCollabs(prev =>
+                      prev.map((x, xi) => xi === i ? { ...x, role: p } : x),
+                    )}
+                  />
+                ))}
+              </View>
+            </View>
+
+            {/* Divider */}
+            <View style={invStyles.orRow}>
+              <View style={invStyles.orLine} />
+              <Text style={invStyles.orText}>or</Text>
+              <View style={invStyles.orLine} />
+            </View>
+
+            {/* Search */}
+            <View style={invStyles.searchWrap}>
+              <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
+              <TextInput
+                style={invStyles.searchInput}
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="Write username or email…"
+                placeholderTextColor={colors.subtle}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {/* Suggestions */}
+            {suggestions.length > 0 && (
+              <View style={invStyles.suggestionList}>
+                {suggestions.map(u => (
+                  <TouchableOpacity
+                    key={u.id}
+                    style={invStyles.suggestionRow}
+                    onPress={() => { setSelected(prev => [...prev, u]); setSearchText(""); }}
+                  >
+                    <Image
+                      source={{ uri: `https://picsum.photos/seed/${u.id}/80/80` }}
+                      style={invStyles.suggestionAvatar}
+                    />
+                    <View>
+                      <Text style={invStyles.suggestionName}>{u.name}</Text>
+                      <Text style={invStyles.suggestionUsername}>@{u.username}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Selected chips */}
+            {selected.length > 0 && (
+              <View style={invStyles.chipRow}>
+                {selected.map(u => (
+                  <TouchableOpacity
+                    key={u.id}
+                    style={invStyles.chip}
+                    onPress={() => setSelected(prev => prev.filter(x => x.id !== u.id))}
+                  >
+                    <Text style={invStyles.chipText}>{u.name}</Text>
+                    <Feather name="x" size={12} color={colors.muted} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Invite button */}
+            {selected.length > 0 && (
+              <TouchableOpacity style={invStyles.inviteBtn} onPress={handleInvite}>
+                <Text style={invStyles.inviteBtnText}>Invite</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        )}
+
+        {/* Toast */}
+        {toast !== "" && (
+          <View style={invStyles.toast} pointerEvents="none">
+            <Text style={invStyles.toastText}>{toast}</Text>
+          </View>
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -620,11 +904,12 @@ export default function TripDetailScreen() {
   const insets   = useSafeAreaInsets();
   const router   = useRouter();
 
-  const [adventure, setAdventure]     = useState<AdventureRow | null>(null);
-  const [selectedDay, setSelectedDay] = useState(1);
-  const [mapVisible, setMapVisible]   = useState(false);
-  const [routeModal, setRouteModal]   = useState(false);
-  const [reviews, setReviews]         = useState<Record<number, { rating: number; comment: string }>>({});
+  const [adventure, setAdventure]       = useState<AdventureRow | null>(null);
+  const [selectedDay, setSelectedDay]   = useState(1);
+  const [mapVisible, setMapVisible]     = useState(false);
+  const [inviteVisible, setInviteVisible] = useState(false);
+  const [routeModal, setRouteModal]     = useState(false);
+  const [reviews, setReviews]           = useState<Record<number, { rating: number; comment: string }>>({});
 
   useEffect(() => {
     const mock = MOCK_TRIPS.find(m => m.id === id);
@@ -662,7 +947,7 @@ export default function TripDetailScreen() {
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
         <View style={detailStyles.headerRight}>
-          <TouchableOpacity style={detailStyles.headerBtn}>
+          <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
             <Feather name="user-plus" size={20} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
@@ -738,6 +1023,11 @@ export default function TripDetailScreen() {
         meta={meta}
       />
       <RouteConnectModal visible={routeModal} onClose={() => setRouteModal(false)} />
+      <InviteFriendsModal
+        visible={inviteVisible}
+        onClose={() => setInviteVisible(false)}
+        adventure={adventure}
+      />
     </View>
   );
 }
@@ -951,4 +1241,161 @@ const mapStyles = StyleSheet.create({
   pinActive: { width: 38, height: 38, borderRadius: 19, borderWidth: 3 },
   pinNum: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   pinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFFFFF" },
+});
+
+const invStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: spacing.lg, paddingBottom: spacing.xl,
+    maxHeight: "90%",
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: "center", marginBottom: spacing.md,
+  },
+  headerRow: {
+    flexDirection: "row", alignItems: "flex-start",
+    justifyContent: "space-between", gap: spacing.sm, marginBottom: spacing.md,
+  },
+  iconBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
+  },
+  title: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, marginBottom: 2 },
+  subtitle: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18 },
+
+  // Trip card
+  tripCard: {
+    backgroundColor: colors.accentLight ?? "#EEF5EE",
+    borderRadius: radius.xl, padding: spacing.md, gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  tripCardTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  tripIconCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center",
+  },
+  tripCardTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
+  tripCardSub: { fontSize: fontSize.xs, color: colors.muted },
+  copyLinkBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 6,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  copyLinkText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.text },
+
+  // Friends list
+  friendsBox: {
+    backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.sm, gap: 2,
+  },
+  friendsLabel: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text, paddingHorizontal: 4, paddingBottom: 4 },
+  collabRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    paddingVertical: 6, paddingHorizontal: 4,
+  },
+  collabAvatar: { width: 38, height: 38, borderRadius: 19 },
+  collabInfo: { flex: 1 },
+  collabName: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  collabUsername: { fontSize: fontSize.xs, color: colors.muted },
+  ownerBadge: {
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+  },
+  ownerText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.muted },
+  permBtn: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: spacing.sm, paddingVertical: 5,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+  },
+  permBtnText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.text },
+
+  // Permission picker
+  pickerBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 },
+  pickerCard: {
+    position: "absolute", right: spacing.md, bottom: spacing.xl,
+    backgroundColor: colors.card, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border,
+    ...shadow.md, zIndex: 21,
+    paddingVertical: 4, minWidth: 140,
+  },
+  pickerRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+  },
+  pickerOption: { fontSize: fontSize.sm, color: colors.text },
+  pickerOptionActive: { fontWeight: "700", color: colors.accent },
+
+  // Divider
+  orRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.md },
+  orLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  orText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "500" },
+
+  // Search
+  searchWrap: {
+    flexDirection: "row", alignItems: "center",
+    borderWidth: 1.5, borderColor: colors.border,
+    borderRadius: radius.full, paddingHorizontal: spacing.md, paddingVertical: 10,
+    backgroundColor: colors.bg,
+  },
+  searchInput: { flex: 1, fontSize: fontSize.sm, color: colors.text },
+
+  // Suggestions
+  suggestionList: {
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.lg, overflow: "hidden",
+    marginTop: spacing.xs,
+  },
+  suggestionRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  suggestionAvatar: { width: 32, height: 32, borderRadius: 16 },
+  suggestionName: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  suggestionUsername: { fontSize: fontSize.xs, color: colors.muted },
+
+  // Chips
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginTop: spacing.sm },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: spacing.sm, paddingVertical: 5,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  chipText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.text },
+
+  // Invite button
+  inviteBtn: {
+    backgroundColor: colors.text, borderRadius: radius.full,
+    paddingVertical: 14, alignItems: "center",
+    marginTop: spacing.md,
+  },
+  inviteBtnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+
+  // QR view
+  qrBox: {
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#FFFFFF", borderRadius: radius.xl,
+    padding: spacing.xl, marginVertical: spacing.md,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  codeRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.lg,
+    paddingHorizontal: spacing.md, paddingVertical: 12,
+    backgroundColor: colors.bg,
+  },
+  codeText: { fontSize: fontSize.base, fontWeight: "700", color: colors.text, letterSpacing: 0.5 },
+
+  // Toast
+  toast: {
+    position: "absolute", bottom: spacing.xl, alignSelf: "center",
+    backgroundColor: colors.text, borderRadius: radius.full,
+    paddingHorizontal: spacing.lg, paddingVertical: 10,
+  },
+  toastText: { color: colors.inverse, fontSize: fontSize.sm, fontWeight: "600" },
 });

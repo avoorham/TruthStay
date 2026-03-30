@@ -22,8 +22,10 @@
     "expo-web-browser": "~55.0.10",
     "react": "19.2.0",
     "react-native": "0.83.2",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-safe-area-context": "~5.6.2",
-    "react-native-screens": "~4.23.0"
+    "react-native-screens": "~4.23.0",
+    "react-native-svg": "15.15.3"
   },
   "devDependencies": {
     "@truthstay/typescript-config": "workspace:*",

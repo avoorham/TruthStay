@@ -2,7 +2,7 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  Animated, Dimensions, Image, Keyboard, Modal, Platform,
+  Animated, Dimensions, Image, Keyboard, Modal, PanResponder, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
@@ -209,6 +209,31 @@ function InviteFriendsModal({
   const [inviteSent, setInviteSent] = useState(false);
   const [toast, setToast] = useState("");
   const kbOffset = useRef(new Animated.Value(0)).current;
+  const sheetY   = useRef(new Animated.Value(0)).current;
+
+  // Swipe handle pan responder
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderMove: (_, gs) => {
+        // Allow full downward drag; resist upward past 60px
+        sheetY.setValue(Math.max(gs.dy, -60));
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy > 80 || (gs.vy > 0.5 && gs.dy > 0)) {
+          // Swipe down fast enough → dismiss
+          Animated.timing(sheetY, { toValue: 900, duration: 220, useNativeDriver: false }).start(() => {
+            sheetY.setValue(0);
+            handleClose();
+          });
+        } else {
+          // Snap back
+          Animated.spring(sheetY, { toValue: 0, useNativeDriver: false, bounciness: 6 }).start();
+        }
+      },
+    }),
+  ).current;
 
   // Smooth keyboard lift via Animated — avoids the shake that KeyboardAvoidingView causes
   useEffect(() => {
@@ -227,8 +252,10 @@ function InviteFriendsModal({
     return () => { show.remove(); hide.remove(); };
   }, [kbOffset]);
 
-  // Reset offset when modal closes
-  useEffect(() => { if (!visible) kbOffset.setValue(0); }, [visible, kbOffset]);
+  // Reset offsets when modal closes
+  useEffect(() => {
+    if (!visible) { kbOffset.setValue(0); sheetY.setValue(0); }
+  }, [visible, kbOffset, sheetY]);
 
   // Reset "Invite sent" as soon as user types again
   useEffect(() => {
@@ -272,8 +299,15 @@ function InviteFriendsModal({
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={handleClose} />
 
         <Animated.View style={{ marginBottom: kbOffset }}>
+          <Animated.View style={{ transform: [{ translateY: sheetY }] }}>
           <View style={invStyles.sheet}>
-            <View style={invStyles.handle} />
+            {/* Draggable handle — pan responder attached here only */}
+            <View
+              {...panResponder.panHandlers}
+              style={{ alignItems: "center", paddingVertical: 10 }}
+            >
+              <View style={invStyles.handle} />
+            </View>
 
             {showQR ? (
               /* ── QR view ─────────────────────────────────────────────── */
@@ -440,6 +474,7 @@ function InviteFriendsModal({
               </View>
             )}
           </View>
+          </Animated.View>
         </Animated.View>
       </View>
     </Modal>
@@ -1310,7 +1345,7 @@ const invStyles = StyleSheet.create({
   },
   handle: {
     width: 36, height: 4, borderRadius: 2,
-    backgroundColor: colors.border, alignSelf: "center", marginBottom: spacing.md,
+    backgroundColor: colors.border,
   },
   headerRow: {
     flexDirection: "row", alignItems: "flex-start",

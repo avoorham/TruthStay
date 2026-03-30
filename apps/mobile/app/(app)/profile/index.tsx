@@ -1,6 +1,6 @@
 import {
   Alert, Animated, Image, Keyboard, Modal, Platform,
-  ScrollView, StyleSheet, Switch, Text, TextInput,
+  ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -77,7 +77,6 @@ export default function ProfileScreen() {
   const [avatarError, setAvatarError] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
   const [editName, setEditName] = useState(displayName);
-  const [editUsername, setEditUsername] = useState(username);
 
   // Keyboard animation for edit modal
   const kbOffset = useRef(new Animated.Value(0)).current;
@@ -106,10 +105,27 @@ export default function ProfileScreen() {
   }
 
   async function handleSaveProfile() {
-    await supabase.auth.updateUser({
-      data: { display_name: editName, username: editUsername },
-    });
+    await supabase.auth.updateUser({ data: { display_name: editName } });
     setEditVisible(false);
+  }
+
+  function handleDeleteAccount() {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account and all your data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => supabase.auth.signOut(),
+        },
+      ],
+    );
+  }
+
+  function handleChangePhoto() {
+    Alert.alert("Change Photo", "Photo library access coming soon.");
   }
 
   return (
@@ -195,6 +211,26 @@ export default function ProfileScreen() {
                   <Feather name="x" size={20} color={colors.muted} />
                 </TouchableOpacity>
               </View>
+
+              {/* Avatar picker */}
+              <TouchableOpacity style={styles.avatarPickerWrap} onPress={handleChangePhoto} activeOpacity={0.8}>
+                {!avatarError ? (
+                  <Image
+                    source={{ uri: `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
+                    style={styles.editAvatar}
+                    onError={() => setAvatarError(true)}
+                  />
+                ) : (
+                  <View style={[styles.editAvatar, styles.avatarFallback]}>
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  </View>
+                )}
+                <View style={styles.cameraOverlay}>
+                  <Feather name="camera" size={14} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+
+              {/* Display Name — editable */}
               <Text style={styles.editLabel}>Display Name</Text>
               <TextInput
                 style={styles.editInput}
@@ -203,18 +239,29 @@ export default function ProfileScreen() {
                 placeholder="Your name"
                 placeholderTextColor={colors.subtle}
               />
+
+              {/* Username — locked */}
               <Text style={styles.editLabel}>Username</Text>
-              <TextInput
-                style={styles.editInput}
-                value={editUsername}
-                onChangeText={setEditUsername}
-                placeholder="username"
-                placeholderTextColor={colors.subtle}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
+              <View style={[styles.editInput, styles.editInputLocked]}>
+                <Text style={styles.editInputLockedText}>@{username}</Text>
+                <Feather name="lock" size={14} color={colors.subtle} />
+              </View>
+
+              {/* Email — locked */}
+              <Text style={styles.editLabel}>Email</Text>
+              <View style={[styles.editInput, styles.editInputLocked]}>
+                <Text style={styles.editInputLockedText} numberOfLines={1}>{user?.email}</Text>
+                <Feather name="lock" size={14} color={colors.subtle} />
+              </View>
+
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveProfile}>
                 <Text style={styles.saveBtnText}>Save</Text>
+              </TouchableOpacity>
+
+              {/* Delete account */}
+              <TouchableOpacity style={styles.deleteBtn} onPress={handleDeleteAccount}>
+                <Feather name="trash-2" size={14} color="#E03E3E" />
+                <Text style={styles.deleteBtnText}>Delete Account</Text>
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -312,4 +359,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14, alignItems: "center", marginTop: spacing.sm,
   },
   saveBtnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+
+  // Avatar picker
+  avatarPickerWrap: { alignSelf: "center", marginBottom: spacing.lg },
+  editAvatar: { width: 80, height: 80, borderRadius: 40 },
+  cameraOverlay: {
+    position: "absolute", bottom: 0, right: 0,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.accent, alignItems: "center", justifyContent: "center",
+    borderWidth: 2, borderColor: colors.card,
+  },
+
+  // Locked fields
+  editInputLocked: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: colors.bg, opacity: 0.6,
+  },
+  editInputLockedText: { fontSize: fontSize.base, color: colors.muted, flex: 1 },
+
+  // Delete account
+  deleteBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: spacing.xs, marginTop: spacing.md, paddingVertical: spacing.sm,
+  },
+  deleteBtnText: { fontSize: fontSize.sm, color: "#E03E3E", fontWeight: "600" },
 });

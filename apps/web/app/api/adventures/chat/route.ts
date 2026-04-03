@@ -648,6 +648,7 @@ async function saveAdditions(
       dayUpdateOps.push(
         db.from("adventure_days").update(dbUpdate)
           .eq("adventureId", adventureId).eq("dayNumber", dayNum)
+          .then()
       );
     }
   }

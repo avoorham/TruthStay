@@ -25,7 +25,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "pan",
-      "package": "com.truthstay.app"
+      "package": "com.truthstay.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,6 +47,11 @@
           "cameraPermission": "TruthStay needs camera access to take a photo."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "53fa9a07-3d73-40c5-a6a4-c130d3193e55"
+      }
+    }
   }
 }

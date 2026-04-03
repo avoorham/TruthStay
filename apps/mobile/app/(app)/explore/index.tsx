@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useMemo } from "react";
+import React, { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import {
   Animated, Dimensions, FlatList, Image, Modal, PanResponder,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
@@ -12,6 +12,7 @@ import Mapbox, {
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
+import { getPublicAdventures, type PublicAdventureRow } from "../../../lib/api";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -65,100 +66,6 @@ const DEFAULT_FILTERS: FilterState = {
   region: null,
 };
 
-// ─── Mock data ────────────────────────────────────────────────────────────────
-
-const MOCK_ADVENTURES: Adventure[] = [
-  {
-    id: "1", title: "Sa Calobra Loop", activityTypes: ["cycling"],
-    region: "Balearic Islands", country: "Spain",
-    days: 7, avgDistanceKm: 85, avgElevationM: 1800,
-    description: "Mallorca's iconic cycling circuit — Sa Calobra, Cap Formentor, and the Tramuntana mountains.",
-    budget: "mid", level: "advanced", rating: 4.9,
-    coords: [-2.85, 39.85], uploadedBy: "James",
-    photos: ["https://picsum.photos/seed/1-1/800/500", "https://picsum.photos/seed/1-2/800/500", "https://picsum.photos/seed/1-3/800/500"],
-  },
-  {
-    id: "2", title: "Alta Via 1", activityTypes: ["hiking"],
-    region: "Dolomites", country: "Italy",
-    days: 8, avgDistanceKm: 22, avgElevationM: 1100,
-    description: "Hut-to-hut traverse of the Dolomites on one of Europe's most iconic long-distance trails.",
-    budget: "mid", level: "intermediate", rating: 4.8,
-    coords: [12.0, 46.5], uploadedBy: null,
-    photos: ["https://picsum.photos/seed/2-1/800/500", "https://picsum.photos/seed/2-2/800/500", "https://picsum.photos/seed/2-3/800/500"],
-  },
-  {
-    id: "3", title: "UTMB Course Recon", activityTypes: ["trail_running", "hiking"],
-    region: "Mont Blanc", country: "France",
-    days: 5, avgDistanceKm: 35, avgElevationM: 2400,
-    description: "Run the iconic 170km UTMB loop in stages — one of trail running's ultimate bucket-list objectives.",
-    budget: "mid", level: "advanced", rating: 4.9,
-    coords: [6.87, 45.92], uploadedBy: "Sophie",
-    photos: ["https://picsum.photos/seed/3-1/800/500", "https://picsum.photos/seed/3-2/800/500", "https://picsum.photos/seed/3-3/800/500"],
-  },
-  {
-    id: "4", title: "Kalymnos Sport Climbing", activityTypes: ["climbing"],
-    region: "Aegean Islands", country: "Greece",
-    days: 10, avgDistanceKm: null, avgElevationM: null,
-    description: "World-class limestone sport climbing on the Aegean island — thousands of routes from 5a to 9a.",
-    budget: "budget", level: "intermediate", rating: 4.7,
-    coords: [26.98, 37.05], uploadedBy: null,
-    photos: ["https://picsum.photos/seed/4-1/800/500", "https://picsum.photos/seed/4-2/800/500", "https://picsum.photos/seed/4-3/800/500"],
-  },
-  {
-    id: "5", title: "Finale Ligure Enduro", activityTypes: ["mtb", "cycling"],
-    region: "Ligurian Riviera", country: "Italy",
-    days: 5, avgDistanceKm: 40, avgElevationM: 1600,
-    description: "Loamy singletrack, stone-slab tech sections, sea views — Europe's best enduro destination.",
-    budget: "mid", level: "advanced", rating: 4.8,
-    coords: [8.34, 44.17], uploadedBy: "Marco",
-    photos: ["https://picsum.photos/seed/5-1/800/500", "https://picsum.photos/seed/5-2/800/500", "https://picsum.photos/seed/5-3/800/500"],
-  },
-  {
-    id: "6", title: "Verbier Freeride Week", activityTypes: ["skiing"],
-    region: "Valais Alps", country: "Switzerland",
-    days: 6, avgDistanceKm: null, avgElevationM: 2200,
-    description: "Off-piste skiing in the 4 Vallées — Mont Fort descents, Tortin chutes, glacier runs.",
-    budget: "luxury", level: "advanced", rating: 4.9,
-    coords: [7.23, 46.1], uploadedBy: null,
-    photos: ["https://picsum.photos/seed/6-1/800/500", "https://picsum.photos/seed/6-2/800/500", "https://picsum.photos/seed/6-3/800/500"],
-  },
-  {
-    id: "7", title: "Sistiana Gravel Loop", activityTypes: ["cycling"],
-    region: "Karst Plateau", country: "Slovenia",
-    days: 4, avgDistanceKm: 65, avgElevationM: 900,
-    description: "Rolling karst plateau routes connecting the Adriatic coast to Slovenian wine country.",
-    budget: "budget", level: "intermediate", rating: 4.4,
-    coords: [13.6, 45.7], uploadedBy: "Lena",
-    photos: ["https://picsum.photos/seed/7-1/800/500", "https://picsum.photos/seed/7-2/800/500", "https://picsum.photos/seed/7-3/800/500"],
-  },
-  {
-    id: "8", title: "Peaks of the Balkans", activityTypes: ["hiking"],
-    region: "Prokletije", country: "Albania",
-    days: 10, avgDistanceKm: 20, avgElevationM: 1300,
-    description: "Remote multi-day traverse through Albania, Kosovo, and Montenegro on rugged mountain trails.",
-    budget: "budget", level: "intermediate", rating: 4.6,
-    coords: [20.1, 42.4], uploadedBy: null,
-    photos: ["https://picsum.photos/seed/8-1/800/500", "https://picsum.photos/seed/8-2/800/500", "https://picsum.photos/seed/8-3/800/500"],
-  },
-  {
-    id: "9", title: "Aiguilles Rouges Traverse", activityTypes: ["trail_running"],
-    region: "French Alps", country: "France",
-    days: 3, avgDistanceKm: 30, avgElevationM: 2100,
-    description: "Technical alpine ridge running above Chamonix with jaw-dropping views of Mont Blanc.",
-    budget: "mid", level: "advanced", rating: 4.7,
-    coords: [6.78, 45.97], uploadedBy: "Thomas",
-    photos: ["https://picsum.photos/seed/9-1/800/500", "https://picsum.photos/seed/9-2/800/500", "https://picsum.photos/seed/9-3/800/500"],
-  },
-  {
-    id: "10", title: "Fontainebleau Bouldering", activityTypes: ["climbing"],
-    region: "Île-de-France", country: "France",
-    days: 3, avgDistanceKm: null, avgElevationM: null,
-    description: "The world's best bouldering forest — thousands of sandstone problems across all grades.",
-    budget: "budget", level: "beginner", rating: 4.5,
-    coords: [2.67, 48.4], uploadedBy: null,
-    photos: ["https://picsum.photos/seed/10-1/800/500", "https://picsum.photos/seed/10-2/800/500", "https://picsum.photos/seed/10-3/800/500"],
-  },
-];
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -236,7 +143,7 @@ const RATING_OPTIONS = [
   { key: 3, label: "3.0+" },
 ];
 
-const REGIONS = [...new Set(MOCK_ADVENTURES.map(a => a.region))].sort();
+// REGIONS is now derived dynamically from loaded adventures in the main component
 
 // ─── Filter helpers ───────────────────────────────────────────────────────────
 
@@ -396,13 +303,14 @@ function FilterChip({
 }
 
 function FilterSheet({
-  visible, filters, onChange, onClose, onReset,
+  visible, filters, onChange, onClose, onReset, regions,
 }: {
   visible: boolean;
   filters: FilterState;
   onChange: (f: FilterState) => void;
   onClose: () => void;
   onReset: () => void;
+  regions: string[];
 }) {
   const insets = useSafeAreaInsets();
   if (!visible) return null;
@@ -554,7 +462,7 @@ function AdventureSheet({
         <Text style={styles.sheetDesc} numberOfLines={2}>{adventure.description}</Text>
 
         <TouchableOpacity style={styles.ctaBtn} onPress={onPlan} activeOpacity={0.85}>
-          <Text style={styles.ctaText}>Plan this adventure</Text>
+          <Text style={styles.ctaText}>Explore this adventure</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -869,6 +777,28 @@ function ImpressionsSheet({
   );
 }
 
+// ─── Mapper ───────────────────────────────────────────────────────────────────
+
+function toExploreAdventure(row: PublicAdventureRow): Adventure {
+  return {
+    id:            row.id,
+    title:         row.title,
+    activityTypes: [row.activityType],
+    region:        row.region,
+    country:       row.meta?.country ?? row.region,
+    days:          row.durationDays,
+    avgDistanceKm: row.meta?.avgDistanceKm ?? null,
+    avgElevationM: row.meta?.avgElevationM ?? null,
+    description:   row.description,
+    budget:        row.budget ?? "mid",
+    level:         row.level ?? "intermediate",
+    rating:        row.rating ?? 0,
+    coords:        row.meta?.coords ?? [10, 48],
+    uploadedBy:    null,
+    photos:        [`https://picsum.photos/seed/${row.id}/800/500`],
+  };
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function ExploreScreen() {
@@ -878,6 +808,9 @@ export default function ExploreScreen() {
   const mapRef    = useRef<MapView>(null);
   const boundsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [adventures, setAdventures] = useState<Adventure[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedAdventure, setSelectedAdventure] = useState<Adventure | null>(null);
@@ -889,7 +822,19 @@ export default function ExploreScreen() {
   const sheetY      = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const impressionsY = useRef(new Animated.Value(SNAP_PEEK)).current;
 
-  const filtered = useMemo(() => applyFilters(MOCK_ADVENTURES, filters), [filters]);
+  const loadAdventures = useCallback(() => {
+    setLoading(true);
+    setLoadError(false);
+    getPublicAdventures()
+      .then(rows => { setAdventures(rows.map(toExploreAdventure)); setLoading(false); })
+      .catch(() => { setLoadError(true); setLoading(false); });
+  }, []);
+
+  useEffect(() => { loadAdventures(); }, [loadAdventures]);
+
+  const regions = useMemo(() => [...new Set(adventures.map(a => a.region))].sort(), [adventures]);
+
+  const filtered = useMemo(() => applyFilters(adventures, filters), [adventures, filters]);
   const geoJson  = useMemo(() => toGeoJson(filtered), [filtered]);
   const activeFilterCount = countActiveFilters(filters);
   const unclusteredIds    = useMemo(() => getUnclusteredIds(filtered, zoom), [filtered, zoom]);
@@ -948,10 +893,31 @@ export default function ExploreScreen() {
         animationDuration: 500,
       });
     } else if (props?.id) {
-      const adventure = MOCK_ADVENTURES.find(a => a.id === String(props.id));
+      const adventure = adventures.find(a => a.id === String(props.id));
       if (adventure) showSheet(adventure);
     }
   }, [hideSheet, showSheet]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Feather name="compass" size={40} color={colors.border} />
+        <Text style={styles.loadingText}>Loading adventures…</Text>
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Feather name="wifi-off" size={40} color={colors.border} />
+        <Text style={styles.loadingText}>Couldn't load adventures</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={loadAdventures}>
+          <Text style={styles.retryText}>Tap to retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -1055,13 +1021,14 @@ export default function ExploreScreen() {
         onChange={setFilters}
         onClose={() => setFilterOpen(false)}
         onReset={() => setFilters(DEFAULT_FILTERS)}
+        regions={regions}
       />
 
       <AdventureSheet
         adventure={selectedAdventure}
         translateY={sheetY}
         onClose={hideSheet}
-        onPlan={() => { hideSheet(); router.push("/(app)/discover"); }}
+        onPlan={() => { hideSheet(); router.push(`/(app)/trips/${selectedAdventure?.id}` as any); }}
       />
 
       <ImpressionsSheet
@@ -1087,6 +1054,10 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centered: { justifyContent: "center", alignItems: "center", backgroundColor: colors.bg, gap: spacing.sm },
+  loadingText: { fontSize: fontSize.base, color: colors.muted, marginTop: spacing.xs },
+  retryBtn: { marginTop: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.full, backgroundColor: colors.accent },
+  retryText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.inverse },
 
   filterBtnWrap: { position: "absolute", right: spacing.md },
   filterBtn: {

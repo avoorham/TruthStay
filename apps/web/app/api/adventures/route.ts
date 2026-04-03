@@ -13,14 +13,16 @@ export async function GET(request: NextRequest) {
     .from("adventures")
     .select(`
       id, title, description, region, "activityType", "durationDays", "startDate", "createdAt",
-      adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes", "komootTourId")
+      "coverImageUrl", meta,
+      adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes", "komootTourId", alternatives)
     `)
     .eq("userId", user.id)
     .eq("isSaved", true)
     .order("createdAt", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[adventures] DB error:", error.message);
+    return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
 
   return NextResponse.json(data ?? []);

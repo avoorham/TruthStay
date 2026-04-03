@@ -2,7 +2,7 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  Animated, Dimensions, Image, Keyboard, Modal, PanResponder, Platform,
+  ActivityIndicator, Alert, Animated, Dimensions, Image, Keyboard, Modal, PanResponder, Platform,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
@@ -10,17 +10,90 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
-import {
-  MOCK_TRIPS, MOCK_TRIP_META, type TripMeta, type RestaurantStop, type Booking,
-} from "../../../lib/mock-trips";
-import {
-  MOCK_COLLABORATORS, MOCK_USERS, searchUsers,
-  type MockUser, type Permission, type Collaborator,
-} from "../../../lib/mock-users";
+import { getMyAdventures, submitDayFeedback, createPost, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
+
+// ─── Local types (replacing mock-trips / mock-users) ──────────────────────────
+
+export interface RestaurantStop {
+  name: string;
+  cuisine: string;
+  priceRange: string;
+  night: number;
+  coords: [number, number];
+}
+
+export interface Booking {
+  type: "flight" | "hotel" | "train" | "activity" | "car";
+  title: string;
+  ref: string;
+  date: string;
+  price: number;
+  currency: string;
+}
+
+export interface TripMeta {
+  coords: [number, number];
+  dayCoords: Record<number, [number, number]>;
+  accommodation: string;
+  accommodationCoords: [number, number];
+  pricePerNight: number;
+  nights: string;
+  restaurants: RestaurantStop[];
+  bookings: Booking[];
+}
+
+export type Permission = "Editor" | "Suggest edits" | "Viewer";
+export interface MockUser { id: string; name: string; username: string }
+export interface Collaborator { user: MockUser; role: string }
+
+function searchUsers(_query: string, _excludeIds: string[]): MockUser[] { return []; }
+
+// Derive TripMeta from real AdventureRow data
+function deriveMetaMeta(adventure: AdventureRow): TripMeta {
+  const baseCoords: [number, number] = (adventure.meta?.coords as [number, number] | undefined) ?? [10, 48];
+  const restaurants: RestaurantStop[] = [];
+  const dayCoords: Record<number, [number, number]> = {};
+  let accommodation = "";
+  let pricePerNight = 0;
+
+  for (const day of adventure.adventure_days ?? []) {
+    const alt = day.alternatives;
+    if (!alt) continue;
+
+    // Extract restaurants for this day
+    for (const r of alt.restaurants ?? []) {
+      restaurants.push({
+        name: r.name ?? "Restaurant",
+        cuisine: r.cuisine ?? "",
+        priceRange: r.price_range ?? "",
+        night: day.dayNumber,
+        coords: baseCoords,
+      });
+    }
+
+    // First accommodation option encountered
+    const accomOpt = alt.accommodationStop?.options?.[0];
+    if (accomOpt && !accommodation) {
+      accommodation = accomOpt.name ?? "";
+      pricePerNight = accomOpt.price_per_night_eur ?? 0;
+    }
+  }
+
+  return {
+    coords: baseCoords,
+    dayCoords,
+    accommodation,
+    accommodationCoords: baseCoords,
+    pricePerNight,
+    nights: `${adventure.durationDays - 1} nights`,
+    restaurants,
+    bookings: [],
+  };
+}
 
 const SCREEN_H = Dimensions.get("window").height;
 const HERO_H   = Math.round(SCREEN_H * 0.3);
@@ -36,11 +109,6 @@ const ACTIVITY_ICON: Record<string, string> = {
 
 // ─── Pin colours ──────────────────────────────────────────────────────────────
 
-const PIN_COLORS = {
-  activity:      colors.text,
-  accommodation: colors.accent,
-  restaurant:    "#E07B39",
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +130,16 @@ function stopCoords(meta: TripMeta | null, dayNumber: number, totalDays: number)
   ];
 }
 
+function computeBounds(coords: [number, number][]): { ne: [number, number]; sw: [number, number] } | null {
+  if (coords.length === 0) return null;
+  const lngs = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  return {
+    ne: [Math.max(...lngs), Math.max(...lats)],
+    sw: [Math.min(...lngs), Math.min(...lats)],
+  };
+}
+
 const BOOKING_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]> = {
   flight: "send", hotel: "home", train: "map", car: "settings", activity: "star",
 };
@@ -71,8 +149,14 @@ const BOOKING_ICON: Record<string, React.ComponentProps<typeof Feather>["name"]>
 interface Review { rating: number; comment: string }
 
 function ReviewSection({
-  review, onRate, onComment,
-}: { review: Review; onRate: (r: number) => void; onComment: (c: string) => void }) {
+  review, onRate, onComment, photos, onAddPhoto,
+}: {
+  review: Review;
+  onRate: (r: number) => void;
+  onComment: (c: string) => void;
+  photos: string[];
+  onAddPhoto: () => void;
+}) {
   return (
     <View style={reviewStyles.container}>
       {/* Star row */}
@@ -99,8 +183,18 @@ function ReviewSection({
         placeholderTextColor={colors.subtle}
         multiline
       />
+      {/* Photo thumbnails */}
+      {photos.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 2 }}>
+          <View style={reviewStyles.photoStrip}>
+            {photos.map((url, i) => (
+              <Image key={i} source={{ uri: url }} style={reviewStyles.photoThumb} />
+            ))}
+          </View>
+        </ScrollView>
+      )}
       {/* Add photo CTA */}
-      <TouchableOpacity style={reviewStyles.photoBtn}>
+      <TouchableOpacity style={reviewStyles.photoBtn} onPress={onAddPhoto}>
         <Feather name="camera" size={14} color={colors.accent} />
         <Text style={reviewStyles.photoBtnText}>Add photo</Text>
       </TouchableOpacity>
@@ -204,7 +298,7 @@ function InviteFriendsModal({
   const [searchText, setSearchText] = useState("");
   const [selected, setSelected] = useState<MockUser[]>([]);
   const [collabs, setCollabs] = useState<Collaborator[]>(
-    MOCK_COLLABORATORS[adventure.id] ?? [{ user: { id: "me", username: "you", name: "You" }, role: "owner" }],
+    [{ user: { id: "me", username: "you", name: "You" }, role: "owner" }],
   );
   const [inviteSent, setInviteSent] = useState(false);
   const [toast, setToast] = useState("");
@@ -520,7 +614,7 @@ function RouteConnectModal({ visible, onClose }: { visible: boolean; onClose: ()
 // ─── Stop card ────────────────────────────────────────────────────────────────
 
 function StopCard({
-  day, adventureId, stopNumber, isLast, review, onRate, onComment, onConnectRoute,
+  day, adventureId, stopNumber, isLast, review, onRate, onComment, onConnectRoute, photos, onAddPhoto, onShare,
 }: {
   day: AdventureDayRow;
   adventureId: string;
@@ -530,6 +624,9 @@ function StopCard({
   onRate: (r: number) => void;
   onComment: (c: string) => void;
   onConnectRoute: () => void;
+  photos: string[];
+  onAddPhoto: () => void;
+  onShare: () => void;
 }) {
   const photoUrl = `https://picsum.photos/seed/${adventureId}-${day.dayNumber}/800/500`;
   return (
@@ -579,10 +676,15 @@ function StopCard({
             <MaterialCommunityIcons name="routes" size={14} color={colors.text} />
             <Text style={tileStyles.actionText}>Route</Text>
           </TouchableOpacity>
+          <View style={tileStyles.actionDivider} />
+          <TouchableOpacity style={tileStyles.actionBtn} onPress={onShare}>
+            <Feather name="camera" size={13} color={colors.text} />
+            <Text style={tileStyles.actionText}>Share</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Review section */}
-        <ReviewSection review={review} onRate={onRate} onComment={onComment} />
+        <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
       </View>
     </View>
   );
@@ -595,7 +697,7 @@ function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId:
   return (
     <View style={tileStyles.row}>
       <View style={tileStyles.timeline}>
-        <View style={[tileStyles.circle, { backgroundColor: PIN_COLORS.accommodation }]}>
+        <View style={[tileStyles.circle, { backgroundColor: colors.accent }]}>
           <Feather name="home" size={14} color="#FFFFFF" />
         </View>
       </View>
@@ -635,7 +737,7 @@ function RestaurantCard({ restaurant, adventureId, idx }: { restaurant: Restaura
   return (
     <View style={tileStyles.row}>
       <View style={tileStyles.timeline}>
-        <View style={[tileStyles.circle, { backgroundColor: PIN_COLORS.restaurant }]}>
+        <View style={[tileStyles.circle, { backgroundColor: "#E07B39" }]}>
           <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
         </View>
       </View>
@@ -709,19 +811,14 @@ function BookingsSection({ bookings }: { bookings: Booking[] }) {
 
 // ─── Map pins ─────────────────────────────────────────────────────────────────
 
-function MapPin({ number, color, active }: { number?: number; color: string; active?: boolean }) {
+function AccommodationPin() {
   return (
-    <View style={[
-      mapStyles.pin,
-      { backgroundColor: color },
-      active && mapStyles.pinActive,
-    ]}>
-      {number != null
-        ? <Text style={mapStyles.pinNum}>{number}</Text>
-        : <View style={mapStyles.pinDot} />}
+    <View style={mapStyles.accomPin}>
+      <MaterialCommunityIcons name="home" size={16} color="#FFFFFF" />
     </View>
   );
 }
+
 
 // ─── Day selector with fading edges ──────────────────────────────────────────
 
@@ -797,10 +894,13 @@ function TripMapModal({
   onClose: (jumpToDay?: number) => void;
   adventure: AdventureRow;
   days: AdventureDayRow[];
-  meta: TripMeta | null;
+  meta: TripMeta;
 }) {
   const insets = useSafeAreaInsets();
   const [activeIdx, setActiveIdx] = useState(0);
+
+  const cameraRef = useRef<MapboxGL.Camera>(null);
+  const mapRef    = useRef<MapboxGL.MapView>(null);
 
   const activityStops = days.map((d, i) => ({
     day: d,
@@ -809,7 +909,34 @@ function TripMapModal({
   }));
 
   const active = activityStops[activeIdx];
-  const centerCoords = meta?.coords ?? activityStops[0]?.coords ?? [0, 0];
+
+  const allCoords: [number, number][] = [
+    ...activityStops.map(s => s.coords),
+    ...(meta?.accommodationCoords ? [meta.accommodationCoords] : []),
+    ...(meta?.restaurants.map(r => r.coords) ?? []),
+  ];
+  const bounds = computeBounds(allCoords);
+
+  // GeoJSON sources for canvas-rendered pins (always below PointAnnotation layer)
+  const activityGeoJSON = {
+    type: "FeatureCollection" as const,
+    features: activityStops.map((stop, i) => ({
+      type: "Feature" as const,
+      id: String(i),
+      geometry: { type: "Point" as const, coordinates: stop.coords },
+      properties: { dayNumber: stop.day.dayNumber, active: i === activeIdx ? 1 : 0 },
+    })),
+  };
+
+  const restaurantGeoJSON = meta?.restaurants && meta.restaurants.length > 0 ? {
+    type: "FeatureCollection" as const,
+    features: meta.restaurants.map((r, i) => ({
+      type: "Feature" as const,
+      id: String(i),
+      geometry: { type: "Point" as const, coordinates: r.coords },
+      properties: {},
+    })),
+  } : null;
 
   const routeGeoJSON = activityStops.length >= 2
     ? {
@@ -819,40 +946,96 @@ function TripMapModal({
       }
     : null;
 
+  async function zoomIn() {
+    const zoom = await mapRef.current?.getZoom();
+    if (zoom != null) cameraRef.current?.setCamera({ zoomLevel: zoom + 1, animationDuration: 250 });
+  }
+  async function zoomOut() {
+    const zoom = await mapRef.current?.getZoom();
+    if (zoom != null) cameraRef.current?.setCamera({ zoomLevel: Math.max(1, zoom - 1), animationDuration: 250 });
+  }
+
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent>
       <View style={{ flex: 1 }}>
         {/* Map */}
-        <MapboxGL.MapView style={{ flex: 1 }} logoEnabled={false} attributionEnabled={false}>
-          <MapboxGL.Camera centerCoordinate={centerCoords} zoomLevel={meta ? 10 : 3} animationDuration={0} />
+        <MapboxGL.MapView ref={mapRef} style={{ flex: 1 }} logoEnabled={false} attributionEnabled={false}>
+          <MapboxGL.Camera
+            ref={cameraRef}
+            animationDuration={0}
+            {...(bounds
+              ? { bounds: { ne: bounds.ne, sw: bounds.sw, paddingTop: 100, paddingBottom: 340, paddingLeft: 48, paddingRight: 48 } }
+              : { centerCoordinate: [0, 0], zoomLevel: 3 }
+            )}
+          />
 
-          {/* Route line */}
+          {/* Route line — canvas */}
           {routeGeoJSON && (
             <MapboxGL.ShapeSource id="tripRoute" shape={routeGeoJSON}>
               <MapboxGL.LineLayer id="tripRouteLine" style={{ lineColor: colors.accent, lineWidth: 2, lineDasharray: [2, 2], lineOpacity: 0.8 }} />
             </MapboxGL.ShapeSource>
           )}
 
-          {/* Activity pins */}
-          {activityStops.map((stop, i) => (
-            <MapboxGL.PointAnnotation key={`act-${i}`} id={`act-${i}`} coordinate={stop.coords} onSelected={() => setActiveIdx(i)}>
-              <MapPin number={i + 1} color={PIN_COLORS.activity} active={i === activeIdx} />
-            </MapboxGL.PointAnnotation>
-          ))}
-
-          {/* Accommodation pin */}
-          {meta?.accommodationCoords && (
-            <MapboxGL.PointAnnotation key="accom" id="accom" coordinate={meta.accommodationCoords}>
-              <MapPin color={PIN_COLORS.accommodation} />
-            </MapboxGL.PointAnnotation>
+          {/* Restaurant dots — canvas (smallest, always below activity & accommodation) */}
+          {restaurantGeoJSON && (
+            <MapboxGL.ShapeSource id="restaurants" shape={restaurantGeoJSON}>
+              <MapboxGL.CircleLayer
+                id="restaurantCircles"
+                style={{
+                  circleRadius: 9,
+                  circleColor: "#FFFFFF",
+                  circleStrokeWidth: 1.5,
+                  circleStrokeColor: colors.border,
+                }}
+              />
+              <MapboxGL.SymbolLayer
+                id="restaurantIcons"
+                style={{
+                  textField: "🍴",
+                  textSize: 9,
+                  textAllowOverlap: true,
+                  textIgnorePlacement: true,
+                }}
+              />
+            </MapboxGL.ShapeSource>
           )}
 
-          {/* Restaurant pins */}
-          {meta?.restaurants.map((r, i) => (
-            <MapboxGL.PointAnnotation key={`rest-${i}`} id={`rest-${i}`} coordinate={r.coords}>
-              <MapPin color={PIN_COLORS.restaurant} />
+          {/* Activity circles — canvas (below PointAnnotation layer) */}
+          <MapboxGL.ShapeSource
+            id="activities"
+            shape={activityGeoJSON}
+            onPress={e => {
+              const idx = Number(e.features[0]?.id);
+              if (!isNaN(idx)) setActiveIdx(idx);
+            }}
+          >
+            <MapboxGL.CircleLayer
+              id="activityCircles"
+              style={{
+                circleRadius: ["case", ["==", ["get", "active"], 1], 19, 15] as any,
+                circleColor: ["case", ["==", ["get", "active"], 1], colors.accent, colors.text] as any,
+                circleStrokeWidth: 2,
+                circleStrokeColor: "#FFFFFF",
+              }}
+            />
+            <MapboxGL.SymbolLayer
+              id="activityLabels"
+              style={{
+                textField: ["to-string", ["get", "dayNumber"]] as any,
+                textColor: "#FFFFFF",
+                textSize: 11,
+                textAllowOverlap: true,
+                textIgnorePlacement: true,
+              }}
+            />
+          </MapboxGL.ShapeSource>
+
+          {/* Accommodation — PointAnnotation renders as RN view, always above canvas layers */}
+          {meta?.accommodationCoords && (
+            <MapboxGL.PointAnnotation key="accom" id="accom" coordinate={meta.accommodationCoords}>
+              <AccommodationPin />
             </MapboxGL.PointAnnotation>
-          ))}
+          )}
         </MapboxGL.MapView>
 
         {/* Top bar */}
@@ -860,21 +1043,19 @@ function TripMapModal({
           <TouchableOpacity style={mapStyles.iconBtn} onPress={() => onClose()}>
             <Feather name="arrow-left" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          {/* Legend */}
-          <View style={mapStyles.legendRow}>
-            {([
-              { color: PIN_COLORS.activity, label: "Activity" },
-              { color: PIN_COLORS.accommodation, label: "Stay" },
-              { color: PIN_COLORS.restaurant, label: "Dining" },
-            ] as const).map(item => (
-              <View key={item.label} style={mapStyles.legendItem}>
-                <View style={[mapStyles.legendDot, { backgroundColor: item.color }]} />
-                <Text style={mapStyles.legendText}>{item.label}</Text>
-              </View>
-            ))}
-          </View>
           <TouchableOpacity style={mapStyles.iconBtn}>
             <Feather name="menu" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Zoom controls */}
+        <View style={[mapStyles.zoomControls, { top: insets.top + 60 }]}>
+          <TouchableOpacity style={mapStyles.zoomBtn} onPress={zoomIn}>
+            <Feather name="plus" size={18} color={colors.text} />
+          </TouchableOpacity>
+          <View style={mapStyles.zoomDivider} />
+          <TouchableOpacity style={mapStyles.zoomBtn} onPress={zoomOut}>
+            <Feather name="minus" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -990,6 +1171,274 @@ function ItineraryDayTabs({
   );
 }
 
+// ─── Post creation sheet ─────────────────────────────────────────────────────
+
+function PostCreationSheet({
+  visible, adventureId, dayNumber, dayTitle, adventureTitle, onClose,
+}: {
+  visible: boolean;
+  adventureId: string;
+  dayNumber: number;
+  dayTitle: string;
+  adventureTitle: string;
+  onClose: () => void;
+}) {
+  const [caption, setCaption]     = useState("");
+  const [photos, setPhotos]       = useState<string[]>([]);
+  const [posting, setPosting]     = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [userId, setUserId]       = useState<string | null>(null);
+  useEffect(() => {
+    if (!visible) { setCaption(""); setPhotos([]); setPostError(null); return; }
+    import("../../../lib/supabase").then(({ supabase }) => {
+      supabase.auth.getSession().then(({ data }) => setUserId(data.session?.user.id ?? null));
+    });
+  }, [visible]);
+
+  async function handleAddPhoto() {
+    const uri = await pickImage([4, 3]);
+    if (!uri || !userId) return;
+    const key = `${Date.now()}`;
+    const url = await uploadPostPhoto(userId, adventureId, key, uri);
+    if (url) setPhotos(prev => [...prev, url]);
+  }
+
+  async function handlePost() {
+    if (posting) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      await createPost({
+        adventure_id: adventureId,
+        day_number:   dayNumber,
+        caption:      caption.trim() || `Day ${dayNumber} — ${adventureTitle}`,
+        media_urls:   photos,
+      });
+      Alert.alert("Posted!", "Your update was shared to the feed.");
+      onClose();
+    } catch {
+      setPostError("Upload failed — tap to retry");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={postStyles.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={onClose} activeOpacity={1} />
+        <View style={postStyles.sheet}>
+          {/* Handle */}
+          <View style={postStyles.handle} />
+
+          <Text style={postStyles.heading}>Share day update</Text>
+          <Text style={postStyles.sub}>{dayTitle}</Text>
+
+          {/* Photo row */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={postStyles.photoScroll} contentContainerStyle={{ gap: spacing.sm, paddingHorizontal: spacing.md }}>
+            <TouchableOpacity style={postStyles.addPhotoBtn} onPress={handleAddPhoto} activeOpacity={0.8}>
+              <Feather name="camera" size={22} color={colors.muted} />
+              <Text style={postStyles.addPhotoText}>Add photo</Text>
+            </TouchableOpacity>
+            {photos.map((uri, i) => (
+              <Image key={i} source={{ uri }} style={postStyles.thumb} resizeMode="cover" />
+            ))}
+          </ScrollView>
+
+          {/* Caption */}
+          <TextInput
+            style={postStyles.input}
+            placeholder="What happened today?"
+            placeholderTextColor={colors.muted}
+            value={caption}
+            onChangeText={setCaption}
+            multiline
+            maxLength={280}
+          />
+
+          {postError && (
+            <TouchableOpacity onPress={handlePost} style={postStyles.postError}>
+              <Text style={postStyles.postErrorText}>{postError}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[postStyles.postBtn, posting && { opacity: 0.6 }]}
+            onPress={handlePost}
+            disabled={posting}
+            activeOpacity={0.85}
+          >
+            {posting
+              ? <ActivityIndicator color="#FFFFFF" size="small" />
+              : <Text style={postStyles.postBtnText}>Post to feed</Text>
+            }
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const postStyles = StyleSheet.create({
+  overlay:      { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingBottom: 40,
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: "center", marginTop: spacing.sm, marginBottom: spacing.md,
+  },
+  heading:      { fontSize: 17, fontWeight: "700", color: colors.text, paddingHorizontal: spacing.md },
+  sub:          { fontSize: fontSize.sm, color: colors.muted, paddingHorizontal: spacing.md, marginBottom: spacing.md },
+  photoScroll:  { marginBottom: spacing.md },
+  addPhotoBtn: {
+    width: 80, height: 80, borderRadius: radius.sm,
+    borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
+    alignItems: "center", justifyContent: "center", gap: 4,
+  },
+  addPhotoText: { fontSize: 10, color: colors.muted, fontWeight: "600" },
+  thumb:        { width: 80, height: 80, borderRadius: radius.sm },
+  input: {
+    marginHorizontal: spacing.md,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    padding: spacing.sm, color: colors.text, fontSize: fontSize.base,
+    minHeight: 80, textAlignVertical: "top", marginBottom: spacing.md,
+  },
+  postBtn: {
+    marginHorizontal: spacing.md,
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  postBtnText:  { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.base },
+  postError: {
+    marginHorizontal: spacing.md, marginBottom: spacing.sm,
+    padding: spacing.sm, borderRadius: radius.md,
+    backgroundColor: "#FEECEC",
+  },
+  postErrorText: { fontSize: fontSize.sm, color: "#E03E3E", fontWeight: "600", textAlign: "center" },
+});
+
+// ─── Feedback sheet ───────────────────────────────────────────────────────────
+
+function StarRow({
+  label, value, onChange,
+}: { label: string; value: number; onChange: (n: number) => void }) {
+  return (
+    <View style={fbStyles.starRow}>
+      <Text style={fbStyles.starLabel}>{label}</Text>
+      <View style={fbStyles.stars}>
+        {[1, 2, 3, 4, 5].map(n => (
+          <TouchableOpacity key={n} onPress={() => onChange(n)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <MaterialCommunityIcons
+              name={n <= value ? "star" : "star-outline"}
+              size={26}
+              color={n <= value ? "#F59E0B" : colors.border}
+            />
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function FeedbackSheet({
+  visible, dayNumber, adventureId, onClose,
+}: {
+  visible: boolean;
+  dayNumber: number;
+  adventureId: string;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [routeRating, setRouteRating]         = useState(0);
+  const [accommodationRating, setAccommodationRating] = useState(0);
+  const [restaurantRating, setRestaurantRating]       = useState(0);
+  const [notes, setNotes]   = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    if (routeRating === 0 && accommodationRating === 0 && restaurantRating === 0) {
+      onClose();
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await submitDayFeedback(adventureId, {
+        dayNumber,
+        routeRating:         routeRating         > 0 ? routeRating         : undefined,
+        accommodationRating: accommodationRating > 0 ? accommodationRating : undefined,
+        restaurantRating:    restaurantRating    > 0 ? restaurantRating    : undefined,
+        notes:               notes.trim() || undefined,
+      });
+      setRouteRating(0); setAccommodationRating(0); setRestaurantRating(0); setNotes("");
+      onClose();
+    } catch (err) {
+      Alert.alert("Save failed", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={fbStyles.overlay} activeOpacity={1} onPress={onClose} />
+      <View style={[fbStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+        <View style={fbStyles.handle} />
+        <Text style={fbStyles.title}>Rate Day {dayNumber}</Text>
+
+        <StarRow label="Route / activity" value={routeRating} onChange={setRouteRating} />
+        <StarRow label="Accommodation"    value={accommodationRating} onChange={setAccommodationRating} />
+        <StarRow label="Food & dining"    value={restaurantRating}    onChange={setRestaurantRating} />
+
+        <TextInput
+          style={fbStyles.notes}
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Any notes? (optional)"
+          placeholderTextColor={colors.subtle}
+          multiline
+        />
+
+        <TouchableOpacity style={fbStyles.submitBtn} onPress={handleSubmit} disabled={submitting}>
+          <Text style={fbStyles.submitText}>{submitting ? "Saving…" : "Save rating"}</Text>
+        </TouchableOpacity>
+      </View>
+    </Modal>
+  );
+}
+
+const fbStyles = StyleSheet.create({
+  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet:      {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: spacing.lg, gap: spacing.md,
+  },
+  handle:     {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: "center", marginBottom: 4,
+  },
+  title:      { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, textAlign: "center" },
+  starRow:    { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  starLabel:  { fontSize: fontSize.sm, color: colors.subtle, flex: 1 },
+  stars:      { flexDirection: "row", gap: 4 },
+  notes:      {
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm,
+    padding: spacing.sm, color: colors.text, fontSize: fontSize.sm,
+    minHeight: 60, textAlignVertical: "top",
+  },
+  submitBtn:  {
+    backgroundColor: colors.accent, borderRadius: radius.sm,
+    paddingVertical: spacing.sm + 2, alignItems: "center",
+  },
+  submitText: { color: "#FFFFFF", fontSize: fontSize.base, fontWeight: "700" },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen() {
@@ -998,34 +1447,74 @@ export default function TripDetailScreen() {
   const router   = useRouter();
 
   const [adventure, setAdventure]       = useState<AdventureRow | null>(null);
+  const [loadError, setLoadError]       = useState(false);
   const [selectedDay, setSelectedDay]   = useState(1);
   const [mapVisible, setMapVisible]     = useState(false);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [routeModal, setRouteModal]     = useState(false);
   const [reviews, setReviews]           = useState<Record<number, { rating: number; comment: string }>>({});
+  const [coverUrl, setCoverUrl]         = useState<string | null>(null);
+  const [reviewPhotos, setReviewPhotos] = useState<Record<number, string[]>>({});
+  const [feedbackDay, setFeedbackDay]   = useState<number | null>(null);
+  const [shareDay, setShareDay]         = useState<number | null>(null);
 
   useEffect(() => {
-    const mock = MOCK_TRIPS.find(m => m.id === id);
-    if (mock) { setAdventure(mock); return; }
-    getMyAdventures().then(list => setAdventure(list.find(a => a.id === id) ?? null));
+    setSelectedDay(1);
+    setLoadError(false);
+    getMyAdventures()
+      .then(list => {
+        const found = list.find(a => a.id === id) ?? null;
+        setAdventure(found);
+        if (!found) setLoadError(true);
+      })
+      .catch(() => setLoadError(true));
   }, [id]);
 
-  if (!adventure) {
+  if (loadError && !adventure) {
     return (
-      <View style={[detailStyles.container, { paddingTop: insets.top }]}>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.replace("/(app)/trips")}>
-          <Feather name="arrow-left" size={22} color={colors.text} />
+      <View style={[detailStyles.container, { paddingTop: insets.top, justifyContent: "center", alignItems: "center" }]}>
+        <Feather name="alert-circle" size={36} color={colors.muted} />
+        <Text style={{ color: colors.muted, marginTop: 12, fontSize: fontSize.base }}>Couldn't load trip details</Text>
+        <TouchableOpacity
+          style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 99, backgroundColor: colors.accent }}
+          onPress={() => { setLoadError(false); getMyAdventures().then(l => setAdventure(l.find(a => a.id === id) ?? null)).catch(() => setLoadError(true)); }}
+        >
+          <Text style={{ color: colors.inverse, fontWeight: "700" }}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  if (!adventure) {
+    return (
+      <View style={[detailStyles.container, { paddingTop: insets.top, justifyContent: "center", alignItems: "center" }]}>
+        <Feather name="loader" size={28} color={colors.muted} />
+      </View>
+    );
+  }
+
   const sortedDays  = [...(adventure.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber);
-  const meta        = MOCK_TRIP_META[adventure.id] ?? null;
+  const meta        = deriveMetaMeta(adventure);
   const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-  const heroUrl     = `https://picsum.photos/seed/${adventure.id}/800/600`;
+  const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
   const currentDay  = sortedDays.find(d => d.dayNumber === selectedDay) ?? sortedDays[0];
-  const todayRestaurants = meta?.restaurants.filter(r => r.night === selectedDay) ?? [];
+  const todayRestaurants = meta.restaurants.filter((r: RestaurantStop) => r.night === selectedDay);
+  const isOwner     = true; // User always owns their own saved adventures
+
+  async function handleChangeCover() {
+    const uri = await pickImage([16, 9]);
+    if (!uri) return;
+    const url = await uploadTripCover(adventure!.id, uri);
+    if (url) setCoverUrl(url);
+  }
+
+  async function handleAddReviewPhoto(dayNum: number) {
+    const uri = await pickImage();
+    if (!uri) return;
+    const key = `${adventure!.id}-${dayNum}-${Date.now()}`;
+    const url = await uploadReviewPhoto(key, uri);
+    if (url) setReviewPhotos(prev => ({ ...prev, [dayNum]: [...(prev[dayNum] ?? []), url] }));
+  }
 
   const getReview = (dayNum: number) => reviews[dayNum] ?? { rating: 0, comment: "" };
   const setReview = (dayNum: number, r: { rating: number; comment: string }) =>
@@ -1035,7 +1524,7 @@ export default function TripDetailScreen() {
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={detailStyles.header}>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.replace("/(app)/trips")}>
+        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
@@ -1052,7 +1541,7 @@ export default function TripDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Hero */}
         <View style={{ height: HERO_H }}>
-          <Image source={{ uri: heroUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
           <View style={detailStyles.heroText}>
             <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
@@ -1066,6 +1555,11 @@ export default function TripDetailScreen() {
               <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
             </View>
           </View>
+          {isOwner && (
+            <TouchableOpacity style={detailStyles.heroEditBtn} onPress={handleChangeCover}>
+              <Feather name="camera" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Day tabs */}
@@ -1074,7 +1568,22 @@ export default function TripDetailScreen() {
         {/* Day content */}
         {currentDay && (
           <View style={detailStyles.dayContent}>
-            <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, currentDay.dayNumber)}</Text>
+            <View style={detailStyles.dateLabelRow}>
+              <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, currentDay.dayNumber)}</Text>
+              {adventure.startDate && (() => {
+                const d = new Date(adventure.startDate);
+                d.setDate(d.getDate() + currentDay.dayNumber - 1);
+                return d < new Date();
+              })() && (
+                <TouchableOpacity
+                  style={detailStyles.rateBtn}
+                  onPress={() => setFeedbackDay(currentDay.dayNumber)}
+                >
+                  <MaterialCommunityIcons name="star-outline" size={14} color={colors.accent} />
+                  <Text style={detailStyles.rateBtnText}>Rate</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             <StopCard
               day={currentDay}
@@ -1085,6 +1594,9 @@ export default function TripDetailScreen() {
               onRate={r => setReview(currentDay.dayNumber, { ...getReview(currentDay.dayNumber), rating: r })}
               onComment={c => setReview(currentDay.dayNumber, { ...getReview(currentDay.dayNumber), comment: c })}
               onConnectRoute={() => setRouteModal(true)}
+              photos={reviewPhotos[currentDay.dayNumber] ?? []}
+              onAddPhoto={() => handleAddReviewPhoto(currentDay.dayNumber)}
+              onShare={() => setShareDay(currentDay.dayNumber)}
             />
 
             {/* Restaurants for today */}
@@ -1093,7 +1605,7 @@ export default function TripDetailScreen() {
             ))}
 
             {/* Accommodation */}
-            {meta && <AccommodationCard meta={meta} adventureId={adventure.id} />}
+            {meta.accommodation ? <AccommodationCard meta={meta} adventureId={adventure.id} /> : null}
           </View>
         )}
 
@@ -1121,6 +1633,24 @@ export default function TripDetailScreen() {
         onClose={() => setInviteVisible(false)}
         adventure={adventure}
       />
+      {feedbackDay != null && (
+        <FeedbackSheet
+          visible
+          dayNumber={feedbackDay}
+          adventureId={adventure.id}
+          onClose={() => setFeedbackDay(null)}
+        />
+      )}
+      {shareDay != null && (
+        <PostCreationSheet
+          visible
+          adventureId={adventure.id}
+          dayNumber={shareDay}
+          dayTitle={adventure.adventure_days.find(d => d.dayNumber === shareDay)?.title ?? `Day ${shareDay}`}
+          adventureTitle={adventure.title}
+          onClose={() => setShareDay(null)}
+        />
+      )}
     </View>
   );
 }
@@ -1158,7 +1688,16 @@ const detailStyles = StyleSheet.create({
   tabFadeLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   tabFadeRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   dayContent: { padding: spacing.md, gap: spacing.md },
-  dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text, marginBottom: spacing.xs },
+  dateLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  rateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.accent },
+  rateBtnText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.accent },
+  heroEditBtn: {
+    position: "absolute", bottom: spacing.md, right: spacing.md,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center", justifyContent: "center",
+  },
 });
 
 const tileStyles = StyleSheet.create({
@@ -1209,6 +1748,8 @@ const reviewStyles = StyleSheet.create({
     padding: spacing.sm, fontSize: fontSize.sm, color: colors.text,
     minHeight: 60, textAlignVertical: "top",
   },
+  photoStrip: { flexDirection: "row", gap: 8 },
+  photoThumb: { width: 60, height: 60, borderRadius: radius.md },
   photoBtn: {
     flexDirection: "row", alignItems: "center", gap: 6,
     alignSelf: "flex-start",
@@ -1284,10 +1825,6 @@ const mapStyles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center",
   },
-  legendRow: { flexDirection: "row", gap: 8, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 6 },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendText: { fontSize: 11, color: "#FFFFFF", fontWeight: "600" },
   bottomPanel: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -1326,14 +1863,22 @@ const mapStyles = StyleSheet.create({
     borderRadius: radius.full, paddingVertical: 13, alignItems: "center",
   },
   detailBtnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
-  pin: {
-    width: 30, height: 30, borderRadius: 15,
+  // Accommodation — largest, most prominent, accent fill
+  accomPin: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.accent,
     alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: "#FFFFFF",
+    borderWidth: 2.5, borderColor: "#FFFFFF",
+    shadowColor: "#000", shadowOpacity: 0.35, shadowRadius: 5, shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
   },
-  pinActive: { width: 38, height: 38, borderRadius: 19, borderWidth: 3 },
-  pinNum: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
-  pinDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: "#FFFFFF" },
+  zoomControls: {
+    position: "absolute", right: 12,
+    backgroundColor: colors.card, borderRadius: 12,
+    overflow: "hidden", ...shadow.sm,
+  },
+  zoomBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  zoomDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 8 },
 });
 
 const invStyles = StyleSheet.create({

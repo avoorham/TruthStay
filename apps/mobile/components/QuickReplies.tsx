@@ -35,7 +35,15 @@ export function detectQuickReplies(text: string): string[] | null {
     lower.includes("planning for") ||
     lower.includes("type of activity")
   ) {
-    return ["Cycling", "MTB", "Hiking", "Trail Running", "Climbing", "Skiing", "Kayaking"];
+    return [
+      "Cycling — Road & gravel",
+      "MTB — Mountain bike trails",
+      "Hiking — Hut-to-hut & trekking",
+      "Trail Running — Singletrack & ultras",
+      "Climbing — Sport, trad & alpine",
+      "Skiing — Alpine & backcountry",
+      "Kayaking — Sea & white water",
+    ];
   }
 
   if (
@@ -45,6 +53,16 @@ export function detectQuickReplies(text: string): string[] | null {
     lower.includes("number of days")
   ) {
     return ["3–4 days", "5–7 days", "8–10 days", "2 weeks+"];
+  }
+
+  if (
+    lower.includes("how many stops") ||
+    lower.includes("how many accommodation") ||
+    lower.includes("number of stops") ||
+    lower.includes("number of bases") ||
+    lower.includes("how many bases")
+  ) {
+    return ["1 base (stay put)", "2 stops", "3 stops", "4+ stops"];
   }
 
   if (
@@ -63,7 +81,12 @@ export function detectQuickReplies(text: string): string[] | null {
     lower.includes("type of place") ||
     lower.includes("sleep")
   ) {
-    return ["Camping", "Hostel / Budget", "Mid-range Hotel", "Luxury"];
+    return [
+      "Camping — Tents & bivouacs",
+      "Hostel — Budget dorms & rooms",
+      "Mid-range Hotel — En-suite & sport-friendly",
+      "Luxury — Premium hotels & lodges",
+    ];
   }
 
   return null;

@@ -1,33 +1,31 @@
 import {
-  FlatList, Image, SectionList, StyleSheet,
+  ActivityIndicator, Image, SectionList, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { MOCK_USERS, type MockUser } from "../../../lib/mock-users";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
-
-const INITIAL_FRIENDS = new Set(["u1", "u2", "u3", "u4", "u5"]);
+import { getFollows, followUser, unfollowUser, searchUsers, type FeedAuthor } from "../../../lib/api";
 
 function FriendRow({
   user,
   isFriend,
   onToggle,
 }: {
-  user: MockUser;
+  user: FeedAuthor;
   isFriend: boolean;
   onToggle: () => void;
 }) {
   return (
     <View style={styles.friendRow}>
       <Image
-        source={{ uri: `https://picsum.photos/seed/${user.id}/40/40` }}
+        source={{ uri: user.avatar_url ?? `https://picsum.photos/seed/${user.id}/40/40` }}
         style={styles.friendAvatar}
       />
       <View style={styles.friendInfo}>
-        <Text style={styles.friendName}>{user.name}</Text>
+        <Text style={styles.friendName}>{user.display_name}</Text>
         <Text style={styles.friendUsername}>@{user.username}</Text>
       </View>
       <TouchableOpacity
@@ -43,34 +41,84 @@ function FriendRow({
   );
 }
 
+function SkeletonRow() {
+  return (
+    <View style={[styles.friendRow, { opacity: 0.4 }]}>
+      <View style={[styles.friendAvatar, { backgroundColor: colors.border }]} />
+      <View style={styles.friendInfo}>
+        <View style={{ height: 12, width: 100, backgroundColor: colors.border, borderRadius: 6, marginBottom: 6 }} />
+        <View style={{ height: 10, width: 70, backgroundColor: colors.border, borderRadius: 6 }} />
+      </View>
+    </View>
+  );
+}
+
 export default function FriendsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [friends, setFriends] = useState<Set<string>>(new Set(INITIAL_FRIENDS));
+
+  const [friends, setFriends] = useState<Set<string>>(new Set());
+  const [friendUsers, setFriendUsers] = useState<FeedAuthor[]>([]);
+  const [suggestedUsers, setSuggestedUsers] = useState<FeedAuthor[]>([]);
   const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function toggle(id: string) {
-    setFriends(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+  // Load real follows + suggestions on mount
+  useEffect(() => {
+    Promise.all([
+      getFollows(),
+      searchUsers(""), // top suggested users
+    ]).then(([following, suggested]) => {
+      const ids = new Set(following.map(f => f.id));
+      setFriends(ids);
+      setFriendUsers(following);
+      setSuggestedUsers(suggested.filter(u => !ids.has(u.id)));
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    if (!q) return MOCK_USERS;
-    return MOCK_USERS.filter(
-      u => u.name.toLowerCase().includes(q) || u.username.toLowerCase().startsWith(q),
-    );
+  // Debounced search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchUsers(query);
+        if (query.length === 0) {
+          setSuggestedUsers(results.filter(u => !friends.has(u.id)));
+        } else {
+          setSuggestedUsers(results.filter(u => !friends.has(u.id)));
+        }
+      } catch { /* non-fatal */ }
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
-  const friendUsers    = filtered.filter(u => friends.has(u.id));
-  const suggestedUsers = filtered.filter(u => !friends.has(u.id));
+  function toggle(user: FeedAuthor) {
+    const next = new Set(friends);
+    if (next.has(user.id)) {
+      next.delete(user.id);
+      setFriendUsers(prev => prev.filter(f => f.id !== user.id));
+      setSuggestedUsers(prev => [user, ...prev]);
+      unfollowUser(user.id).catch(() => {});
+    } else {
+      next.add(user.id);
+      setFriendUsers(prev => [...prev, user]);
+      setSuggestedUsers(prev => prev.filter(u => u.id !== user.id));
+      followUser(user.id).catch(() => {});
+    }
+    setFriends(next);
+  }
+
+  const filteredFriends = query.length >= 2
+    ? friendUsers.filter(u =>
+        u.display_name.toLowerCase().includes(query.toLowerCase()) ||
+        u.username.toLowerCase().includes(query.toLowerCase()),
+      )
+    : friendUsers;
 
   const sections = [
-    ...(friendUsers.length > 0    ? [{ title: `Friends (${friendUsers.length})`,       data: friendUsers }]    : []),
-    ...(suggestedUsers.length > 0  ? [{ title: "Suggested",                              data: suggestedUsers }] : []),
+    ...(filteredFriends.length > 0  ? [{ title: `Friends (${filteredFriends.length})`, data: filteredFriends }] : []),
+    ...(suggestedUsers.length > 0   ? [{ title: "Suggested",                           data: suggestedUsers }]  : []),
   ];
 
   return (
@@ -95,7 +143,7 @@ export default function FriendsScreen() {
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search friends…"
+          placeholder="Search users…"
           placeholderTextColor={colors.subtle}
           autoCapitalize="none"
           autoCorrect={false}
@@ -103,25 +151,33 @@ export default function FriendsScreen() {
       </View>
 
       {/* List */}
-      <SectionList
-        sections={sections}
-        keyExtractor={u => u.id}
-        renderItem={({ item }) => (
-          <FriendRow user={item} isFriend={friends.has(item.id)} onToggle={() => toggle(item.id)} />
-        )}
-        renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionTitle}>{section.title}</Text>
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        stickySectionHeadersEnabled={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="users" size={40} color={colors.border} />
-            <Text style={styles.emptyText}>No users found</Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.listContent}>
+          {[0, 1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}
+        </View>
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={u => u.id}
+          renderItem={({ item }) => (
+            <FriendRow user={item} isFriend={friends.has(item.id)} onToggle={() => toggle(item)} />
+          )}
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+          )}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Feather name="users" size={40} color={colors.border} />
+              <Text style={styles.emptyText}>
+                {query.length >= 2 ? "No users found" : "No suggestions yet"}
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }

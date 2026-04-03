@@ -50,3 +50,36 @@ export interface AccommodationStop {
   notes: string;
   options: AccommodationOption[];
 }
+
+// ─── Rich option tiles ────────────────────────────────────────────────────────
+
+export type RichOptionCategory = "route" | "accommodation" | "restaurant";
+
+export interface RichOption {
+  title: string;
+  subtitle?: string;
+  description?: string;
+  distance_km?: number | null;
+  elevation_gain_m?: number | null;
+  difficulty?: "easy" | "moderate" | "hard";
+  accommodation_type?: "camping" | "hostel" | "hotel" | "guesthouse" | "luxury";
+  price_per_night_eur?: number | null;
+  price_range?: string;
+  image_seed?: string;
+  // Restaurant-specific
+  website_url?: string;
+  thefork_url?: string;
+  thefork_restaurant_id?: string;
+  accepts_reservations?: boolean;
+  cuisine?: string;
+  google_maps_url?: string;
+}
+
+export interface RichOptionsMsg {
+  id: string;
+  kind: "rich_options";
+  text: string;
+  category: RichOptionCategory;
+  options: RichOption[];
+  footer_options?: string[];
+}

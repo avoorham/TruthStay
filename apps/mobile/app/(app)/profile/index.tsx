@@ -9,7 +9,9 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../../lib/auth-context";
 import { supabase } from "../../../lib/supabase";
+import { pickImage, uploadAvatar } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { getProfileStats } from "../../../lib/api";
 
 // ─── Settings row ─────────────────────────────────────────────────────────────
 
@@ -74,9 +76,18 @@ export default function ProfileScreen() {
   const username    = user?.user_metadata?.username ?? user?.email?.split("@")[0] ?? "";
   const initial     = displayName[0]?.toUpperCase() ?? "A";
 
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    user?.user_metadata?.avatar_url ?? null,
+  );
   const [avatarError, setAvatarError] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
+  const [stats, setStats] = useState({ trips: 0, posts: 0, followers: 0, following: 0 });
+
+  useEffect(() => {
+    getProfileStats().then(setStats).catch(() => {/* non-fatal */});
+  }, []);
   const [editName, setEditName] = useState(displayName);
+  const [uploading, setUploading] = useState(false);
 
   // Keyboard animation for edit modal
   const kbOffset = useRef(new Animated.Value(0)).current;
@@ -105,7 +116,8 @@ export default function ProfileScreen() {
   }
 
   async function handleSaveProfile() {
-    await supabase.auth.updateUser({ data: { display_name: editName } });
+    const { error } = await supabase.auth.updateUser({ data: { display_name: editName } });
+    if (error) { Alert.alert("Update failed", error.message); return; }
     setEditVisible(false);
   }
 
@@ -124,8 +136,17 @@ export default function ProfileScreen() {
     );
   }
 
-  function handleChangePhoto() {
-    Alert.alert("Change Photo", "Photo library access coming soon.");
+  async function handleChangePhoto() {
+    const uri = await pickImage([1, 1]);
+    if (!uri || !user?.id) return;
+    setUploading(true);
+    const url = await uploadAvatar(user.id, uri);
+    setUploading(false);
+    if (!url) { Alert.alert("Upload failed", "Please try again."); return; }
+    const { error: updateError } = await supabase.auth.updateUser({ data: { avatar_url: url } });
+    if (updateError) { Alert.alert("Profile update failed", updateError.message); return; }
+    setAvatarUrl(url);
+    setAvatarError(false);
   }
 
   return (
@@ -147,7 +168,7 @@ export default function ProfileScreen() {
         <View style={styles.profileLeft}>
           {!avatarError ? (
             <Image
-              source={{ uri: `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
+              source={{ uri: avatarUrl ?? `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
               style={styles.avatar}
               onError={() => setAvatarError(true)}
             />
@@ -169,9 +190,9 @@ export default function ProfileScreen() {
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <StatBox label="Trips" value="0" />
-        <StatBox label="km covered" value="0" />
-        <StatBox label="Countries" value="0" />
+        <StatBox label="Trips"     value={String(stats.trips)} />
+        <StatBox label="Followers" value={String(stats.followers)} />
+        <StatBox label="Following" value={String(stats.following)} />
       </View>
 
       {/* Section 1 */}
@@ -213,10 +234,10 @@ export default function ProfileScreen() {
               </View>
 
               {/* Avatar picker */}
-              <TouchableOpacity style={styles.avatarPickerWrap} onPress={handleChangePhoto} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.avatarPickerWrap} onPress={handleChangePhoto} activeOpacity={0.8} disabled={uploading}>
                 {!avatarError ? (
                   <Image
-                    source={{ uri: `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
+                    source={{ uri: avatarUrl ?? `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
                     style={styles.editAvatar}
                     onError={() => setAvatarError(true)}
                   />
@@ -226,7 +247,7 @@ export default function ProfileScreen() {
                   </View>
                 )}
                 <View style={styles.cameraOverlay}>
-                  <Feather name="camera" size={14} color="#FFFFFF" />
+                  <Feather name={uploading ? "loader" : "camera"} size={14} color="#FFFFFF" />
                 </View>
               </TouchableOpacity>
 

@@ -24,7 +24,7 @@ const GOOGLE_LOGO = require("../../assets/google-logo.png");
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-type Screen = "options" | "signup" | "login";
+type Screen = "options" | "signup" | "login" | "forgot";
 
 export default function AuthScreen() {
   const [screen, setScreen] = useState<Screen>("options");
@@ -54,7 +54,7 @@ export default function AuthScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { username: username.trim(), display_name: username.trim() } },
+      options: { data: { username: username.trim(), display_name: username.trim(), needs_onboarding: true } },
     });
     setLoading(false);
     if (error) { Alert.alert("Sign up failed", error.message); return; }
@@ -76,6 +76,24 @@ export default function AuthScreen() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setLoading(false);
     if (error) Alert.alert("Sign in failed", error.message);
+  }
+
+  async function handleForgotPassword() {
+    if (!email) {
+      Alert.alert("Enter your email", "Please enter the email address for your account.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: "truthstay://reset-password",
+    });
+    setLoading(false);
+    if (error) { Alert.alert("Failed", error.message); return; }
+    Alert.alert(
+      "Check your email",
+      "We've sent a password reset link to " + email.trim() + ". Tap the link in the email to set a new password.\n\n(Check your spam folder too.)",
+      [{ text: "Back to Login", onPress: () => setScreen("login") }],
+    );
   }
 
   // ── Options screen ────────────────────────────────────────────────────────
@@ -258,54 +276,105 @@ export default function AuthScreen() {
   }
 
   // ── Login form ────────────────────────────────────────────────────────────
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.formRoot}
-    >
-      <StatusBar style="dark" />
-      <ScrollView contentContainerStyle={styles.formScroll}
-        keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <TouchableOpacity onPress={() => setScreen("options")} style={styles.backBtn}>
-          <Text style={styles.backChevron}>‹</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.formHeading}>Welcome back</Text>
-        <Text style={styles.formSub}>Sign in to your TruthStay account</Text>
-
-        <Text style={styles.label}>Email</Text>
-        <View style={styles.inputWrap}>
-          <TextInput style={styles.input} placeholder="Enter your email"
-            placeholderTextColor={colors.subtle} value={email} onChangeText={setEmail}
-            autoCapitalize="none" keyboardType="email-address" autoCorrect={false} />
-        </View>
-
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.inputWrap}>
-          <TextInput style={[styles.input, styles.inputWithIcon]}
-            placeholder="Enter your password" placeholderTextColor={colors.subtle}
-            value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-            <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+  if (screen === "login") {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.formRoot}
+      >
+        <StatusBar style="dark" />
+        <ScrollView contentContainerStyle={styles.formScroll}
+          keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <TouchableOpacity onPress={() => setScreen("options")} style={styles.backBtn}>
+            <Text style={styles.backChevron}>‹</Text>
           </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity style={styles.continueBtn} onPress={handleLogin}
-          disabled={loading} activeOpacity={0.85}>
-          <Text style={styles.continueBtnText}>
-            {loading ? "Signing in…" : "Sign in"}
-          </Text>
-        </TouchableOpacity>
+          <Text style={styles.formHeading}>Welcome back</Text>
+          <Text style={styles.formSub}>Sign in to your TruthStay account</Text>
 
-        <TouchableOpacity onPress={() => setScreen("signup")} style={styles.switchRow}>
-          <Text style={styles.switchText}>
-            No account?{" "}
-            <Text style={styles.switchLink}>Sign up</Text>
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.inputWrap}>
+            <TextInput style={styles.input} placeholder="Enter your email"
+              placeholderTextColor={colors.subtle} value={email} onChangeText={setEmail}
+              autoCapitalize="none" keyboardType="email-address" autoCorrect={false} />
+          </View>
+
+          <Text style={styles.label}>Password</Text>
+          <View style={styles.inputWrap}>
+            <TextInput style={[styles.input, styles.inputWithIcon]}
+              placeholder="Enter your password" placeholderTextColor={colors.subtle}
+              value={password} onChangeText={setPassword} secureTextEntry={!showPassword} />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+              <Text style={styles.eyeIcon}>{showPassword ? "🙈" : "👁"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity onPress={() => setScreen("forgot")} style={styles.forgotRow}>
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.continueBtn} onPress={handleLogin}
+            disabled={loading} activeOpacity={0.85}>
+            <Text style={styles.continueBtnText}>
+              {loading ? "Signing in…" : "Sign in"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setScreen("signup")} style={styles.switchRow}>
+            <Text style={styles.switchText}>
+              No account?{" "}
+              <Text style={styles.switchLink}>Sign up</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ── Forgot Password ───────────────────────────────────────────────────────
+  if (screen === "forgot") {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.formRoot}
+      >
+        <StatusBar style="dark" />
+        <ScrollView contentContainerStyle={styles.formScroll}
+          keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <TouchableOpacity onPress={() => setScreen("login")} style={styles.backBtn}>
+            <Text style={styles.backChevron}>‹</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.formHeading}>Reset password</Text>
+          <Text style={styles.formSub}>
+            Enter your email and we'll send you a link to set a new password.
           </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.inputWrap}>
+            <TextInput style={styles.input} placeholder="Enter your email"
+              placeholderTextColor={colors.subtle} value={email} onChangeText={setEmail}
+              autoCapitalize="none" keyboardType="email-address" autoCorrect={false} />
+          </View>
+
+          <TouchableOpacity style={styles.continueBtn} onPress={handleForgotPassword}
+            disabled={loading} activeOpacity={0.85}>
+            <Text style={styles.continueBtnText}>
+              {loading ? "Sending…" : "Send reset link"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setScreen("login")} style={styles.switchRow}>
+            <Text style={styles.switchText}>
+              <Text style={styles.switchLink}>Back to login</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -498,4 +567,6 @@ const styles = StyleSheet.create({
   switchRow: { paddingVertical: spacing.md, alignItems: "center" },
   switchText: { color: colors.muted, fontSize: fontSize.sm },
   switchLink: { color: "#007AFF", fontWeight: "700" },
+  forgotRow: { alignItems: "flex-end", marginTop: spacing.xs, marginBottom: spacing.sm },
+  forgotText: { color: "#007AFF", fontSize: fontSize.sm, fontWeight: "600" },
 });

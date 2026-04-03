@@ -2,16 +2,25 @@ import {
   ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { useAuth } from "../../../lib/auth-context";
+import { supabase } from "../../../lib/supabase";
 
 type Toggles = {
   tripUpdates: boolean;
   friendActivity: boolean;
   suggestions: boolean;
   appNews: boolean;
+};
+
+const DEFAULTS: Toggles = {
+  tripUpdates:    true,
+  friendActivity: true,
+  suggestions:    true,
+  appNews:        false,
 };
 
 const ROWS: { key: keyof Toggles; label: string; subtitle: string }[] = [
@@ -24,13 +33,21 @@ const ROWS: { key: keyof Toggles; label: string; subtitle: string }[] = [
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { session } = useAuth();
 
-  const [toggles, setToggles] = useState<Toggles>({
-    tripUpdates:    true,
-    friendActivity: true,
-    suggestions:    true,
-    appNews:        false,
-  });
+  const saved = session?.user?.user_metadata?.notificationPrefs as Partial<Toggles> | undefined;
+  const [toggles, setToggles] = useState<Toggles>({ ...DEFAULTS, ...saved });
+
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleToggle(key: keyof Toggles, value: boolean) {
+    const next = { ...toggles, [key]: value };
+    setToggles(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      supabase.auth.updateUser({ data: { notificationPrefs: next } }).catch(() => {/* non-fatal */});
+    }, 600);
+  }
 
   return (
     <ScrollView
@@ -61,7 +78,7 @@ export default function NotificationsScreen() {
               </View>
               <Switch
                 value={toggles[row.key]}
-                onValueChange={v => setToggles(prev => ({ ...prev, [row.key]: v }))}
+                onValueChange={v => handleToggle(row.key, v)}
                 trackColor={{ false: colors.border, true: colors.accent }}
                 thumbColor="#FFFFFF"
               />

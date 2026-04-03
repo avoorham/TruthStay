@@ -7,6 +7,7 @@ import {
   saveAdventure,
   type GenerateAdventureInput,
 } from "@/lib/agent/adventure-agent";
+import { aiLimiter, checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   // 1. Authenticate the user
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await checkRateLimit(aiLimiter, `generate_${user.id}`);
+  if (limited) return limited;
 
   // 2. Parse and validate request body
   let body: Partial<GenerateAdventureInput>;

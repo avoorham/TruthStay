@@ -1,5 +1,5 @@
 import {
-  Dimensions, FlatList, Image, StyleSheet,
+  ActivityIndicator, Dimensions, FlatList, Image, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,7 +8,6 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, type AdventureRow } from "../../../lib/api";
-import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 const ACTIVITY_ICON: Record<string, string> = {
@@ -129,24 +128,26 @@ export default function TripsScreen() {
   const router = useRouter();
   const [adventures, setAdventures] = useState<AdventureRow[]>([]);
   const [tab, setTab] = useState<TabKey>("upcoming");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    setLoadError(null);
+    setLoading(true);
     try {
       const data = await getMyAdventures();
       setAdventures(data);
-    } catch { /* fall through to mock */ }
+    } catch {
+      setLoadError("Couldn't load your trips.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Merge real + mock, deduplicating by id
-  const allTrips = useMemo(() => {
-    const ids = new Set(adventures.map(a => a.id));
-    return [...adventures, ...MOCK_TRIPS.filter(m => !ids.has(m.id))];
-  }, [adventures]);
-
   // Dynamic tabs: only show "Current" if a trip is active
-  const hasCurrent = useMemo(() => allTrips.some(a => tripStatus(a) === "current"), [allTrips]);
+  const hasCurrent = useMemo(() => adventures.some(a => tripStatus(a) === "current"), [adventures]);
   const availableTabs = useMemo<TabKey[]>(
     () => [...(hasCurrent ? ["current" as TabKey] : []), "upcoming", "past"],
     [hasCurrent],
@@ -159,43 +160,72 @@ export default function TripsScreen() {
 
   const tripsForTab = useMemo(
     () =>
-      allTrips
+      adventures
         .filter(a => tripStatus(a) === tab)
         .sort((a, b) =>
           tab === "past"
             ? (b.startDate ?? "").localeCompare(a.startDate ?? "")
             : (a.startDate ?? "").localeCompare(b.startDate ?? ""),
         ),
-    [allTrips, tab],
+    [adventures, tab],
   );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Trips</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>My Trips</Text>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push("/(app)/discover")}
+            activeOpacity={0.8}
+          >
+            <Feather name="plus" size={20} color={colors.inverse} />
+          </TouchableOpacity>
+        </View>
         <TabStrip tabs={availableTabs} active={tab} onChange={setTab} />
       </View>
 
+      {/* Loading */}
+      {loading && (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      )}
+
+      {/* Error */}
+      {!loading && loadError && (
+        <View style={styles.centered}>
+          <Feather name="alert-circle" size={40} color={colors.muted} />
+          <Text style={styles.errorText}>{loadError}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={load}>
+            <Text style={styles.retryText}>Tap to retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* List */}
-      <FlatList
-        data={tripsForTab}
-        keyExtractor={a => a.id}
-        renderItem={({ item }) => (
-          <TripPhotoCard
-            adventure={item}
-            onPress={() => router.push(`/(app)/trips/${item.id}`)}
-          />
-        )}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Feather name="map" size={52} color={colors.border} />
-            <Text style={styles.emptyText}>{EMPTY_MESSAGES[tab]}</Text>
-          </View>
-        }
-      />
+      {!loading && !loadError && (
+        <FlatList
+          data={tripsForTab}
+          keyExtractor={a => a.id}
+          renderItem={({ item }) => (
+            <TripPhotoCard
+              adventure={item}
+              onPress={() => router.push(`/(app)/trips/${item.id}`)}
+            />
+          )}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Feather name="map" size={52} color={colors.border} />
+              <Text style={styles.emptyText}>{EMPTY_MESSAGES[tab]}</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }
@@ -212,7 +242,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: spacing.sm,
   },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  addBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: colors.text,
+    alignItems: "center", justifyContent: "center",
+  },
   tabStrip: { flexDirection: "row", gap: spacing.sm },
   tabPill: {
     paddingHorizontal: spacing.md,
@@ -282,11 +318,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl * 2,
     gap: spacing.md,
   },
-
   emptyText: {
     fontSize: fontSize.base,
     color: colors.muted,
     textAlign: "center",
     lineHeight: 24,
   },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
+  errorText: { fontSize: fontSize.base, color: colors.muted, textAlign: "center" },
+  retryBtn: {
+    paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+  },
+  retryText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
 });

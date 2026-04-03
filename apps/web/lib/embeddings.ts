@@ -21,7 +21,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     model: "text-embedding-3-small",
     input: sliced,
   });
-  const embedding = res.data[0].embedding;
+  const embedding = res.data[0]!.embedding;
 
   if (_embeddingCache.size >= MAX_CACHE_ENTRIES) {
     const firstKey = _embeddingCache.keys().next().value;

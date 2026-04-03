@@ -45,6 +45,7 @@ export default async function ProfilePage() {
         <div className="grid grid-cols-2 gap-4">
           {TRIPS.map((trip) => (
             <div key={trip.id} className="bg-[#dadccb] overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={trip.image} alt={trip.title} className="w-full h-32 object-cover" />
               <div className="p-3">
                 <p className="font-semibold text-sm">{trip.title}</p>

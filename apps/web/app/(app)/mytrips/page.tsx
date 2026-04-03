@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Calendar, MapPin, ChevronRight, ChevronDown, Sparkles } from "lucide-react";
+import { MapPin, ChevronRight, ChevronDown, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { KomootEmbed } from "../../../components/KomootEmbed";
 
@@ -47,7 +47,7 @@ export default function MyTripsPage() {
   const toggleDay = (dayNumber: number) => {
     setExpandedDays((prev) => {
       const next = new Set(prev);
-      next.has(dayNumber) ? next.delete(dayNumber) : next.add(dayNumber);
+      if (next.has(dayNumber)) { next.delete(dayNumber); } else { next.add(dayNumber); }
       return next;
     });
   };

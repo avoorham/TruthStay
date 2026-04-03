@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ChevronDown, ChevronRight, Mountain, Bed,
+  ChevronDown, ChevronRight, Mountain,
   Check, MapPin, ExternalLink, AlertCircle,
 } from "lucide-react";
 import { KomootEmbed } from "./KomootEmbed";
@@ -93,7 +93,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
   const [saving, setSaving] = useState(false);
 
   const toggleDay = (n: number) =>
-    setExpandedDays((prev) => { const s = new Set(prev); s.has(n) ? s.delete(n) : s.add(n); return s; });
+    setExpandedDays((prev) => { const s = new Set(prev); if (s.has(n)) { s.delete(n); } else { s.add(n); } return s; });
 
   const getRouteSelection = (dayNumber: number): DayRouteSelection =>
     routeSelections[dayNumber] ?? { index: 0, end_location: adventure.days.find(d => d.day_number === dayNumber)?.end_location ?? "" };

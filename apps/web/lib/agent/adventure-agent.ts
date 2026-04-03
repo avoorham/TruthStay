@@ -1,12 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { SupabaseClient } from "@supabase/supabase-js";
-import {
-  ADVENTURE_TOOLS,
-  getPOIRatings,
-  getUserPreferences,
-  searchPOIsByRegion,
-  searchRoutesByRegion,
-} from "./tools";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,27 +125,6 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no expl
     }
   ]
 }`;
-
-// ─── Tool dispatcher ──────────────────────────────────────────────────────────
-
-async function dispatchTool(
-  db: SupabaseClient,
-  toolName: string,
-  toolInput: Record<string, unknown>
-): Promise<unknown> {
-  switch (toolName) {
-    case "search_pois_by_region":
-      return searchPOIsByRegion(db, toolInput as any);
-    case "get_poi_ratings":
-      return getPOIRatings(db, toolInput as any);
-    case "search_routes_by_region":
-      return searchRoutesByRegion(db, toolInput as any);
-    case "get_user_preferences":
-      return getUserPreferences(db, toolInput as any);
-    default:
-      throw new Error(`Unknown tool: ${toolName}`);
-  }
-}
 
 // ─── Main agent ───────────────────────────────────────────────────────────────
 

@@ -388,7 +388,7 @@ function FilterSheet({
           </FilterSection>
 
           <FilterSection title="Region">
-            {REGIONS.map(r => (
+            {regions.map((r: string) => (
               <FilterChip
                 key={r} label={r}
                 active={filters.region === r}

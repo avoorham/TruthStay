@@ -57,6 +57,7 @@ export function FeedPost({
       {/* User header */}
       <div className="px-4 py-3 flex items-center gap-3">
         <div className="w-8 h-8 rounded-full overflow-hidden bg-[#dadccb]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={userAvatar} alt={userName} className="w-full h-full object-cover" />
         </div>
         <div>
@@ -75,6 +76,7 @@ export function FeedPost({
         >
           {images.map((image, index) => (
             <div key={index} className="flex-none w-full snap-start aspect-square">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={image}
                 alt={`${tripTitle} — ${index + 1}`}

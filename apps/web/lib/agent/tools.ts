@@ -109,11 +109,11 @@ export async function searchPOIsByRegion(
   const { data, error } = await query;
   if (error) throw new Error(`searchPOIsByRegion failed: ${error.message}`);
 
-  return (data ?? []).map((poi: any) => {
+  return (data ?? []).map((poi) => {
     const reviews: Array<{ rating: number }> = poi.reviews ?? [];
     const avgRating =
       reviews.length > 0
-        ? reviews.reduce((sum: number, r: any) => sum + r.rating, 0) /
+        ? reviews.reduce((sum: number, r: { rating: number }) => sum + r.rating, 0) /
           reviews.length
         : null;
 
@@ -158,11 +158,11 @@ export async function getPOIRatings(
   const reviewList = reviews ?? [];
   const avgRating =
     reviewList.length > 0
-      ? reviewList.reduce((s: number, r: any) => s + r.rating, 0) /
+      ? reviewList.reduce((s: number, r) => s + r.rating, 0) /
         reviewList.length
       : null;
 
-  const recommendCount = reviewList.filter((r: any) => r.wouldRecommend).length;
+  const recommendCount = reviewList.filter((r) => r.wouldRecommend).length;
   const wouldRecommendPct =
     reviewList.length > 0
       ? Math.round((recommendCount / reviewList.length) * 100)
@@ -213,7 +213,7 @@ export async function getPOIRatings(
     top_pros: topPros,
     top_cons: topCons,
     attribute_averages: attrAverages,
-    recent_reviews: reviewList.slice(0, 3).map((r: any) => ({
+    recent_reviews: reviewList.slice(0, 3).map((r) => ({
       rating: r.rating,
       body: r.body,
       visited_at: r.visitedAt,
@@ -245,7 +245,7 @@ export async function searchRoutesByRegion(
   if (error) throw new Error(`searchRoutesByRegion failed: ${error.message}`);
 
   return (data ?? [])
-    .map((stage: any) => {
+    .map((stage) => {
       const reviews: Array<{
         rating: number;
         difficulty: number | null;
@@ -289,7 +289,7 @@ export async function searchRoutesByRegion(
 
       return {
         stage_id: stage.id,
-        trip_title: stage.trip?.title ?? "",
+        trip_title: (stage.trip as unknown as { title: string } | null)?.title ?? "",
         stage_title: stage.title,
         date: stage.date,
         distance_km: stage.distanceKm,

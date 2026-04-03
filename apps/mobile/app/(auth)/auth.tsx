@@ -535,6 +535,7 @@ const styles = StyleSheet.create({
   },
   inputWithIcon: { paddingRight: 44 },
   eyeBtn: { position: "absolute", right: spacing.md, padding: 4 },
+  eyeIcon: { fontSize: 18 },
   termsRow: {
     flexDirection: "row",
     alignItems: "flex-start",

@@ -161,6 +161,7 @@ export interface AdventureRow {
 }
 
 export interface PublicAdventureMeta {
+  [key: string]: unknown;
   coords?:       [number, number];
   country?:      string;
   tags?:         string[];

@@ -328,6 +328,9 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
                           key={optIdx}
                           opt={opt}
                           nightCount={stop.night_numbers.length}
+                          nightNumbers={stop.night_numbers}
+                          startDate={adventure.start_date ?? null}
+                          adventureId={adventureId}
                           isSelected={selectedOptIdx === optIdx}
                           location={stop.location}
                           onSelect={() => {

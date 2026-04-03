@@ -625,7 +625,7 @@ async function saveAdditions(
     }
   }
 
-  const dayUpdateOps: Promise<unknown>[] = [];
+  const dayUpdateOps: PromiseLike<unknown>[] = [];
   for (const [dayNumStr, raw] of Object.entries(additions.day_updates)) {
     const updates = raw as DayUpdate;
     const dayNum = parseInt(dayNumStr, 10);
@@ -648,7 +648,6 @@ async function saveAdditions(
       dayUpdateOps.push(
         db.from("adventure_days").update(dbUpdate)
           .eq("adventureId", adventureId).eq("dayNumber", dayNum)
-          .then()
       );
     }
   }

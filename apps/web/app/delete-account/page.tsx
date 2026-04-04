@@ -21,8 +21,8 @@ export default function DeleteAccountPage() {
           </li>
           <li>
             <strong>By email:</strong> Send a deletion request to{" "}
-            <a href="mailto:privacy@truthstay.com" className="underline">
-              privacy@truthstay.com
+            <a href="mailto:privacy@truth-stay.com" className="underline">
+              privacy@truth-stay.com
             </a>{" "}
             from the email address associated with your account. Include your full name and the email address used to sign up. We will process your request within 30 days.
           </li>
@@ -53,8 +53,8 @@ export default function DeleteAccountPage() {
         <h2 className="text-xl font-bold mb-3">Questions</h2>
         <p className="text-sm leading-relaxed">
           If you have any questions about your data, contact us at{" "}
-          <a href="mailto:privacy@truthstay.com" className="underline">
-            privacy@truthstay.com
+          <a href="mailto:privacy@truth-stay.com" className="underline">
+            privacy@truth-stay.com
           </a>
           .
         </p>

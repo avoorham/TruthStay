@@ -9,11 +9,11 @@ import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 const CONTENT: Record<string, { title: string; body: string }> = {
   contact: {
     title: "Contact Us",
-    body: "Questions or feedback? We'd love to hear from you.\n\nEmail us at hello@truthstay.com\n\nWe aim to respond within 24 hours on weekdays.",
+    body: "Questions or feedback? We'd love to hear from you.\n\nEmail us at hello@truth-stay.com\n\nWe aim to respond within 24 hours on weekdays.",
   },
   help: {
     title: "Get Help",
-    body: "Common topics:\n\n• Setting up your profile\n• Creating your first trip\n• Inviting friends to a trip\n• Managing notifications\n• Changing your language\n\nFor further support, reach out to hello@truthstay.com",
+    body: "Common topics:\n\n• Setting up your profile\n• Creating your first trip\n• Inviting friends to a trip\n• Managing notifications\n• Changing your language\n\nFor further support, reach out to hello@truth-stay.com",
   },
   privacy: {
     title: "Privacy Policy",
@@ -21,7 +21,7 @@ const CONTENT: Record<string, { title: string; body: string }> = {
   },
   terms: {
     title: "Terms & Conditions",
-    body: "Last updated: March 2026\n\nBy using TruthStay you agree to:\n\n• Use the service for lawful purposes only\n• Respect other users and their content\n• Not attempt to reverse-engineer or misuse the platform\n\nWe reserve the right to suspend accounts that violate these terms. For questions, contact hello@truthstay.com",
+    body: "Last updated: March 2026\n\nBy using TruthStay you agree to:\n\n• Use the service for lawful purposes only\n• Respect other users and their content\n• Not attempt to reverse-engineer or misuse the platform\n\nWe reserve the right to suspend accounts that violate these terms. For questions, contact hello@truth-stay.com",
   },
 };
 

@@ -4,7 +4,7 @@ const nextConfig = {
   async headers() {
     // Restrict CORS to explicit origins — wildcard is unsafe on mutation endpoints.
     // Mobile app authenticates via Bearer token so CORS origin restriction is fine.
-    const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "https://truthstay.com";
+    const allowedOrigin = process.env.ALLOWED_ORIGIN ?? "https://truth-stay.com";
 
     return [
       {

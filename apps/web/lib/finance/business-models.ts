@@ -392,7 +392,7 @@ export const APP_STATE = {
   monetization_implemented: false,
   platform: "Android (Google Play Internal Testing)",
   ios_status: "Not yet started",
-  backend: "Deployed on Vercel (truthstay.com)",
+  backend: "Deployed on Vercel (truth-stay.com)",
   infrastructure_costs_monthly_eur: {
     supabase: 0, // free tier
     vercel: 0, // free tier (Hobby)

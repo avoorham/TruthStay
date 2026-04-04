@@ -1489,7 +1489,16 @@ export default function TripDetailScreen() {
         <Text style={{ color: colors.muted, marginTop: 12, fontSize: fontSize.base }}>Couldn't load trip details</Text>
         <TouchableOpacity
           style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 99, backgroundColor: colors.accent }}
-          onPress={() => { setLoadError(false); getMyAdventures().then(l => setAdventure(l.find(a => a.id === id) ?? null)).catch(() => setLoadError(true)); }}
+          onPress={async () => {
+            setLoadError(false);
+            try {
+              const list = await getMyAdventures();
+              const found = list.find(a => a.id === id) ?? null;
+              if (found) { setIsOwnAdventure(true); setAdventure(found); return; }
+              const adv = await getAdventureById(id ?? "");
+              setIsOwnAdventure(false); setAdventure(adv);
+            } catch { setLoadError(true); }
+          }}
         >
           <Text style={{ color: colors.inverse, fontWeight: "700" }}>Retry</Text>
         </TouchableOpacity>
@@ -1541,9 +1550,11 @@ export default function TripDetailScreen() {
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
         <View style={detailStyles.headerRight}>
-          <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
-            <Feather name="user-plus" size={20} color={colors.text} />
-          </TouchableOpacity>
+          {isOwner && (
+            <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
+              <Feather name="user-plus" size={20} color={colors.text} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
             <Feather name="map" size={20} color={colors.text} />
           </TouchableOpacity>

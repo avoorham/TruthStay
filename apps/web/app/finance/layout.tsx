@@ -1,18 +1,25 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function FinanceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const secret = process.env.FINANCE_SECRET_KEY;
-  if (!secret) redirect("/");
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const cookieStore = await cookies();
-  const auth = cookieStore.get("finance_auth");
+  if (!user) redirect("/login");
 
-  if (!auth || auth.value !== secret) redirect("/");
+  const db = createAdminClient();
+  const { data: adminRow } = await db
+    .from("admin_users")
+    .select("role")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!adminRow) redirect("/");
 
   return <>{children}</>;
 }

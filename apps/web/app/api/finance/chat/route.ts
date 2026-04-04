@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getAuthUser } from "@/lib/auth/get-user";
 import { buildFinanceSystemPrompt } from "@/lib/finance/finance-prompt";
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.FINANCE_SECRET_KEY;
-  if (!secret) return NextResponse.json({ error: "Not configured" }, { status: 500 });
+  const user = await getAuthUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const auth = request.cookies.get("finance_auth");
-  if (!auth || auth.value !== secret) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const db = createAdminClient();
+  const { data: adminRow } = await db
+    .from("admin_users")
+    .select("role")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!adminRow) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let body: { messages: Array<{ role: "user" | "assistant"; content: string }> };
   try {

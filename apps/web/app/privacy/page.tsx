@@ -46,7 +46,7 @@ export default function PrivacyPage() {
           <li><strong>Identity data:</strong> your name and username.</li>
           <li><strong>Contact data:</strong> your email address.</li>
           <li><strong>Profile data:</strong> profile photo, bio, activity preferences (e.g. cycling, hiking), fitness level, and adventure settings.</li>
-          <li><strong>Content data:</strong> trip logs, adventure itineraries, stage notes, reviews, ratings, and photos you upload.</li>
+          <li><strong>Content data:</strong> adventure itineraries, trip stages, stage notes, comments, accommodation stops, restaurant stops, day-by-day ratings (route, accommodation, food on a 1–5 scale), and photos you upload.</li>
           <li><strong>Communications:</strong> messages you send to us via email or in-app feedback.</li>
         </ul>
 
@@ -58,10 +58,21 @@ export default function PrivacyPage() {
           <li><strong>Log data:</strong> server logs including IP address, request timestamps, and response codes, retained for security and operational purposes.</li>
         </ul>
 
-        <h3 className="text-base font-semibold mb-2">2.3 Data we do NOT collect</h3>
+        <h3 className="text-base font-semibold mb-2">2.3 Location data</h3>
+        <p className="text-sm leading-relaxed mb-3">
+          The app stores geographic coordinates (latitude/longitude) associated with your adventure itineraries, accommodation stops, and restaurant stops. These coordinates are derived from the destinations you choose and AI-generated routes — <strong>we do not collect or request your device&apos;s real-time GPS location</strong>.
+        </p>
+
+        <h3 className="text-base font-semibold mb-2">2.4 Payment data</h3>
+        <p className="text-sm leading-relaxed mb-3">
+          When a paid membership is available, payment processing will be handled by Stripe, a PCI-DSS-compliant payment processor. <strong>We never store your payment card number, CVV, or full card details on our systems.</strong> Stripe provides us with a payment token and basic billing information (last 4 digits, card brand, expiry) for subscription management. Stripe&apos;s privacy practices are described in their{" "}
+          <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">Privacy Policy</a>.
+        </p>
+
+        <h3 className="text-base font-semibold mb-2">2.5 Data we do NOT collect</h3>
         <ul className="list-disc list-inside space-y-2 text-sm leading-relaxed">
-          <li>We do not collect precise real-time GPS location data.</li>
-          <li>We do not collect payment card details (no payments are currently processed).</li>
+          <li>We do not collect real-time device GPS location.</li>
+          <li>We do not store full payment card numbers or CVV codes.</li>
           <li>We do not collect sensitive personal data such as health information, biometric data, racial or ethnic origin, political opinions, or religious beliefs.</li>
           <li>We do not collect data from children under 13 years of age.</li>
         </ul>
@@ -90,6 +101,7 @@ export default function PrivacyPage() {
                 ["Detecting and preventing fraud or abuse", "Legitimate interests (Art. 6(1)(f))"],
                 ["Security monitoring and server logs", "Legitimate interests (Art. 6(1)(f))"],
                 ["Improving the Service via anonymised analytics", "Legitimate interests (Art. 6(1)(f))"],
+                ["Processing payments and managing subscriptions", "Performance of a contract (Art. 6(1)(b))"],
                 ["Complying with legal obligations", "Legal obligation (Art. 6(1)(c))"],
               ].map(([purpose, basis], i) => (
                 <tr key={i} className={i % 2 === 0 ? "" : "bg-[#fafafa]"}>
@@ -163,6 +175,7 @@ export default function PrivacyPage() {
                 ["Mapbox", "Map rendering and route display", "Map tile requests (no personal data)", "USA (SCCs)"],
                 ["Vercel", "Web application hosting", "Web request logs, IP addresses", "USA/EU (SCCs)"],
                 ["Expo / EAS", "Mobile app build and OTA updates", "App build metadata", "USA (SCCs)"],
+                ["Stripe", "Payment processing and subscription management", "Billing info, payment token (no raw card data)", "USA/EU (SCCs)"],
               ].map(([proc, purpose, data, loc], i) => (
                 <tr key={i} className={i % 2 === 0 ? "" : "bg-[#fafafa]"}>
                   <td className="p-3 border border-[#e0e0e0] font-medium">{proc}</td>
@@ -212,6 +225,7 @@ export default function PrivacyPage() {
                 ["Reviews and ratings", "Anonymised versions may be retained after account deletion"],
                 ["Server access logs (IP, timestamps)", "90 days"],
                 ["Database backups", "Purged within 90 days of account deletion"],
+                ["Billing and subscription records", "7 years (legal/tax obligation), then deleted"],
                 ["Communications (support emails)", "3 years from last contact, then deleted"],
               ].map(([type, period], i) => (
                 <tr key={i} className={i % 2 === 0 ? "" : "bg-[#fafafa]"}>

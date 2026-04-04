@@ -10,7 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, submitDayFeedback, createPost, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
@@ -1446,28 +1446,40 @@ export default function TripDetailScreen() {
   const insets   = useSafeAreaInsets();
   const router   = useRouter();
 
-  const [adventure, setAdventure]       = useState<AdventureRow | null>(null);
-  const [loadError, setLoadError]       = useState(false);
-  const [selectedDay, setSelectedDay]   = useState(1);
-  const [mapVisible, setMapVisible]     = useState(false);
+  const [adventure, setAdventure]         = useState<AdventureRow | null>(null);
+  const [loadError, setLoadError]         = useState(false);
+  const [isOwnAdventure, setIsOwnAdventure] = useState(false);
+  const [selectedDay, setSelectedDay]     = useState(1);
+  const [mapVisible, setMapVisible]       = useState(false);
   const [inviteVisible, setInviteVisible] = useState(false);
-  const [routeModal, setRouteModal]     = useState(false);
-  const [reviews, setReviews]           = useState<Record<number, { rating: number; comment: string }>>({});
-  const [coverUrl, setCoverUrl]         = useState<string | null>(null);
-  const [reviewPhotos, setReviewPhotos] = useState<Record<number, string[]>>({});
-  const [feedbackDay, setFeedbackDay]   = useState<number | null>(null);
-  const [shareDay, setShareDay]         = useState<number | null>(null);
+  const [routeModal, setRouteModal]       = useState(false);
+  const [reviews, setReviews]             = useState<Record<number, { rating: number; comment: string }>>({});
+  const [coverUrl, setCoverUrl]           = useState<string | null>(null);
+  const [reviewPhotos, setReviewPhotos]   = useState<Record<number, string[]>>({});
+  const [feedbackDay, setFeedbackDay]     = useState<number | null>(null);
+  const [shareDay, setShareDay]           = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedDay(1);
     setLoadError(false);
-    getMyAdventures()
-      .then(list => {
+    async function load() {
+      try {
+        const list = await getMyAdventures();
         const found = list.find(a => a.id === id) ?? null;
-        setAdventure(found);
-        if (!found) setLoadError(true);
-      })
-      .catch(() => setLoadError(true));
+        if (found) {
+          setIsOwnAdventure(true);
+          setAdventure(found);
+          return;
+        }
+        // Not the user's own — try as a public adventure
+        const adv = await getAdventureById(id ?? "");
+        setIsOwnAdventure(false);
+        setAdventure(adv);
+      } catch {
+        setLoadError(true);
+      }
+    }
+    load();
   }, [id]);
 
   if (loadError && !adventure) {
@@ -1499,7 +1511,7 @@ export default function TripDetailScreen() {
   const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
   const currentDay  = sortedDays.find(d => d.dayNumber === selectedDay) ?? sortedDays[0];
   const todayRestaurants = meta.restaurants.filter((r: RestaurantStop) => r.night === selectedDay);
-  const isOwner     = true; // User always owns their own saved adventures
+  const isOwner     = isOwnAdventure;
 
   async function handleChangeCover() {
     const uri = await pickImage([16, 9]);

@@ -53,6 +53,14 @@ export async function getMyAdventures() {
   return res.json() as Promise<AdventureRow[]>;
 }
 
+export async function getAdventureById(id: string): Promise<AdventureRow> {
+  const res = await fetch(`${BASE}/api/adventures/${id}`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<AdventureRow>;
+}
+
 export async function saveAdventure(id: string) {
   const res = await fetch(`${BASE}/api/adventures/${id}`, {
     method: "PATCH",

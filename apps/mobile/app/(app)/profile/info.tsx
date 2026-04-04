@@ -17,7 +17,7 @@ const CONTENT: Record<string, { title: string; body: string }> = {
   },
   privacy: {
     title: "Privacy Policy",
-    body: "Last updated: March 2026\n\nTruthStay is committed to protecting your privacy. We collect only the data necessary to provide the service — your account details, trip data, and usage patterns.\n\nWe do not sell your personal data to third parties. Data is stored securely and you can request deletion at any time by contacting us.",
+    body: "Last updated: April 2026\n\nTruthStay collects only the data needed to provide the service — your account details, trip data, and usage patterns.\n\nWe do not sell your personal data to third parties. Data is stored securely on EU infrastructure.\n\nYou can request deletion of your account and all data at any time from Profile → Settings → Delete Account.\n\nFor the full Privacy Policy, visit:\nhttps://truth-stay.com/privacy\n\nQuestions? Email privacy@truth-stay.com",
   },
   terms: {
     title: "Terms & Conditions",

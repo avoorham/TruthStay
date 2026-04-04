@@ -52,8 +52,10 @@ export async function GET(
   });
 
   // Strip internal fields before returning
-  const { isPublic: _ip, userId: _uid, ...rest } = adv;
-  return NextResponse.json({ ...rest, adventure_days });
+  const response: Record<string, unknown> = { ...adv, adventure_days };
+  delete response.isPublic;
+  delete response.userId;
+  return NextResponse.json(response);
 }
 
 // PATCH /api/adventures/[id] — toggle isSaved

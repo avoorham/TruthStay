@@ -383,6 +383,115 @@ export const BUDGET_SCENARIOS = [
   },
 ];
 
+// ─── Operational Costs ────────────────────────────────────────────────────────
+
+export interface OperationalCost {
+  service: string;
+  monthlyEUR: number;
+  yearlyEUR: number;
+  tier: string;
+  upgradeAt: string | null;
+  upgradeCostMonthlyEUR: number | null;
+}
+
+export const OPERATIONAL_COSTS: OperationalCost[] = [
+  {
+    service: "Apple Developer Program",
+    monthlyEUR: 9.50,
+    yearlyEUR: 114,
+    tier: "Required",
+    upgradeAt: null,
+    upgradeCostMonthlyEUR: null,
+  },
+  {
+    service: "Google Play Console",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "One-time £19 (already paid)",
+    upgradeAt: null,
+    upgradeCostMonthlyEUR: null,
+  },
+  {
+    service: "Domain (truth-stay.com)",
+    monthlyEUR: 1.20,
+    yearlyEUR: 14,
+    tier: "Annual renewal",
+    upgradeAt: null,
+    upgradeCostMonthlyEUR: null,
+  },
+  {
+    service: "GitHub",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Free plan",
+    upgradeAt: null,
+    upgradeCostMonthlyEUR: null,
+  },
+  {
+    service: "Supabase",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Free (500MB DB, 1GB storage, 50k MAU)",
+    upgradeAt: ">500MB DB or >50k MAU",
+    upgradeCostMonthlyEUR: 25,
+  },
+  {
+    service: "Vercel",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Hobby (free)",
+    upgradeAt: "Commercial use or team features needed",
+    upgradeCostMonthlyEUR: 20,
+  },
+  {
+    service: "EAS Build (Expo)",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Free (30 builds/month)",
+    upgradeAt: ">30 builds/month",
+    upgradeCostMonthlyEUR: 99,
+  },
+  {
+    service: "Mapbox",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Free (50k map loads/month)",
+    upgradeAt: ">50k map loads/month",
+    upgradeCostMonthlyEUR: 50,
+  },
+  {
+    service: "Upstash Redis",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Free (10k commands/day)",
+    upgradeAt: ">10k commands/day",
+    upgradeCostMonthlyEUR: 10,
+  },
+  {
+    service: "Anthropic API",
+    monthlyEUR: 0,
+    yearlyEUR: 0,
+    tier: "Pay-as-you-go (~€0.08–0.20 per adventure generation)",
+    upgradeAt: null,
+    upgradeCostMonthlyEUR: null,
+  },
+];
+
+export const CURRENT_MONTHLY_FIXED_EUR = OPERATIONAL_COSTS.reduce(
+  (sum, c) => sum + c.monthlyEUR,
+  0
+); // ~€10.70
+
+export const SCALE_MONTHLY_FIXED_EUR =
+  CURRENT_MONTHLY_FIXED_EUR +
+  (OPERATIONAL_COSTS.find((c) => c.service === "Supabase")?.upgradeCostMonthlyEUR ?? 0) +
+  (OPERATIONAL_COSTS.find((c) => c.service === "Vercel")?.upgradeCostMonthlyEUR ?? 0); // ~€55.70
+
+// Pro margin from Model A
+export const PRO_MARGIN_EUR = 4.14;
+export const BREAK_EVEN_CURRENT = Math.ceil(CURRENT_MONTHLY_FIXED_EUR / PRO_MARGIN_EUR);  // ~3 subscribers
+export const BREAK_EVEN_SCALE   = Math.ceil(SCALE_MONTHLY_FIXED_EUR   / PRO_MARGIN_EUR);  // ~14 subscribers
+
 // ─── Current App State (for agent context) ───────────────────────────────────
 
 export const APP_STATE = {
@@ -391,19 +500,29 @@ export const APP_STATE = {
   revenue: 0,
   monetization_implemented: false,
   platform: "Android (Google Play Internal Testing)",
-  ios_status: "Not yet started",
+  ios_status: "Apple Developer account pending approval (applied 2026-04-04)",
   backend: "Deployed on Vercel (truth-stay.com)",
+  monthly_fixed_costs_eur: CURRENT_MONTHLY_FIXED_EUR,
+  monthly_fixed_at_scale_eur: SCALE_MONTHLY_FIXED_EUR,
+  break_even_pro_subscribers_current: BREAK_EVEN_CURRENT,
+  break_even_pro_subscribers_scale: BREAK_EVEN_SCALE,
   infrastructure_costs_monthly_eur: {
-    supabase: 0, // free tier
-    vercel: 0, // free tier (Hobby)
-    anthropic_api: 0, // pay-as-you-go, ~€0 with 0 users
-    upstash_redis: 0, // free tier
-    openai_api: 0, // embeddings only, ~€0 with 0 users
-    total: 0,
+    apple_developer: 9.50,
+    domain: 1.20,
+    supabase: 0,       // free tier
+    vercel: 0,         // free tier (Hobby)
+    anthropic_api: 0,  // pay-as-you-go, ~€0 with 0 users
+    upstash_redis: 0,  // free tier
+    openai_api: 0,     // embeddings only, ~€0 with 0 users
+    github: 0,         // free
+    eas_build: 0,      // free tier
+    mapbox: 0,         // free tier
+    total: CURRENT_MONTHLY_FIXED_EUR,
   },
   notes: [
+    "Apple Developer Program (£99/yr ≈ €9.50/mo) is the only current fixed cash cost",
+    "Break-even is remarkably low: just 3 Pro subscribers covers all current fixed costs",
     "Booking.com affiliate ID placeholder exists but is empty — needs affiliate account setup",
-    "TheFork integration exists but is not fully production-ready",
     "Rate limiting is already in place (10 AI calls/hour) — good foundation for freemium gating",
     "No Stripe integration yet — required for Model A (Pro) and Model C (Verified Listings)",
     "No analytics tracking — install PostHog or Mixpanel before launching paid tiers",

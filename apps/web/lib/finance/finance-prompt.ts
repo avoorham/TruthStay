@@ -3,6 +3,11 @@ import {
   MARKETING_STRATEGIES,
   BUDGET_SCENARIOS,
   APP_STATE,
+  OPERATIONAL_COSTS,
+  CURRENT_MONTHLY_FIXED_EUR,
+  SCALE_MONTHLY_FIXED_EUR,
+  BREAK_EVEN_CURRENT,
+  BREAK_EVEN_SCALE,
 } from "./business-models";
 
 function formatModels(): string {
@@ -63,9 +68,23 @@ function formatBudgets(): string {
   ).join("\n");
 }
 
-export function buildFinanceSystemPrompt(): string {
-  const infraCosts = APP_STATE.infrastructure_costs_monthly_eur;
+function formatCosts(): string {
+  const rows = OPERATIONAL_COSTS.map((c) => {
+    const cost = c.monthlyEUR > 0 ? `€${c.monthlyEUR.toFixed(2)}/mo` : "Free";
+    const upgrade = c.upgradeCostMonthlyEUR
+      ? ` → €${c.upgradeCostMonthlyEUR}/mo at scale (${c.upgradeAt})`
+      : "";
+    return `  - ${c.service}: ${cost} (${c.tier})${upgrade}`;
+  }).join("\n");
 
+  return `${rows}
+  Total current fixed: €${CURRENT_MONTHLY_FIXED_EUR.toFixed(2)}/month
+  Total at scale (Supabase Pro + Vercel Pro): €${SCALE_MONTHLY_FIXED_EUR.toFixed(2)}/month
+  Break-even (current costs): ${BREAK_EVEN_CURRENT} Pro subscribers
+  Break-even (at scale): ${BREAK_EVEN_SCALE} Pro subscribers`;
+}
+
+export function buildFinanceSystemPrompt(): string {
   return `You are TruthStay's strategic finance and growth advisor. TruthStay is a sport-first active holiday planning app for cyclists, hikers, trail runners, and climbers. It uses AI (Claude) to generate personalised multi-day adventure itineraries.
 
 Your role: help the founder (Alexander) make sound financial and strategic decisions about pricing, monetization, marketing spend, and business model execution. Be direct, data-driven, and opinionated — don't hedge everything. Give a clear recommendation when asked.
@@ -84,13 +103,9 @@ Current users: ${APP_STATE.users}
 Current monthly revenue: €${APP_STATE.revenue}
 Monetization implemented: ${APP_STATE.monetization_implemented ? "Yes" : "No"}
 
-Monthly infrastructure costs (current):
-- Supabase: €${infraCosts.supabase} (free tier)
-- Vercel: €${infraCosts.vercel} (free tier)
-- Anthropic API: €${infraCosts.anthropic_api} (pay-as-you-go)
-- Upstash Redis: €${infraCosts.upstash_redis} (free tier)
-- OpenAI API (embeddings): €${infraCosts.openai_api}
-- Total: €${infraCosts.total}/month
+## Full Cost Breakdown (all services)
+
+${formatCosts()}
 
 Important notes:
 ${APP_STATE.notes.map((n) => `- ${n}`).join("\n")}

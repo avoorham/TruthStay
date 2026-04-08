@@ -14,7 +14,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.truthstay.app"
+      "bundleIdentifier": "com.truthstay.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "TruthStay uses your location to show your position on the map and help you navigate to adventure stops.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "TruthStay uses your location to show your position on the map and help you navigate to adventure stops."
+      }
     },
     "android": {
       "adaptiveIcon": {

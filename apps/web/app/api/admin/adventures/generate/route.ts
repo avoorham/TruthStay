@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth/get-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generatePublicVacation, VACATION_SLOTS } from "@/lib/agent/public-adventure-team";
-import { aiLimiter, checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const user = await getAuthUser(request);
@@ -12,8 +11,7 @@ export async function POST(request: NextRequest) {
   const { data: adminRow } = await db.from("admin_users").select("role").eq("user_id", user.id).single();
   if (!adminRow) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const limited = await checkRateLimit(aiLimiter, `admin_generate_${user.id}`);
-  if (limited) return limited;
+  // Admin generation is exempt from rate limiting
 
   let body: { slotIndices?: number[] } = {};
   try { body = await request.json(); } catch { /* no body = all slots */ }

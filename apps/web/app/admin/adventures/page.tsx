@@ -87,36 +87,50 @@ function fmt(n: number | null | undefined, suffix: string) {
 function GeneratePanel({ onGenerated }: { onGenerated: () => void }) {
   const [indices, setIndices]   = useState("");
   const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState<string | null>(null);
+  const [progress, setProgress] = useState<string[]>([]);
 
   async function handleGenerate() {
+    const slots = indices.trim()
+      ? indices.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      : Array.from({ length: 100 }, (_, i) => i);
+
     setLoading(true);
-    setResult(null);
-    try {
-      const body = indices.trim()
-        ? { slotIndices: indices.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) }
-        : {};
-      const res = await fetch("/api/admin/adventures/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        credentials: "include",
-      });
-      const data = await res.json();
-      setResult(`Generated ${data.generated ?? 0}, failed ${data.failed ?? 0}`);
+    setProgress([]);
+
+    let ok = 0, failed = 0;
+    for (const idx of slots) {
+      setProgress(prev => [...prev, `Generating slot ${idx}…`]);
+      try {
+        const res = await fetch("/api/admin/adventures/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slotIndices: [idx] }),
+          credentials: "include",
+        });
+        const data = await res.json();
+        if (data.generated) {
+          ok++;
+          setProgress(prev => [...prev.slice(0, -1), `✓ Slot ${idx}: ${data.results?.[0]?.title ?? "done"}`]);
+        } else {
+          failed++;
+          setProgress(prev => [...prev.slice(0, -1), `✗ Slot ${idx}: ${data.results?.[0]?.error ?? "failed"}`]);
+        }
+      } catch (e) {
+        failed++;
+        setProgress(prev => [...prev.slice(0, -1), `✗ Slot ${idx}: ${String(e)}`]);
+      }
       onGenerated();
-    } catch (e) {
-      setResult(`Error: ${String(e)}`);
-    } finally {
-      setLoading(false);
     }
+
+    setProgress(prev => [...prev, `Done — ${ok} generated, ${failed} failed`]);
+    setLoading(false);
   }
 
   return (
     <div style={S.genPanel}>
       <h3 style={S.genTitle}>Generate public adventures</h3>
       <p style={S.genHint}>
-        Leave slot indices blank to generate all 100. Or specify comma-separated indices (e.g. 0,1,2,3,4) for a test batch.
+        Leave blank to generate all 100, or specify comma-separated indices (e.g. 0,1,2). Generates one at a time to avoid timeouts.
       </p>
       <div style={S.genRow}>
         <input
@@ -129,7 +143,11 @@ function GeneratePanel({ onGenerated }: { onGenerated: () => void }) {
           {loading ? "Generating…" : "Generate"}
         </button>
       </div>
-      {result && <p style={S.genResult}>{result}</p>}
+      {progress.length > 0 && (
+        <div style={{ marginTop: 8, fontSize: 12, color: "#555", maxHeight: 120, overflowY: "auto" }}>
+          {progress.map((line, i) => <div key={i}>{line}</div>)}
+        </div>
+      )}
     </div>
   );
 }

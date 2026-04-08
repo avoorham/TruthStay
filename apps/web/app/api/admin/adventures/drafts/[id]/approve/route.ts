@@ -40,11 +40,17 @@ export async function POST(
   const ACTIVITY_MAP: Record<string, string> = { mtb: "cycling", gravel: "cycling" };
   const activityType = ACTIVITY_MAP[adventure.activity_type] ?? adventure.activity_type;
 
-  // 2. Insert into adventures as public
+  // 2. Resolve a valid userId — admin accounts may not have a public.users row
+  // Use the admin's own ID if it exists in public.users, otherwise use the first available user
+  const { data: userRow } = await db.from("users").select("id").eq("id", user.id).single();
+  const adventureUserId = userRow?.id ?? (await db.from("users").select("id").limit(1).single()).data?.id;
+  if (!adventureUserId) return NextResponse.json({ error: "No valid user found to assign adventure" }, { status: 500 });
+
+  // 3. Insert into adventures as public
   const { data: advRow, error: advErr } = await db
     .from("adventures")
     .insert({
-      userId:       user.id,
+      userId:       adventureUserId,
       title:        adventure.title,
       description:  adventure.description,
       region:       adventure.region,
@@ -159,7 +165,7 @@ export async function POST(
             activity_type:       entry.activity_type ?? null,
             description:         entry.description ?? null,
             data:                entry.data ?? {},
-            submitted_by:        user.id,
+            submitted_by:        adventureUserId,
             source_adventure_id: entry.source_adventure_id,
             upvotes:             1,
             embedding:           `[${embedding.join(",")}]`,
@@ -167,7 +173,7 @@ export async function POST(
           .select("id").single();
 
         if (inserted?.id) {
-          await db.from("content_upvotes").insert({ entry_id: inserted.id, user_id: user.id });
+          await db.from("content_upvotes").insert({ entry_id: inserted.id, user_id: adventureUserId });
         }
       } catch { /* skip non-critical */ }
     }

@@ -1464,8 +1464,13 @@ export default function TripDetailScreen() {
     setLoadError(false);
     async function load() {
       try {
-        const list = await getMyAdventures();
-        const found = list.find(a => a.id === id) ?? null;
+        // Try own adventures first (may fail if not logged in — that's fine)
+        let found = null;
+        try {
+          const list = await getMyAdventures();
+          found = list.find(a => a.id === id) ?? null;
+        } catch { /* not logged in or no adventures */ }
+
         if (found) {
           setIsOwnAdventure(true);
           setAdventure(found);
@@ -1492,8 +1497,8 @@ export default function TripDetailScreen() {
           onPress={async () => {
             setLoadError(false);
             try {
-              const list = await getMyAdventures();
-              const found = list.find(a => a.id === id) ?? null;
+              let found = null;
+              try { const list = await getMyAdventures(); found = list.find(a => a.id === id) ?? null; } catch { /* not logged in */ }
               if (found) { setIsOwnAdventure(true); setAdventure(found); return; }
               const adv = await getAdventureById(id ?? "");
               setIsOwnAdventure(false); setAdventure(adv);

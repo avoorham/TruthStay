@@ -298,14 +298,18 @@ async function routeAgent(slot: VacationSlot): Promise<{
   adventure: GeneratedAdventure;
   dayAlternatives: DayAlternativesMap;
 }> {
-  const response = await client.messages.create({
+  let text = "";
+  const stream = await client.messages.stream({
     model: "claude-sonnet-4-6",
-    max_tokens: 32000,
+    max_tokens: 16000,
     system: routeAgentPrompt(slot),
     messages: [{ role: "user", content: `Generate the adventure for: ${slot.duration}-day ${slot.activity} in ${slot.region}` }],
   });
-
-  const text = response.content.find(b => b.type === "text")?.text ?? "";
+  for await (const chunk of stream) {
+    if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+      text += chunk.delta.text;
+    }
+  }
   const json = text.match(/\{[\s\S]*\}/)?.[0];
   if (!json) throw new Error(`Route agent returned no JSON for slot: ${slot.region}`);
 

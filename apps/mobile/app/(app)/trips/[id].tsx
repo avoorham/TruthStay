@@ -663,11 +663,6 @@ function StopCard({
         {/* Action buttons */}
         <View style={tileStyles.actionRow}>
           <TouchableOpacity style={tileStyles.actionBtn}>
-            <Feather name="volume-2" size={13} color={colors.text} />
-            <Text style={tileStyles.actionText}>Voice guide</Text>
-          </TouchableOpacity>
-          <View style={tileStyles.actionDivider} />
-          <TouchableOpacity style={tileStyles.actionBtn}>
             <Feather name="navigation" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Directions</Text>
           </TouchableOpacity>
@@ -678,7 +673,7 @@ function StopCard({
           </TouchableOpacity>
           <View style={tileStyles.actionDivider} />
           <TouchableOpacity style={tileStyles.actionBtn} onPress={onShare}>
-            <Feather name="camera" size={13} color={colors.text} />
+            <Feather name="share-2" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Share</Text>
           </TouchableOpacity>
         </View>
@@ -860,9 +855,9 @@ function DaySelector({
           containerW.current = e.nativeEvent.layout.width;
           updateFades(0);
         }}
-        onContentSizeChange={w => {
+        onContentSizeChange={(w) => {
           contentW.current = w;
-          setShowRight(w > containerW.current + 10);
+          updateFades(0);
         }}
         onScroll={e => updateFades(e.nativeEvent.contentOffset.x)}
       >
@@ -1089,10 +1084,6 @@ function TripMapModal({
                 ) : null}
                 <View style={mapStyles.stopActions}>
                   <TouchableOpacity style={mapStyles.stopActionBtn}>
-                    <Feather name="volume-2" size={12} color={colors.text} />
-                    <Text style={mapStyles.stopActionText}>Voice guide</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={mapStyles.stopActionBtn}>
                     <Feather name="navigation" size={12} color={colors.text} />
                     <Text style={mapStyles.stopActionText}>Directions</Text>
                   </TouchableOpacity>
@@ -1146,9 +1137,9 @@ function ItineraryDayTabs({
           containerW.current = e.nativeEvent.layout.width;
           updateFades(0);
         }}
-        onContentSizeChange={w => {
+        onContentSizeChange={(w) => {
           contentW.current = w;
-          setShowRight(w > containerW.current + 10);
+          updateFades(0);
         }}
         onScroll={e => updateFades(e.nativeEvent.contentOffset.x)}
       >

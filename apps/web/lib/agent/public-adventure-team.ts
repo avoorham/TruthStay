@@ -300,7 +300,7 @@ async function routeAgent(slot: VacationSlot): Promise<{
 }> {
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 6000,
+    max_tokens: 32000,
     system: routeAgentPrompt(slot),
     messages: [{ role: "user", content: `Generate the adventure for: ${slot.duration}-day ${slot.activity} in ${slot.region}` }],
   });

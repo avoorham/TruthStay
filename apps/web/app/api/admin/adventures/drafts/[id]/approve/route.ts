@@ -36,6 +36,10 @@ export async function POST(
   const meta         = draft.meta        as DraftMeta;
   const slot         = draft.slot        as { activity: string; budget: string; level: string };
 
+  // Map activity types not in the DB enum to valid values
+  const ACTIVITY_MAP: Record<string, string> = { mtb: "cycling", gravel: "cycling" };
+  const activityType = ACTIVITY_MAP[adventure.activity_type] ?? adventure.activity_type;
+
   // 2. Insert into adventures as public
   const { data: advRow, error: advErr } = await db
     .from("adventures")
@@ -44,7 +48,7 @@ export async function POST(
       title:        adventure.title,
       description:  adventure.description,
       region:       adventure.region,
-      activityType: adventure.activity_type,
+      activityType: activityType,
       durationDays: adventure.duration_days,
       startDate:    null,
       requestPrompt: `public:${slot.activity}:${adventure.region}`,

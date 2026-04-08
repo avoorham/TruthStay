@@ -71,6 +71,16 @@ export async function saveAdventure(id: string) {
   return res.json();
 }
 
+export async function shareAdventurePublic(id: string) {
+  const res = await fetch(`${BASE}/api/adventures/${id}`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify({ isSaved: true, isPublic: true }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function recordSelection(
   adventureId: string,
   dayNumber: number,
@@ -162,6 +172,7 @@ export interface AdventureRow {
   durationDays: number;
   startDate: string | null;
   isSaved: boolean;
+  isPublic?: boolean; // only present for the owner
   createdAt: string;
   coverImageUrl?: string | null;
   meta?: { coords?: [number, number]; country?: string; [key: string]: unknown } | null;

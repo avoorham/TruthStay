@@ -10,7 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
@@ -1449,6 +1449,8 @@ export default function TripDetailScreen() {
   const [reviewPhotos, setReviewPhotos]   = useState<Record<number, string[]>>({});
   const [feedbackDay, setFeedbackDay]     = useState<number | null>(null);
   const [shareDay, setShareDay]           = useState<number | null>(null);
+  const [isPublicState, setIsPublicState] = useState(false);
+  const [sharing, setSharing]             = useState(false);
 
   useEffect(() => {
     setSelectedDay(1);
@@ -1456,20 +1458,16 @@ export default function TripDetailScreen() {
     async function load() {
       try {
         // Try own adventures first (may fail if not logged in — that's fine)
-        let found = null;
+        let isOwn = false;
         try {
           const list = await getMyAdventures();
-          found = list.find(a => a.id === id) ?? null;
+          isOwn = list.some(a => a.id === id);
         } catch { /* not logged in or no adventures */ }
 
-        if (found) {
-          setIsOwnAdventure(true);
-          setAdventure(found);
-          return;
-        }
-        // Not the user's own — try as a public adventure
+        // Always load via getAdventureById so we get isPublic for owners
         const adv = await getAdventureById(id ?? "");
-        setIsOwnAdventure(false);
+        setIsOwnAdventure(isOwn);
+        setIsPublicState(adv.isPublic ?? false);
         setAdventure(adv);
       } catch {
         setLoadError(true);
@@ -1489,10 +1487,10 @@ export default function TripDetailScreen() {
             setLoadError(false);
             try {
               let found = null;
-              try { const list = await getMyAdventures(); found = list.find(a => a.id === id) ?? null; } catch { /* not logged in */ }
-              if (found) { setIsOwnAdventure(true); setAdventure(found); return; }
+              let isOwn = false;
+              try { const list = await getMyAdventures(); isOwn = list.some(a => a.id === id); } catch { /* not logged in */ }
               const adv = await getAdventureById(id ?? "");
-              setIsOwnAdventure(false); setAdventure(adv);
+              setIsOwnAdventure(isOwn); setIsPublicState(adv.isPublic ?? false); setAdventure(adv);
             } catch { setLoadError(true); }
           }}
         >
@@ -1517,6 +1515,19 @@ export default function TripDetailScreen() {
   const currentDay  = sortedDays.find(d => d.dayNumber === selectedDay) ?? sortedDays[0];
   const todayRestaurants = meta.restaurants.filter((r: RestaurantStop) => r.night === selectedDay);
   const isOwner     = isOwnAdventure;
+
+  async function handleShareToExplore() {
+    if (!adventure) return;
+    setSharing(true);
+    try {
+      await shareAdventurePublic(adventure.id);
+      setIsPublicState(true);
+    } catch {
+      Alert.alert("Error", "Could not share adventure. Please try again.");
+    } finally {
+      setSharing(false);
+    }
+  }
 
   async function handleChangeCover() {
     const uri = await pickImage([16, 9]);
@@ -1580,6 +1591,32 @@ export default function TripDetailScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Share / public status banner (own adventures only) */}
+        {isOwner && (
+          isPublicState ? (
+            <View style={detailStyles.publicBadge}>
+              <Feather name="globe" size={13} color={colors.accent} />
+              <Text style={detailStyles.publicBadgeText}>Public · visible on Explore</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={detailStyles.shareBanner}
+              onPress={handleShareToExplore}
+              disabled={sharing}
+              activeOpacity={0.8}
+            >
+              {sharing
+                ? <ActivityIndicator size="small" color={colors.inverse} />
+                : <>
+                    <Feather name="globe" size={13} color={colors.inverse} />
+                    <Text style={detailStyles.shareBannerText}>Share to Explore</Text>
+                    <Feather name="arrow-right" size={13} color={colors.inverse} />
+                  </>
+              }
+            </TouchableOpacity>
+          )
+        )}
 
         {/* Day tabs */}
         <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
@@ -1717,6 +1754,18 @@ const detailStyles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.45)",
     alignItems: "center", justifyContent: "center",
   },
+  shareBanner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, backgroundColor: colors.accent,
+    paddingVertical: 10, paddingHorizontal: spacing.md,
+  },
+  shareBannerText: { color: colors.inverse, fontSize: fontSize.sm, fontWeight: "700" },
+  publicBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingVertical: 8, paddingHorizontal: spacing.md,
+    backgroundColor: colors.sheet,
+  },
+  publicBadgeText: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "600" },
 });
 
 const tileStyles = StyleSheet.create({

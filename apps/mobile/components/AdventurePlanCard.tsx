@@ -1,12 +1,12 @@
 import {
-  ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator,
+  ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { colors, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../lib/theme";
 import { RouteTile } from "./RouteTile";
 import { AccommodationTile } from "./AccommodationTile";
-import { recordSelection, saveAdventure } from "../lib/api";
+import { recordSelection, saveAdventure, shareAdventurePublic } from "../lib/api";
 import type {
   GeneratedAdventure, DayAlternativesMap,
   AccommodationStop, RouteAlternative,
@@ -33,6 +33,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
   const [routeSelections, setRouteSelections] = useState<Record<number, DayRouteSelection>>({});
   const [accSelections, setAccSelections] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const toggleDay = (n: number) =>
     setExpandedDays(prev => {
@@ -70,6 +71,21 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
       await saveAdventure(adventureId);
       router.push("/(app)/trips");
     } catch { setSaving(false); }
+  };
+
+  const handleShare = async () => {
+    if (!adventureId) return;
+    setSharing(true);
+    try {
+      await shareAdventurePublic(adventureId);
+      Alert.alert("Live on Explore!", "Your adventure is now visible to everyone on the Explore screen.", [
+        { text: "View my trips", onPress: () => router.push("/(app)/trips") },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not share adventure. Please try again.");
+    } finally {
+      setSharing(false);
+    }
   };
 
   const emoji = ACTIVITY_EMOJI[adventure.activity_type] ?? "🏔️";
@@ -243,12 +259,23 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
           <TouchableOpacity
             style={[styles.ctaBtn, saving && styles.ctaBtnDisabled]}
             onPress={handleSave}
-            disabled={saving}
+            disabled={saving || sharing}
             activeOpacity={0.85}
           >
             {saving
               ? <ActivityIndicator color={colors.inverse} />
               : <Text style={styles.ctaText}>Save this adventure</Text>
+            }
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.ctaBtnOutline, sharing && styles.ctaBtnDisabled]}
+            onPress={handleShare}
+            disabled={saving || sharing}
+            activeOpacity={0.85}
+          >
+            {sharing
+              ? <ActivityIndicator color={colors.text} />
+              : <Text style={styles.ctaTextOutline}>Share to Explore</Text>
             }
           </TouchableOpacity>
         </>
@@ -340,13 +367,25 @@ const styles = StyleSheet.create({
   warningText: { fontSize: fontSize.xs, color: "#92400E" },
   ctaBtn: {
     backgroundColor: colors.text,
-    margin: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
     borderRadius: radius.md,
     paddingVertical: 14,
     alignItems: "center",
   },
+  ctaBtnOutline: {
+    borderWidth: 1.5,
+    borderColor: colors.text,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
   ctaBtnDisabled: { opacity: 0.5 },
   ctaText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
+  ctaTextOutline: { color: colors.text, fontWeight: "700", fontSize: fontSize.sm },
   accHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

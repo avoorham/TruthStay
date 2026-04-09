@@ -13,7 +13,7 @@
         "simulator": true
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://truth-stay.com",
+        "EXPO_PUBLIC_API_URL": "https://www.truth-stay.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hplczwepdpmtdfkijpnh.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_WYSFBI_5s7VBz__3Vy-E7w_dFFBaSQF",
         "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoiYXZvb3JoYW0iLCJhIjoiY21uN2dueWFvMDA2MDJwcjM1MTlrZ2J0aiJ9.8kG0iiY1RIHO1gB-mwrZUQ"
@@ -22,7 +22,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://truth-stay.com",
+        "EXPO_PUBLIC_API_URL": "https://www.truth-stay.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hplczwepdpmtdfkijpnh.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_WYSFBI_5s7VBz__3Vy-E7w_dFFBaSQF",
         "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoiYXZvb3JoYW0iLCJhIjoiY21uN2dueWFvMDA2MDJwcjM1MTlrZ2J0aiJ9.8kG0iiY1RIHO1gB-mwrZUQ"
@@ -31,7 +31,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://truth-stay.com",
+        "EXPO_PUBLIC_API_URL": "https://www.truth-stay.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hplczwepdpmtdfkijpnh.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_WYSFBI_5s7VBz__3Vy-E7w_dFFBaSQF",
         "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoiYXZvb3JoYW0iLCJhIjoiY21uN2dueWFvMDA2MDJwcjM1MTlrZ2J0aiJ9.8kG0iiY1RIHO1gB-mwrZUQ"

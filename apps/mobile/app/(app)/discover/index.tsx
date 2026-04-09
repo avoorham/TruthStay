@@ -135,6 +135,7 @@ export default function DiscoverScreen() {
   const [mode, setMode]                 = useState<Mode>(null);
   const [selectedTrip, setSelectedTrip] = useState<AdventureRow | null>(null);
   const [myTrips, setMyTrips]           = useState<AdventureRow[]>([]);
+  const [sessionActivityType, setSessionActivityType] = useState<string | undefined>(undefined);
   const listRef = useRef<FlatList>(null);
 
   // ── Session refs (always hold latest state for effects/callbacks with no deps) ─
@@ -202,6 +203,7 @@ export default function DiscoverScreen() {
     setMode(null);
     setSelectedTrip(null);
     setMyTrips([]);
+    setSessionActivityType(undefined);
     setInput("");
     setInputHeight(MIN_INPUT_HEIGHT);
   }
@@ -282,6 +284,18 @@ export default function DiscoverScreen() {
 
     setInput("");
     setInputHeight(MIN_INPUT_HEIGHT);
+
+    // Detect activity type from quick-reply selection for image context
+    if (!sessionActivityType) {
+      const ACTIVITY_PREFIXES: Array<[string, string]> = [
+        ["Cycling", "cycling"], ["MTB", "mtb"], ["Hiking", "hiking"],
+        ["Trail Running", "trail_running"], ["Climbing", "climbing"],
+        ["Skiing", "skiing"], ["Kayaking", "kayaking"],
+      ];
+      for (const [prefix, type] of ACTIVITY_PREFIXES) {
+        if (trimmed.startsWith(prefix)) { setSessionActivityType(type); break; }
+      }
+    }
 
     // ── Step 1: Choose mode ──────────────────────────────────────────────────
     if (mode === null) {
@@ -436,7 +450,7 @@ export default function DiscoverScreen() {
       setLoading(false);
       scrollToBottom();
     }
-  }, [mode, selectedTrip, myTrips, history, loading, scrollToBottom]);
+  }, [mode, selectedTrip, myTrips, history, loading, scrollToBottom, sessionActivityType]);
 
   // ── Filtered history sessions ────────────────────────────────────────────────
 
@@ -532,7 +546,15 @@ export default function DiscoverScreen() {
       return (
         <View style={styles.questionBlock}>
           {item.text ? <Text style={styles.questionText}>{item.text}</Text> : null}
-          <RichOptionTiles messageId={item.id} category={item.category} options={item.options} footer_options={item.footer_options} onSelect={send} />
+          <RichOptionTiles
+            messageId={item.id}
+            category={item.category}
+            activityType={sessionActivityType ?? selectedTrip?.activityType ?? undefined}
+            options={item.options}
+            footer_options={item.footer_options}
+            disabled={loading}
+            onSelect={send}
+          />
         </View>
       );
     }
@@ -543,7 +565,7 @@ export default function DiscoverScreen() {
       return (
         <View style={styles.questionBlock}>
           {item.display ? <Text style={styles.questionText}>{item.display}</Text> : null}
-          <QuickReplies options={item.options} onSelect={send} />
+          <QuickReplies options={item.options} disabled={loading} onSelect={send} />
         </View>
       );
     }
@@ -555,15 +577,16 @@ export default function DiscoverScreen() {
         </View>
       </View>
     );
-  }, [send, router]);
+  }, [send, router, loading, sessionActivityType, selectedTrip]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      enabled={Platform.OS === "ios"}
+      behavior="padding"
+      keyboardVerticalOffset={90}
     >
       {/* Header */}
       <View style={styles.header}>

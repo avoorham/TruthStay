@@ -65,12 +65,18 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
   };
 
   const handleSave = async () => {
-    if (!adventureId) { router.push("/(app)/trips"); return; }
+    if (!adventureId) {
+      Alert.alert("Couldn't save", "The adventure wasn't saved to your account. Please start a new chat and try again.");
+      return;
+    }
     setSaving(true);
     try {
       await saveAdventure(adventureId);
       router.push("/(app)/trips");
-    } catch { setSaving(false); }
+    } catch (err) {
+      setSaving(false);
+      Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
+    }
   };
 
   const handleShare = async () => {

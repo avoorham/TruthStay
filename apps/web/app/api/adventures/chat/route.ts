@@ -209,7 +209,8 @@ Rich options format for routes:
       "distance_km": number or null,
       "elevation_gain_m": number or null,
       "difficulty": "easy" or "moderate" or "hard",
-      "image_seed": "descriptive-hyphenated-slug"
+      "image_seed": "descriptive-hyphenated-slug",
+      "komoot_url": "https://www.komoot.com/tour/XXXXXXX" or null (only include if you are certain this exact Komoot tour URL exists — omit or null if unsure)
     }
   ]
 }

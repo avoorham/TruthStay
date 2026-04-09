@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
-  Dimensions, Image, Linking, ScrollView, StyleSheet,
+  Dimensions, Image, Linking, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { colors, fontSize, radius, shadow, spacing } from "../lib/theme";
@@ -10,12 +10,47 @@ import type { RichOption, RichOptionCategory } from "../lib/adventure-types";
 
 const INITIAL_VISIBLE  = 3;
 const LOAD_MORE_COUNT  = 7;
-const CARD_WIDTH       = Dimensions.get("window").width - spacing.md * 2 - spacing.lg * 2;
+const CARD_WIDTH       = Dimensions.get("window").width - spacing.md * 2;
 const IMAGE_HEIGHT     = 160;
-const IMAGE_COUNT      = 4;
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+// ─── Activity-type image IDs (picsum numeric IDs — consistent, pre-vetted) ───
+
+const ROUTE_IMAGE_ID: Record<string, number> = {
+  cycling:       10,
+  road_cycling:  10,
+  gravel:        10,
+  mtb:           200,
+  hiking:        15,
+  trail_running: 39,
+  climbing:      36,
+  skiing:        102,
+  kayaking:      129,
+};
+
+const ACCOMMODATION_IMAGE_ID: Record<string, number> = {
+  camping:    202,
+  hostel:     305,
+  hotel:      219,
+  guesthouse: 164,
+  luxury:     118,
+};
+
+function cardImageUri(
+  category: RichOptionCategory,
+  activityType: string | undefined,
+  accommodationType: string | undefined,
+  seed: string,
+): string {
+  if (category === "route") {
+    const id = ROUTE_IMAGE_ID[activityType ?? ""] ?? 11;
+    return `https://picsum.photos/id/${id}/800/400`;
+  }
+  if (category === "accommodation") {
+    const id = ACCOMMODATION_IMAGE_ID[accommodationType ?? ""] ?? 219;
+    return `https://picsum.photos/id/${id}/800/400`;
+  }
+  // restaurant — seed-based for variety
+  return `https://picsum.photos/seed/${seed}/800/400`;
 }
 
 // ─── Difficulty badge ─────────────────────────────────────────────────────────
@@ -58,12 +93,14 @@ function accommodationTypeLabel(type?: string): string {
 interface OptionTileProps {
   option: RichOption;
   category: RichOptionCategory;
+  activityType?: string;
+  disabled?: boolean;
   onSelect: (title: string) => void;
 }
 
-function OptionTile({ option, category, onSelect }: OptionTileProps) {
-  const seed = option.image_seed ?? slugify(option.title);
-  const scrollRef = useRef<ScrollView>(null);
+function OptionTile({ option, category, activityType, disabled, onSelect }: OptionTileProps) {
+  const seed = option.image_seed ?? option.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+  const imageUri = cardImageUri(category, activityType, option.accommodation_type, seed);
 
   function handleVisitSite() {
     const url = option.website_url
@@ -75,31 +112,12 @@ function OptionTile({ option, category, onSelect }: OptionTileProps) {
 
   return (
     <View style={tileStyles.card}>
-      {/* Image carousel */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        style={tileStyles.carousel}
-        contentContainerStyle={{ width: CARD_WIDTH * IMAGE_COUNT }}
-      >
-        {Array.from({ length: IMAGE_COUNT }).map((_, i) => (
-          <Image
-            key={i}
-            source={{ uri: `https://picsum.photos/seed/${seed}-${i}/400/250` }}
-            style={tileStyles.image}
-            resizeMode="cover"
-          />
-        ))}
-      </ScrollView>
-
-      {/* Dot indicator */}
-      <View style={tileStyles.dotsRow}>
-        {Array.from({ length: IMAGE_COUNT }).map((_, i) => (
-          <View key={i} style={tileStyles.dot} />
-        ))}
-      </View>
+      {/* Single hero image */}
+      <Image
+        source={{ uri: imageUri }}
+        style={tileStyles.image}
+        resizeMode="cover"
+      />
 
       {/* Info */}
       <View style={tileStyles.info}>
@@ -172,6 +190,13 @@ function OptionTile({ option, category, onSelect }: OptionTileProps) {
         {option.description ? (
           <Text style={tileStyles.description} numberOfLines={2}>{option.description}</Text>
         ) : null}
+
+        {/* Komoot link for routes */}
+        {category === "route" && option.komoot_url ? (
+          <TouchableOpacity onPress={() => Linking.openURL(option.komoot_url!)} activeOpacity={0.7}>
+            <Text style={tileStyles.komootLink}>View on Komoot →</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Action buttons */}
@@ -181,23 +206,26 @@ function OptionTile({ option, category, onSelect }: OptionTileProps) {
             style={tileStyles.menuBtn}
             onPress={handleVisitSite}
             activeOpacity={0.8}
+            disabled={disabled}
           >
             <Text style={tileStyles.menuBtnText}>Visit Site</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={tileStyles.availBtn}
-            onPress={() => onSelect("Confirmed restaurant: " + option.title)}
+            style={[tileStyles.availBtn, disabled && tileStyles.btnDisabled]}
+            onPress={() => !disabled && onSelect("Confirmed restaurant: " + option.title)}
             activeOpacity={0.8}
+            disabled={disabled}
           >
             <Text style={tileStyles.availBtnText}>Select</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <TouchableOpacity
-          style={tileStyles.selectBtn}
-          onPress={() => onSelect(option.title)}
+          style={[tileStyles.selectBtn, disabled && tileStyles.btnDisabled]}
+          onPress={() => !disabled && onSelect(option.title)}
           activeOpacity={0.8}
+          disabled={disabled}
         >
           <Text style={tileStyles.selectBtnText}>Select</Text>
         </TouchableOpacity>
@@ -211,12 +239,14 @@ function OptionTile({ option, category, onSelect }: OptionTileProps) {
 interface Props {
   messageId: string;
   category: RichOptionCategory;
+  activityType?: string;
   options: RichOption[];
   footer_options?: string[];
+  disabled?: boolean;
   onSelect: (title: string) => void;
 }
 
-export function RichOptionTiles({ messageId, category, options, footer_options, onSelect }: Props) {
+export function RichOptionTiles({ messageId, category, activityType, options, footer_options, disabled, onSelect }: Props) {
   const [visible, setVisible] = useState(INITIAL_VISIBLE);
 
   function loadMore() {
@@ -230,12 +260,14 @@ export function RichOptionTiles({ messageId, category, options, footer_options, 
           key={`${messageId}-${opt.title}-${idx}`}
           option={opt}
           category={category}
+          activityType={activityType}
+          disabled={disabled}
           onSelect={onSelect}
         />
       ))}
 
       {visible < options.length && (
-        <TouchableOpacity style={styles.loadMoreBtn} onPress={loadMore} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.loadMoreBtn} onPress={loadMore} activeOpacity={0.7} disabled={disabled}>
           <Text style={styles.loadMoreText}>Load more</Text>
         </TouchableOpacity>
       )}
@@ -243,7 +275,13 @@ export function RichOptionTiles({ messageId, category, options, footer_options, 
       {footer_options && footer_options.length > 0 && (
         <View style={styles.footerRow}>
           {footer_options.map(opt => (
-            <TouchableOpacity key={opt} style={styles.footerChip} onPress={() => onSelect(opt)} activeOpacity={0.7}>
+            <TouchableOpacity
+              key={opt}
+              style={[styles.footerChip, disabled && styles.footerChipDisabled]}
+              onPress={() => !disabled && onSelect(opt)}
+              activeOpacity={0.7}
+              disabled={disabled}
+            >
               <Text style={styles.footerChipText}>{opt}</Text>
             </TouchableOpacity>
           ))}
@@ -263,27 +301,9 @@ const tileStyles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.sm,
   },
-  carousel: {
-    width: CARD_WIDTH,
-    height: IMAGE_HEIGHT,
-  },
   image: {
     width: CARD_WIDTH,
     height: IMAGE_HEIGHT,
-  },
-  dotsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 5,
-    paddingTop: spacing.xs,
-    paddingBottom: 2,
-    backgroundColor: colors.card,
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.border,
   },
   info: {
     padding: spacing.md,
@@ -323,7 +343,15 @@ const tileStyles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 2,
   },
-  // Non-restaurant select button
+  komootLink: {
+    fontSize: fontSize.xs,
+    color: "#2E7D32",
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  btnDisabled: {
+    opacity: 0.4,
+  },
   selectBtn: {
     backgroundColor: colors.text,
     marginHorizontal: spacing.md,
@@ -338,7 +366,6 @@ const tileStyles = StyleSheet.create({
     fontSize: fontSize.base,
     fontWeight: "700",
   },
-  // Restaurant action buttons
   restaurantBtns: {
     flexDirection: "row",
     gap: spacing.sm,
@@ -404,6 +431,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 8,
+  },
+  footerChipDisabled: {
+    opacity: 0.4,
   },
   footerChipText: {
     fontSize: fontSize.sm,

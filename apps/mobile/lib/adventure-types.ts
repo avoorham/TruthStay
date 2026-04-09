@@ -66,6 +66,7 @@ export interface RichOption {
   price_per_night_eur?: number | null;
   price_range?: string;
   image_seed?: string;
+  komoot_url?: string;
   // Restaurant-specific
   website_url?: string;
   thefork_url?: string;

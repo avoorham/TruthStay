@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.50.0",
     "expo": "~55.0.8",
     "expo-auth-session": "~55.0.9",
+    "expo-dev-client": "~55.0.22",
     "expo-image-picker": "~55.0.14",
     "expo-linear-gradient": "~55.0.9",
     "expo-router": "~55.0.7",

@@ -294,8 +294,9 @@ export default function DiscoverScreen() {
           const aiMsg = makeAiMsg(aiText);
           setMessages(prev => [...prev, aiMsg]);
           setHistory([...h, { role: "assistant", content: aiText }]);
-        } catch {
-          setMessages(prev => [...prev, makeAiMsg("Sorry, something went wrong. Please try again.")]);
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          setMessages(prev => [...prev, makeAiMsg(`Sorry, something went wrong.\n\n${detail}`)]);
         } finally {
           setLoading(false);
           scrollToBottom();

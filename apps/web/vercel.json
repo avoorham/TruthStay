@@ -2,5 +2,10 @@
   "buildCommand": "cd ../.. && pnpm --filter web build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile"
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "functions": {
+    "app/api/admin/adventures/generate/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

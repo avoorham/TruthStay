@@ -19,8 +19,8 @@ function createLimiter(requests: number, window: `${number} ${"s" | "m" | "h" | 
   });
 }
 
-// Expensive AI endpoints: 10 calls per hour per user
-export const aiLimiter = createLimiter(10, "1 h");
+// Expensive AI endpoints: 100 calls per hour per user
+export const aiLimiter = createLimiter(100, "1 h");
 
 // Content submission: 30 per hour per user
 export const contentLimiter = createLimiter(30, "1 h");

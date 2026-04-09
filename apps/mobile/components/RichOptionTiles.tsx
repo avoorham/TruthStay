@@ -82,6 +82,7 @@ function OptionTile({ option, category, onSelect }: OptionTileProps) {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         style={tileStyles.carousel}
+        contentContainerStyle={{ width: CARD_WIDTH * IMAGE_COUNT }}
       >
         {Array.from({ length: IMAGE_COUNT }).map((_, i) => (
           <Image

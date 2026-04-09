@@ -44,7 +44,11 @@ function stripMd(text: string) {
 
 function parseAiMessage(text: string): { display: string; options: string[] | null } {
   const keywordReplies = detectQuickReplies(text);
-  if (keywordReplies) return { display: stripMd(text), options: keywordReplies };
+  if (keywordReplies) {
+    // Strip bullet lines — they're redundant when buttons already show them
+    const nonBullet = text.split("\n").filter(l => !/^[-•*]\s+/.test(l.trim())).join("\n").trim();
+    return { display: stripMd(nonBullet), options: keywordReplies };
+  }
 
   const lines = text.split("\n");
   const bulletOptions: string[] = [];
@@ -558,7 +562,7 @@ export default function DiscoverScreen() {
   return (
     <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
-      behavior="padding"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       {/* Header */}
@@ -624,7 +628,7 @@ export default function DiscoverScreen() {
           disabled={!input.trim() || loading}
           activeOpacity={0.8}
         >
-          <Text style={styles.sendIcon}>↑</Text>
+          <Feather name="arrow-up" size={18} color={colors.inverse} />
         </TouchableOpacity>
       </View>
 
@@ -797,9 +801,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2, paddingBottom: spacing.sm + 2,
     fontSize: fontSize.base, color: colors.text, textAlignVertical: "top",
   },
-  sendBtn:         { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+  sendBtn:         { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.text, alignItems: "center", justifyContent: "center" },
   sendBtnDisabled: { backgroundColor: colors.border },
-  sendIcon:        { fontSize: fontSize.lg, color: colors.inverse, fontWeight: "700" },
 
   // Addition card
   additionCard: {

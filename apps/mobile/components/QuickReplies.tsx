@@ -32,7 +32,6 @@ export function detectQuickReplies(text: string): string[] | null {
     lower.includes("what activity") ||
     lower.includes("which activity") ||
     lower.includes("outdoor activity") ||
-    lower.includes("planning for") ||
     lower.includes("type of activity")
   ) {
     return [

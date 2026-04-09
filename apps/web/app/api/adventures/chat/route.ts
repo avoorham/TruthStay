@@ -129,21 +129,23 @@ const SYSTEM_PROMPT = `You are an expert sport-travel planner for TruthStay — 
 
 Your goal: guide the user through a structured multi-phase planning conversation to build a detailed sport-first adventure itinerary.
 
+Do NOT say "Welcome to TruthStay" or include any welcome or greeting message. Go straight to the first question.
+
 ## Phase 1 — INFORMATION GATHERING
 
 Ask ONE question at a time in this exact order. Be warm and concise.
 
 1. What sport or outdoor activity?
-   (Give each option a short description, e.g. "- Cycling — Road & gravel riding")
+   List each as a simple bullet with just the name (e.g. "- Cycling"). No descriptions after the dash.
 
 2. Fitness level and typical daily output?
-   (Options: beginner/light days, intermediate/moderate, advanced/big days)
+   List as simple bullets: "- Beginner (light days)", "- Intermediate (moderate)", "- Advanced (big days)"
 
 3. Which region or country?
    (Be specific if they give hints — e.g. "Alps" → "Which part — French, Italian, Austrian, Swiss?")
 
 4. How many days total?
-   (Suggest a typical range for the activity if they're unsure)
+   List simple day options as bullets only (e.g. "- 5 days", "- 6 days"). No explanatory text per option.
 
 5. How many accommodation stops/bases do you want?
    (1 base = stay in one place the whole trip; 2+ = move between locations)
@@ -152,7 +154,7 @@ Ask ONE question at a time in this exact order. Be warm and concise.
    (Only ask if stops > 1. Suggest a logical split based on the region and activity, e.g. "3 nights in X, 4 nights in Y?")
 
 7. Accommodation type?
-   (Give each option a short description, e.g. "- Mid-range Hotel — En-suite & sport-friendly")
+   List as simple bullets: "- Camping", "- Hostel", "- Mid-range Hotel", "- Luxury"
 
 Do NOT proceed to Phase 2 until you have all 7 answers (or 6 if stops = 1).
 
@@ -190,6 +192,7 @@ After all accommodation stops are confirmed, suggest routes day-by-day:
 For EACH day (in order from Day 1):
 - Determine which accommodation stop the user sleeps at that night (based on the day split they gave).
 - Suggest 3 routes that START and END near that accommodation (minimal dead travel — no long transfers to the trailhead).
+- In each route description, include the approximate distance from the accommodation to the route start (e.g. "Start point 2 km from hotel").
 - Include "Rest day" and "Change activity" as footer_options.
 
 Rich options format for routes:
@@ -441,7 +444,9 @@ export async function POST(request: NextRequest) {
 
   const text = textBlock.text.trim();
 
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  // Strip markdown code fences Claude may wrap JSON in despite instructions
+  const stripped = text.replace(/```(?:json)?\n?([\s\S]*?)\n?```/g, "$1").trim();
+  const jsonMatch = stripped.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
     let parsed: {
       type?: string;

@@ -216,9 +216,11 @@ Rich options format for routes:
 }
 
 After each day's selection:
-- Route selected → acknowledge briefly ("Great choice! Moving on to Day [N+1].") and present the next day.
-- "Rest day" chosen → acknowledge ("Noted — Day [N] is a rest day.") and present the next day.
+- Route selected → acknowledge briefly ("Great choice! Moving on to Day [N+1].") and immediately present the next day's routes as a rich_options JSON block.
+- "Rest day" chosen → acknowledge ("Noted — Day [N] is a rest day.") and immediately present the next day's routes as a rich_options JSON block.
 - "Change activity" chosen → ask which activity for that day, then suggest 3 routes for that activity from the same base.
+
+CRITICAL: After a route is selected or rest day declared, you MUST immediately output the next day's options as a rich_options JSON block. Never output plain text, never ask a clarifying question before presenting the next day. Do not wait for confirmation.
 
 When suggesting restaurants (if asked), use rich_options with category "restaurant" and include:
 - "website_url": restaurant's official website URL (or null)
@@ -242,7 +244,7 @@ Use ONLY this JSON (no markdown, no extra text):
     "title": "Short catchy title",
     "description": "2-3 sentence overview",
     "region": "Region name",
-    "activity_type": "cycling | hiking | trail_running | skiing | climbing | kayaking | mtb | other",
+    "activity_type": "cycling | hiking | trail_running | skiing | climbing | kayaking | other",
     "duration_days": number,
     "start_date": null,
     "days": [
@@ -536,6 +538,19 @@ export async function POST(request: NextRequest) {
 
 // ─── Save to database ─────────────────────────────────────────────────────────
 
+const VALID_ACTIVITY_TYPES = new Set([
+  "cycling", "hiking", "trail_running", "skiing", "snowboarding", "kayaking", "climbing", "other",
+]);
+const ACTIVITY_TYPE_MAP: Record<string, string> = {
+  mtb: "cycling", road_cycling: "cycling", gravel: "cycling", bikepacking: "cycling",
+  mountaineering: "climbing", snowboard: "snowboarding",
+};
+function normalizeActivityType(t: string): string {
+  const lower = (t ?? "other").toLowerCase();
+  if (VALID_ACTIVITY_TYPES.has(lower)) return lower;
+  return ACTIVITY_TYPE_MAP[lower] ?? "other";
+}
+
 async function saveAdventureWithAlternatives(
   db: ReturnType<typeof createAdminClient>,
   userId: string,
@@ -552,7 +567,7 @@ async function saveAdventureWithAlternatives(
       title: adventure.title,
       description: adventure.description,
       region: adventure.region,
-      activityType: adventure.activity_type,
+      activityType: normalizeActivityType(adventure.activity_type),
       durationDays: adventure.duration_days,
       startDate: adventure.start_date ?? null,
       requestPrompt,

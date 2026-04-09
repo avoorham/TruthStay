@@ -213,6 +213,7 @@ const styles = StyleSheet.create({
   imageWrap: {
     width: IMG_WIDTH,
     position: "relative",
+    overflow: "hidden",
   },
   imagePlaceholder: {
     width: IMG_WIDTH,

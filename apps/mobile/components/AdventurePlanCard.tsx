@@ -1,5 +1,5 @@
 import {
-  ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert,
+  StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -113,10 +113,10 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
         {/* Phase pills */}
         <View style={styles.phases}>
           <View style={[styles.phase, phase === "routes" && styles.phaseActive]}>
-            <Text style={[styles.phaseText, phase === "routes" && styles.phaseTextActive]}>1 Routes</Text>
+            <Text style={[styles.phaseText, phase === "routes" && styles.phaseTextActive]}>Routes</Text>
           </View>
           <View style={[styles.phase, phase === "accommodation" && styles.phaseActive]}>
-            <Text style={[styles.phaseText, phase === "accommodation" && styles.phaseTextActive]}>2 Accommodation</Text>
+            <Text style={[styles.phaseText, phase === "accommodation" && styles.phaseTextActive]}>Stay</Text>
           </View>
         </View>
       </View>

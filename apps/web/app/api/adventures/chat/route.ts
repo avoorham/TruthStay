@@ -431,12 +431,21 @@ export async function POST(request: NextRequest) {
     }
   } catch { /* RAG is non-critical — fall through */ }
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-6",
-    max_tokens: 7000,
-    system: finalSystemPrompt,
-    messages: body.messages.map((m) => ({ role: m.role, content: m.content })),
-  });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-opus-4-6",
+      max_tokens: 7000,
+      system: finalSystemPrompt,
+      messages: body.messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+  } catch (err) {
+    console.error("Anthropic API error:", err);
+    return NextResponse.json({
+      type: "question",
+      text: "Sorry, something went wrong on my end. Please try sending your message again.",
+    });
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {

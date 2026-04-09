@@ -27,12 +27,12 @@ const ROUTE_IMAGE_ID: Record<string, number> = {
   kayaking:      129,
 };
 
-const ACCOMMODATION_IMAGE_ID: Record<string, number> = {
-  camping:    202,
-  hostel:     305,
-  hotel:      219,
-  guesthouse: 164,
-  luxury:     118,
+const ACCOMMODATION_IMAGE_SLUG: Record<string, string> = {
+  camping:    "camping-tent-outdoor-forest",
+  hostel:     "hostel-dorm-bunk-beds",
+  hotel:      "hotel-room-bed-interior",
+  guesthouse: "guesthouse-cosy-room-wooden",
+  luxury:     "luxury-hotel-suite-premium",
 };
 
 function cardImageUris(
@@ -51,9 +51,9 @@ function cardImageUris(
     ];
   }
   if (category === "accommodation") {
-    const id = ACCOMMODATION_IMAGE_ID[accommodationType ?? ""] ?? 219;
+    const slug = ACCOMMODATION_IMAGE_SLUG[accommodationType ?? ""] ?? "hotel-room-accommodation";
     return [
-      `https://picsum.photos/id/${id}/800/400`,
+      `https://picsum.photos/seed/${slug}/800/400`,
       `https://picsum.photos/seed/${seed}-b/800/400`,
       `https://picsum.photos/seed/${seed}-c/800/400`,
     ];
@@ -134,6 +134,7 @@ function OptionTile({ option, category, activityType, disabled, onSelect }: Opti
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         scrollEventThrottle={16}
+        style={{ width: CARD_WIDTH }}
         onScroll={e => setPage(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH))}
       >
         {imageUris.map((uri, i) => (

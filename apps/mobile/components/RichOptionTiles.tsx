@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
-  Dimensions, Image, Linking, StyleSheet,
+  Dimensions, Image, Linking, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { colors, fontSize, radius, shadow, spacing } from "../lib/theme";
@@ -35,22 +35,35 @@ const ACCOMMODATION_IMAGE_ID: Record<string, number> = {
   luxury:     118,
 };
 
-function cardImageUri(
+function cardImageUris(
   category: RichOptionCategory,
   activityType: string | undefined,
   accommodationType: string | undefined,
   seed: string,
-): string {
+): string[] {
   if (category === "route") {
     const id = ROUTE_IMAGE_ID[activityType ?? ""] ?? 11;
-    return `https://picsum.photos/id/${id}/800/400`;
+    const base = activityType ?? "outdoor";
+    return [
+      `https://picsum.photos/id/${id}/800/400`,
+      `https://picsum.photos/seed/${base}-b/800/400`,
+      `https://picsum.photos/seed/${base}-c/800/400`,
+    ];
   }
   if (category === "accommodation") {
     const id = ACCOMMODATION_IMAGE_ID[accommodationType ?? ""] ?? 219;
-    return `https://picsum.photos/id/${id}/800/400`;
+    return [
+      `https://picsum.photos/id/${id}/800/400`,
+      `https://picsum.photos/seed/${seed}-b/800/400`,
+      `https://picsum.photos/seed/${seed}-c/800/400`,
+    ];
   }
   // restaurant — seed-based for variety
-  return `https://picsum.photos/seed/${seed}/800/400`;
+  return [
+    `https://picsum.photos/seed/${seed}/800/400`,
+    `https://picsum.photos/seed/${seed}-b/800/400`,
+    `https://picsum.photos/seed/${seed}-c/800/400`,
+  ];
 }
 
 // ─── Difficulty badge ─────────────────────────────────────────────────────────
@@ -100,7 +113,9 @@ interface OptionTileProps {
 
 function OptionTile({ option, category, activityType, disabled, onSelect }: OptionTileProps) {
   const seed = option.image_seed ?? option.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
-  const imageUri = cardImageUri(category, activityType, option.accommodation_type, seed);
+  const imageUris = cardImageUris(category, activityType, option.accommodation_type, seed);
+  const [page, setPage] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   function handleVisitSite() {
     const url = option.website_url
@@ -112,12 +127,25 @@ function OptionTile({ option, category, activityType, disabled, onSelect }: Opti
 
   return (
     <View style={tileStyles.card}>
-      {/* Single hero image */}
-      <Image
-        source={{ uri: imageUri }}
-        style={tileStyles.image}
-        resizeMode="cover"
-      />
+      {/* Image carousel */}
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => setPage(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH))}
+      >
+        {imageUris.map((uri, i) => (
+          <Image key={i} source={{ uri }} style={tileStyles.image} resizeMode="cover" />
+        ))}
+      </ScrollView>
+      {/* Dots */}
+      <View style={tileStyles.dots}>
+        {imageUris.map((_, i) => (
+          <View key={i} style={[tileStyles.dot, i === page && tileStyles.dotActive]} />
+        ))}
+      </View>
 
       {/* Info */}
       <View style={tileStyles.info}>
@@ -304,6 +332,22 @@ const tileStyles = StyleSheet.create({
   image: {
     width: CARD_WIDTH,
     height: IMAGE_HEIGHT,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 6,
+    backgroundColor: colors.card,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+  },
+  dotActive: {
+    backgroundColor: colors.text,
   },
   info: {
     padding: spacing.md,

@@ -30,7 +30,15 @@ export async function GET(
 
   const adv = data as Record<string, unknown>;
   const authUser = await getAuthUser(request);
-  const isOwner = !!authUser && adv.userId === authUser.id;
+  let isOwner = false;
+  if (authUser) {
+    const { data: publicUser } = await db
+      .from("users")
+      .select("id")
+      .eq("authId", authUser.id)
+      .maybeSingle();
+    isOwner = !!publicUser && adv.userId === publicUser.id;
+  }
 
   if (!adv.isPublic && !isOwner) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

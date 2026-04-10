@@ -9,6 +9,17 @@ export async function GET(request: NextRequest) {
 
   const adminDb = createAdminClient();
 
+  // Resolve public.users.id from the auth UUID — they are different columns.
+  const { data: publicUser } = await adminDb
+    .from("users")
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  if (!publicUser) {
+    return NextResponse.json([], { status: 200 });
+  }
+
   const { data, error } = await adminDb
     .from("adventures")
     .select(`
@@ -16,7 +27,7 @@ export async function GET(request: NextRequest) {
       "coverImageUrl", meta,
       adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes", "komootTourId", alternatives)
     `)
-    .eq("userId", user.id)
+    .eq("userId", publicUser.id)
     .eq("isSaved", true)
     .order("createdAt", { ascending: false });
 

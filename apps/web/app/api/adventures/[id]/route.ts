@@ -76,6 +76,17 @@ export async function PATCH(
 
   const adminDb = createAdminClient();
 
+  // Resolve public.users.id from the auth UUID — they are different columns.
+  const { data: publicUser } = await adminDb
+    .from("users")
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  if (!publicUser) {
+    return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+  }
+
   const updateFields: Record<string, unknown> = {};
   if (body.isSaved !== undefined) updateFields.isSaved = body.isSaved;
   if (body.isPublic !== undefined) updateFields.isPublic = body.isPublic;
@@ -84,7 +95,7 @@ export async function PATCH(
     .from("adventures")
     .update(updateFields)
     .eq("id", adventureId)
-    .eq("userId", user.id);
+    .eq("userId", publicUser.id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

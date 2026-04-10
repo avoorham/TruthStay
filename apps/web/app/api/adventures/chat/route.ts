@@ -491,17 +491,28 @@ export async function POST(request: NextRequest) {
       const day_alternatives = parsed.day_alternatives ?? {};
       const accommodation_stops = parsed.accommodation_stops ?? [];
 
+      // Resolve public.users.id from the auth UUID — they are different columns.
+      const { data: publicUser } = await db
+        .from("users")
+        .select("id")
+        .eq("authId", user.id)
+        .maybeSingle();
+
       let adventure_id: string | null = null;
-      try {
-        adventure_id = await saveAdventureWithAlternatives(
-          db,
-          user.id,
-          adventure,
-          day_alternatives,
-          accommodation_stops
-        );
-      } catch (err) {
-        console.warn("Adventure save skipped:", err instanceof Error ? err.message : String(err));
+      if (!publicUser) {
+        console.error("[chat] No public.users row for auth user:", user.id);
+      } else {
+        try {
+          adventure_id = await saveAdventureWithAlternatives(
+            db,
+            publicUser.id,
+            adventure,
+            day_alternatives,
+            accommodation_stops
+          );
+        } catch (err) {
+          console.error("[chat] Adventure save failed:", err instanceof Error ? err.message : String(err));
+        }
       }
 
       return NextResponse.json({
@@ -514,8 +525,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (parsed.type === "addition" && updateAdventureId) {
+      const { data: publicUserForAdd } = await db
+        .from("users")
+        .select("id")
+        .eq("authId", user.id)
+        .maybeSingle();
       try {
-        await saveAdditions(db, user.id, updateAdventureId, {
+        await saveAdditions(db, publicUserForAdd?.id ?? user.id, updateAdventureId, {
           day_updates: parsed.day_updates ?? {},
           new_days: (parsed.new_days ?? []) as AdditionDay[],
         });

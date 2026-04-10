@@ -13,6 +13,7 @@ import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import { QuickReplies, detectQuickReplies } from "../../../components/QuickReplies";
 import { AdventurePlanCard } from "../../../components/AdventurePlanCard";
 import { RichOptionTiles } from "../../../components/RichOptionTiles";
+import { DateRangePicker } from "../../../components/DateRangePicker";
 import { loadSessions, upsertSession, removeSession, type StoredSession } from "../../../lib/chat-history";
 import type {
   GeneratedAdventure, DayAlternativesMap, AccommodationStop,
@@ -136,6 +137,8 @@ export default function DiscoverScreen() {
   const [selectedTrip, setSelectedTrip] = useState<AdventureRow | null>(null);
   const [myTrips, setMyTrips]           = useState<AdventureRow[]>([]);
   const [sessionActivityType, setSessionActivityType] = useState<string | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [pendingUpdateTrip, setPendingUpdateTrip] = useState<AdventureRow | null>(null);
   const listRef = useRef<FlatList>(null);
 
   // ── Session refs (always hold latest state for effects/callbacks with no deps) ─
@@ -202,10 +205,47 @@ export default function DiscoverScreen() {
     setHistory([]);
     setMode(null);
     setSelectedTrip(null);
+    setPendingUpdateTrip(null);
     setMyTrips([]);
     setSessionActivityType(undefined);
+    setShowDatePicker(false);
     setInput("");
     setInputHeight(MIN_INPUT_HEIGHT);
+  }
+
+  function fmtDate(d: Date): string {
+    return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  }
+
+  // Called when user confirms dates in the DateRangePicker
+  async function handleDateConfirm(
+    start: Date, end: Date,
+    adults: number, children: number, rooms: number,
+  ) {
+    setShowDatePicker(false);
+    const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+    const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
+    const dateContext = `I want to plan a new adventure. Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
+
+    if (pendingUpdateTrip) {
+      // Update-trip path: dates confirmed for existing trip
+      const trip = pendingUpdateTrip;
+      setPendingUpdateTrip(null);
+      setSelectedTrip(trip);
+      setHistory([]);
+      const whatMsg: TextMsg = {
+        id: uid(), kind: "text", role: "ai",
+        text: `What would you like to add to "${trip.title}"?`,
+        display: `What would you like to add to "${trip.title}"?`,
+        options: ["Route details", "Accommodation", "Restaurant recommendations", "New days"],
+      };
+      setMessages(prev => [...prev, whatMsg]);
+      scrollToBottom();
+      return;
+    }
+
+    // New adventure path: send date context as first user message
+    send(dateContext);
   }
 
   async function handleRefresh() {
@@ -304,21 +344,8 @@ export default function DiscoverScreen() {
 
       if (trimmed === "Plan a new adventure") {
         setMode("new");
-        const h: ChatMessage[] = [{ role: "user", content: trimmed }];
-        setLoading(true);
-        try {
-          const data = await sendChatMessage(h);
-          const aiText: string = data.text ?? "What activity are you planning?";
-          const aiMsg = makeAiMsg(aiText);
-          setMessages(prev => [...prev, aiMsg]);
-          setHistory([...h, { role: "assistant", content: aiText }]);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          setMessages(prev => [...prev, makeAiMsg(`Sorry, something went wrong.\n\n${detail}`)]);
-        } finally {
-          setLoading(false);
-          scrollToBottom();
-        }
+        // Show date/guest picker before starting the AI conversation
+        setShowDatePicker(true);
         return;
       }
 
@@ -365,16 +392,45 @@ export default function DiscoverScreen() {
         return;
       }
 
+      // Ask if dates are still correct before opening the AI
+      setPendingUpdateTrip(trip);
+      const startLabel = trip.startDate
+        ? new Date(trip.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+        : null;
+      const dateText = startLabel
+        ? `Are these dates still correct for "${trip.title}"? (${startLabel}, ${trip.durationDays} days)`
+        : `Would you like to update the dates for "${trip.title}"?`;
+      const dateAiMsg: TextMsg = {
+        id: uid(), kind: "text", role: "ai",
+        text: dateText,
+        display: dateText,
+        options: ["Yes, keep dates", "No, change dates"],
+      };
+      setMessages(prev => [...prev, dateAiMsg]);
+      scrollToBottom();
+      return;
+    }
+
+    // ── Step 2b: Date confirmation for update trip ───────────────────────────
+    if (mode === "update" && pendingUpdateTrip !== null && selectedTrip === null) {
+      setMessages(prev => [...prev, makeUserMsg(trimmed)]);
+      if (trimmed === "No, change dates") {
+        setShowDatePicker(true);
+        scrollToBottom();
+        return;
+      }
+      // "Yes, keep dates" or anything else → proceed to update flow
+      const trip = pendingUpdateTrip;
+      setPendingUpdateTrip(null);
       setSelectedTrip(trip);
       setHistory([]);
-
-      const aiMsg: TextMsg = {
+      const whatMsg: TextMsg = {
         id: uid(), kind: "text", role: "ai",
         text: `What would you like to add to "${trip.title}"?`,
         display: `What would you like to add to "${trip.title}"?`,
         options: ["Route details", "Accommodation", "Restaurant recommendations", "New days"],
       };
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages(prev => [...prev, whatMsg]);
       scrollToBottom();
       return;
     }
@@ -436,7 +492,15 @@ export default function DiscoverScreen() {
           footer_options: (data.footer_options as string[]) ?? [],
         };
         setMessages(prev => [...prev, richMsg]);
-        setHistory([...updatedHistory, { role: "assistant", content: data.text ?? "" }]);
+        // Store compact JSON summary so AI has full context of what options it presented
+        const richSummary = JSON.stringify({
+          type: "rich_options",
+          text: data.text ?? "",
+          category: data.category,
+          options: ((data.options ?? []) as RichOption[]).map((o: RichOption) => ({ title: o.title })),
+          footer_options: data.footer_options ?? [],
+        });
+        setHistory([...updatedHistory, { role: "assistant", content: richSummary }]);
       } else {
         const aiText: string = data.text ?? "Could you tell me a bit more?";
         const aiMsg = makeAiMsg(aiText);
@@ -450,7 +514,7 @@ export default function DiscoverScreen() {
       setLoading(false);
       scrollToBottom();
     }
-  }, [mode, selectedTrip, myTrips, history, loading, scrollToBottom, sessionActivityType]);
+  }, [mode, selectedTrip, pendingUpdateTrip, myTrips, history, loading, scrollToBottom, sessionActivityType]);
 
   // ── Filtered history sessions ────────────────────────────────────────────────
 
@@ -628,7 +692,7 @@ export default function DiscoverScreen() {
       />
 
       {/* Input bar */}
-      <View style={[styles.inputBar, { paddingBottom: insets.bottom + spacing.sm }]}>
+      <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? insets.bottom + spacing.sm : spacing.sm }]}>
         <TextInput
           style={[styles.input, { height: Math.min(inputHeight, MAX_INPUT_HEIGHT) }]}
           value={input}
@@ -654,6 +718,19 @@ export default function DiscoverScreen() {
           <Feather name="arrow-up" size={18} color={colors.inverse} />
         </TouchableOpacity>
       </View>
+
+      {/* ── Date range picker ─────────────────────────────────────────────── */}
+      <DateRangePicker
+        visible={showDatePicker}
+        onConfirm={handleDateConfirm}
+        onClose={() => {
+          setShowDatePicker(false);
+          // If user closes without picking dates, reset to initial state
+          if (mode === "new" && history.length === 0) {
+            setMode(null);
+          }
+        }}
+      />
 
       {/* ── History modal ──────────────────────────────────────────────────── */}
       <Modal

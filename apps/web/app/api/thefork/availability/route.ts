@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth/get-user";
+import { getTheForkToken } from "@/lib/thefork/token";
 
 // GET /api/thefork/availability?restaurant_id=X&date=YYYY-MM-DD&party_size=N
 //
@@ -19,12 +20,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "restaurant_id and date are required" }, { status: 400 });
   }
 
-  // Fetch token from our caching route
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const tokRes  = await fetch(`${appUrl}/api/thefork/token`);
-  if (!tokRes.ok) return NextResponse.json({ error: "Could not obtain TheFork token" }, { status: 503 });
-  const { token } = await tokRes.json() as { token?: string };
-  if (!token) return NextResponse.json({ error: "No token" }, { status: 503 });
+  let token: string;
+  try {
+    token = await getTheForkToken();
+  } catch {
+    return NextResponse.json({ error: "Could not obtain TheFork token" }, { status: 503 });
+  }
 
   // TODO: Replace path with actual TheFork availability endpoint once API docs received
   const tfRes = await fetch(

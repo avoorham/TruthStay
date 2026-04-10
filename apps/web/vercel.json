@@ -7,6 +7,9 @@
     "app/api/admin/adventures/generate/route.ts": {
       "maxDuration": 300
     },
+    "app/api/admin/curate/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/adventures/chat/route.ts": {
       "maxDuration": 60
     }

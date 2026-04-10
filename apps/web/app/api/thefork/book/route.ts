@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth/get-user";
+import { getTheForkToken } from "@/lib/thefork/token";
 
 // POST /api/thefork/book
 // Body: { restaurant_id, datetime, party_size, guest_name, guest_phone, guest_email, special_requests? }
@@ -30,11 +31,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "restaurant_id, datetime, party_size and guest_name are required" }, { status: 400 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const tokRes = await fetch(`${appUrl}/api/thefork/token`);
-  if (!tokRes.ok) return NextResponse.json({ error: "Could not obtain TheFork token" }, { status: 503 });
-  const { token } = await tokRes.json() as { token?: string };
-  if (!token) return NextResponse.json({ error: "No token" }, { status: 503 });
+  let token: string;
+  try {
+    token = await getTheForkToken();
+  } catch {
+    return NextResponse.json({ error: "Could not obtain TheFork token" }, { status: 503 });
+  }
 
   // TODO: Replace path with actual TheFork reservations endpoint once API docs received
   const tfRes = await fetch("https://api.thefork.io/manager/v1/reservations", {

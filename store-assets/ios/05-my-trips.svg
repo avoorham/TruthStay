@@ -1,0 +1,151 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Sa Calobra photo: blue sea, white city buildings -->
+    <linearGradient id="saCalobra" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7AAEC8"/>
+      <stop offset="45%" stop-color="#A8C8DC"/>
+      <stop offset="100%" stop-color="#C8B89A"/>
+    </linearGradient>
+    <linearGradient id="sacOverlay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="30%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.72)"/>
+    </linearGradient>
+    <!-- Blue Mountains: forest with golden sun -->
+    <linearGradient id="blueMtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C8962A"/>
+      <stop offset="30%" stop-color="#D4A83A"/>
+      <stop offset="70%" stop-color="#6A5A2A"/>
+      <stop offset="100%" stop-color="#3A3020"/>
+    </linearGradient>
+    <linearGradient id="bmOverlay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="30%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.65)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="#EDEAE3"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#1A1A1A"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">9:41</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Header -->
+  <text x="80" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="64" font-weight="800" fill="#1A1A1A">My Trips</text>
+
+  <!-- Toggle: Upcoming / Past -->
+  <rect x="80" y="218" width="244" height="76" rx="38" fill="#1A1A1A"/>
+  <text x="202" y="267" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#FFFFFF" text-anchor="middle">Upcoming</text>
+  <rect x="342" y="218" width="156" height="76" rx="38" fill="none" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="420" y="267" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Past</text>
+
+  <!-- ── TRIP CARD 1: Sa Calobra Loop ── -->
+  <rect x="62" y="330" width="1118" height="620" rx="20" fill="#EDEAE3"/>
+
+  <!-- Photo area -->
+  <rect x="62" y="330" width="1118" height="620" rx="20" fill="url(#saCalobra)"/>
+
+  <!-- Building shapes (city by the sea) -->
+  <rect x="62" y="680" width="160" height="270" fill="#D8CCB8"/>
+  <rect x="200" y="710" width="140" height="240" fill="#CBBFAA"/>
+  <rect x="320" y="690" width="120" height="260" fill="#D4C8B2"/>
+  <rect x="420" y="720" width="100" height="230" fill="#C8BCA8"/>
+  <rect x="500" y="700" width="130" height="250" fill="#D0C4AE"/>
+  <rect x="610" y="730" width="110" height="220" fill="#CCBFAA"/>
+  <rect x="700" y="705" width="130" height="245" fill="#C8BCA6"/>
+  <rect x="810" y="715" width="120" height="235" fill="#CEBFA8"/>
+  <rect x="910" y="690" width="150" height="260" fill="#D2C6B0"/>
+  <rect x="1040" y="700" width="140" height="250" fill="#CAC0AA"/>
+
+  <!-- Windows on buildings -->
+  <rect x="90" y="714" width="18" height="22" rx="2" fill="#8A9090" opacity="0.5"/>
+  <rect x="118" y="714" width="18" height="22" rx="2" fill="#8A9090" opacity="0.5"/>
+  <rect x="90" y="748" width="18" height="22" rx="2" fill="#8A9090" opacity="0.4"/>
+  <rect x="220" y="730" width="16" height="20" rx="2" fill="#8A9090" opacity="0.45"/>
+  <rect x="244" y="730" width="16" height="20" rx="2" fill="#8A9090" opacity="0.45"/>
+
+  <!-- Sea/water -->
+  <rect x="62" y="600" width="1118" height="100" fill="#5A9AB8" opacity="0.5"/>
+
+  <!-- Overlay gradient -->
+  <rect x="62" y="330" width="1118" height="620" rx="20" fill="url(#sacOverlay)"/>
+
+  <!-- Heart icon (top right of card) -->
+  <circle cx="1124" cy="394" r="40" fill="rgba(0,0,0,0.3)"/>
+  <path d="M1124,415 C1124,415 1101,400 1101,386 C1101,379 1107,373 1113,373 C1118,373 1124,378 1124,378 C1124,378 1130,373 1135,373 C1141,373 1147,379 1147,386 C1147,400 1124,415 1124,415Z" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+
+  <!-- Trip info overlay -->
+  <text x="102" y="808" font-family="system-ui,-apple-system,sans-serif" font-size="44" font-weight="800" fill="#FFFFFF">Sa Calobra Loop</text>
+  <!-- Bike icon + dates -->
+  <text x="102" y="858" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="rgba(255,255,255,0.9)">🚴 10 May – 14 May 2026</text>
+  <!-- Location -->
+  <text x="102" y="904" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="rgba(255,255,255,0.85)">📍 Balearic Islands, Spain</text>
+
+  <!-- Upcoming badge -->
+  <rect x="960" y="876" width="196" height="52" rx="26" fill="#294E38"/>
+  <text x="1058" y="910" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="600" fill="#FFFFFF" text-anchor="middle">Upcoming</text>
+
+  <!-- ── TRIP CARD 2: Blue Mountains Discovery ── -->
+  <rect x="62" y="988" width="1118" height="620" rx="20" fill="#EDEAE3"/>
+
+  <!-- Photo: forest with golden sun backlight -->
+  <rect x="62" y="988" width="1118" height="620" rx="20" fill="url(#blueMtn)"/>
+
+  <!-- Forest grass/reeds shapes -->
+  <rect x="62" y="1100" width="80" height="508" fill="#4A5A1E" opacity="0.7"/>
+  <rect x="120" y="1080" width="60" height="528" fill="#3A4A18" opacity="0.8"/>
+  <rect x="160" y="1060" width="90" height="548" fill="#4E5E22" opacity="0.7"/>
+  <rect x="230" y="1090" width="70" height="518" fill="#424E1A" opacity="0.75"/>
+  <rect x="280" y="1050" width="100" height="558" fill="#506020" opacity="0.65"/>
+  <rect x="360" y="1070" width="80" height="538" fill="#3A4C18" opacity="0.8"/>
+  <rect x="420" y="1040" width="110" height="568" fill="#485A1E" opacity="0.7"/>
+  <rect x="510" y="1060" width="90" height="548" fill="#3E5018" opacity="0.75"/>
+  <rect x="580" y="1030" width="120" height="578" fill="#4A5C20" opacity="0.65"/>
+  <rect x="680" y="1060" width="80" height="548" fill="#3A4C18" opacity="0.8"/>
+  <rect x="740" y="1040" width="100" height="568" fill="#4C5E20" opacity="0.7"/>
+  <rect x="820" y="1070" width="85" height="538" fill="#3E5018" opacity="0.75"/>
+  <rect x="890" y="1050" width="110" height="558" fill="#486020" opacity="0.65"/>
+  <rect x="980" y="1080" width="90" height="528" fill="#3A4C18" opacity="0.8"/>
+  <rect x="1050" y="1040" width="130" height="568" fill="#4A5A1E" opacity="0.7"/>
+
+  <!-- Sun/golden light burst -->
+  <circle cx="621" cy="1180" r="80" fill="#F0C040" opacity="0.45"/>
+  <circle cx="621" cy="1180" r="50" fill="#F8D860" opacity="0.35"/>
+  <circle cx="621" cy="1180" r="28" fill="#FFFFFF" opacity="0.3"/>
+
+  <!-- Overlay -->
+  <rect x="62" y="988" width="1118" height="620" rx="20" fill="url(#bmOverlay)"/>
+
+  <!-- Heart icon -->
+  <circle cx="1124" cy="1052" r="40" fill="rgba(0,0,0,0.3)"/>
+  <path d="M1124,1073 C1124,1073 1101,1058 1101,1044 C1101,1037 1107,1031 1113,1031 C1118,1031 1124,1036 1124,1036 C1124,1036 1130,1031 1135,1031 C1141,1031 1147,1037 1147,1044 C1147,1058 1124,1073 1124,1073Z" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+
+  <!-- Trip info -->
+  <text x="102" y="1464" font-family="system-ui,-apple-system,sans-serif" font-size="44" font-weight="800" fill="#FFFFFF">Blue Mountains Discovery</text>
+  <text x="102" y="1514" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="rgba(255,255,255,0.9)">🥾 14 Jun – 16 Jun 2026</text>
+  <text x="102" y="1560" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="rgba(255,255,255,0.85)">📍 Blue Mountains, New South Wales</text>
+
+  <!-- Upcoming badge -->
+  <rect x="948" y="1532" width="196" height="52" rx="26" fill="#294E38"/>
+  <text x="1046" y="1566" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="600" fill="#FFFFFF" text-anchor="middle">Upcoming</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#EDEAE3"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#D8D5CE"/>
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

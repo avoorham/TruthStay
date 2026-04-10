@@ -1,0 +1,89 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#CBD2D8"/>
+      <stop offset="55%" stop-color="#B8C0C8"/>
+      <stop offset="100%" stop-color="#9CA6B0"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5C6E4A"/>
+      <stop offset="100%" stop-color="#2E3A22"/>
+    </linearGradient>
+    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="55%" stop-color="rgba(0,0,0,0.25)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.72)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky / photo background -->
+  <rect width="1242" height="2688" fill="url(#sky)"/>
+
+  <!-- Hill ground -->
+  <ellipse cx="621" cy="2550" rx="1300" ry="750" fill="url(#hill)"/>
+  <!-- Foreground hill detail -->
+  <ellipse cx="300" cy="2650" rx="800" ry="500" fill="#3A4830" opacity="0.6"/>
+  <ellipse cx="1050" cy="2680" rx="700" ry="460" fill="#2E3820" opacity="0.5"/>
+
+  <!-- Atmospheric vignette -->
+  <rect width="1242" height="2688" fill="url(#vignette)"/>
+
+  <!-- MTB Rider (simplified silhouette on hilltop) -->
+  <!-- Wheels -->
+  <circle cx="530" cy="2000" r="96" fill="none" stroke="#111" stroke-width="14"/>
+  <circle cx="530" cy="2000" r="10" fill="#111"/>
+  <circle cx="764" cy="2000" r="96" fill="none" stroke="#111" stroke-width="14"/>
+  <circle cx="764" cy="2000" r="10" fill="#111"/>
+  <!-- Spokes simplified as cross -->
+  <line x1="530" y1="1910" x2="530" y2="2090" stroke="#111" stroke-width="5"/>
+  <line x1="440" y1="2000" x2="620" y2="2000" stroke="#111" stroke-width="5"/>
+  <line x1="764" y1="1910" x2="764" y2="2090" stroke="#111" stroke-width="5"/>
+  <line x1="674" y1="2000" x2="854" y2="2000" stroke="#111" stroke-width="5"/>
+  <!-- Bike frame -->
+  <polygon points="586,2000 654,1862 764,2000" fill="none" stroke="#111" stroke-width="14"/>
+  <line x1="654" y1="1862" x2="640" y2="1770" stroke="#111" stroke-width="12"/>
+  <line x1="654" y1="1862" x2="738" y2="1954" stroke="#111" stroke-width="12"/>
+  <!-- Handlebars -->
+  <line x1="654" y1="1862" x2="706" y2="1820" stroke="#111" stroke-width="12"/>
+  <line x1="706" y1="1820" x2="720" y2="1844" stroke="#111" stroke-width="14"/>
+  <line x1="706" y1="1820" x2="720" y2="1796" stroke="#111" stroke-width="14"/>
+  <!-- Seat -->
+  <line x1="640" y1="1770" x2="628" y2="1748" stroke="#111" stroke-width="10"/>
+  <rect x="608" y="1736" width="56" height="13" rx="6" fill="#111"/>
+  <!-- Rider body (red jacket) -->
+  <circle cx="694" cy="1720" r="46" fill="#C42020"/>
+  <ellipse cx="672" cy="1800" rx="36" ry="60" fill="#C42020" transform="rotate(-20 672 1800)"/>
+  <!-- Backpack -->
+  <ellipse cx="718" cy="1755" rx="28" ry="48" fill="#7A7A7A"/>
+  <rect x="708" y="1720" width="22" height="38" rx="5" fill="#6A6A6A"/>
+  <!-- Arms to bars -->
+  <line x1="672" y1="1780" x2="718" y2="1818" stroke="#C42020" stroke-width="28" stroke-linecap="round"/>
+  <!-- Legs -->
+  <line x1="650" y1="1830" x2="608" y2="1932" stroke="#1A1A1A" stroke-width="30" stroke-linecap="round"/>
+  <line x1="650" y1="1830" x2="672" y2="1940" stroke="#333" stroke-width="26" stroke-linecap="round"/>
+
+  <!-- Status bar (white for dark bg) -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#FFFFFF">9:41</text>
+  <!-- Battery/signal white -->
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#FFFFFF" opacity="0.5"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#FFFFFF"/>
+  <!-- Notch (blends with sky) -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#C4CCD3"/>
+
+  <!-- "Welcome to TruthStay" -->
+  <text x="80" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="38" font-weight="600" fill="#1A1A1A">Welcome to TruthStay</text>
+
+  <!-- Main headline overlay (bottom) -->
+  <text x="80" y="2040" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="800" fill="#FFFFFF" letter-spacing="-1">Sport-first</text>
+  <text x="80" y="2150" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="800" fill="#FFFFFF" letter-spacing="-1">adventures,</text>
+  <text x="80" y="2260" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="800" fill="#FFFFFF" letter-spacing="-1">honestly</text>
+  <text x="80" y="2370" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="800" fill="#FFFFFF" letter-spacing="-1">reviewed.</text>
+
+  <!-- CTA Button -->
+  <rect x="62" y="2452" width="1118" height="108" rx="54" fill="#FFFFFF"/>
+  <text x="621" y="2518" font-family="system-ui,-apple-system,sans-serif" font-size="42" font-weight="700" fill="#1A1A1A" text-anchor="middle">Let's Go!</text>
+
+  <!-- iOS home indicator -->
+  <rect x="471" y="2650" width="300" height="5" rx="2.5" fill="#FFFFFF" opacity="0.45"/>
+</svg>

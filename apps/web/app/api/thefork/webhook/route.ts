@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTheForkToken } from "@/lib/thefork/token";
 
 // ─── TheFork webhook receiver ─────────────────────────────────────────────────
 //
@@ -18,15 +19,18 @@ export async function POST(request: NextRequest) {
   const sig = request.headers.get("x-webhook-signature") ?? "";
   const secret = process.env.THEFORK_WEBHOOK_SECRET ?? process.env.THEFORK_WEBHOOK_TOKEN ?? "";
 
-  if (secret) {
-    const { createHmac, timingSafeEqual } = await import("crypto");
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-    const sigBuf = Buffer.from(sig);
-    const expBuf = Buffer.from(expected);
-    const valid = sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
-    if (!valid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    // Fail-closed: refuse requests when secret is not configured rather than accepting everything.
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
+
+  const { createHmac, timingSafeEqual } = await import("crypto");
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  const sigBuf = Buffer.from(sig);
+  const expBuf = Buffer.from(expected);
+  const valid = sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
+  if (!valid) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let body: {
@@ -56,11 +60,7 @@ export async function POST(request: NextRequest) {
 
 async function processReservationEvent(reservationUuid: string) {
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const tokRes = await fetch(`${appUrl}/api/thefork/token`);
-    if (!tokRes.ok) throw new Error("Token fetch failed");
-    const { token } = await tokRes.json() as { token?: string };
-    if (!token) throw new Error("No token");
+    const token = await getTheForkToken();
 
     // TODO: Replace with actual TheFork GET /reservations/{id} path once API docs received
     const res = await fetch(

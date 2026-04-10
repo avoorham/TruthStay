@@ -1,0 +1,146 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A8C8E8"/>
+      <stop offset="100%" stop-color="#88AACE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Map background (light map style) -->
+  <rect width="1242" height="2688" fill="#E8E4D8"/>
+
+  <!-- Ocean/sea areas -->
+  <!-- Atlantic / surrounding ocean -->
+  <rect width="1242" height="2688" fill="url(#water)"/>
+
+  <!-- Europe landmass (simplified polygon) -->
+  <!-- Main continent -->
+  <polygon points="
+    0,200 120,180 180,220 240,200 320,240 400,220 460,260 520,240 600,280 680,260 760,280 840,260 900,300 960,280 1040,320 1100,300 1180,340 1242,320
+    1242,800 1100,780 1000,820 900,800 800,840 700,820 620,860 540,840 460,880 380,860 300,880 220,850 140,880 60,850 0,870
+  " fill="#E8E4D0"/>
+
+  <!-- Scandinavia -->
+  <polygon points="600,180 640,120 680,100 720,140 760,120 800,160 820,200 800,280 760,260 720,300 680,280 640,300 600,260 580,220" fill="#E0DCC8"/>
+
+  <!-- UK and Ireland -->
+  <ellipse cx="260" cy="580" rx="90" ry="140" fill="#E0DCC8" transform="rotate(-10 260 580)"/>
+  <ellipse cx="160" cy="620" rx="50" ry="80" fill="#E0DCC8" transform="rotate(-5 160 620)"/>
+
+  <!-- Iberian Peninsula (Spain/Portugal) -->
+  <polygon points="160,1100 200,1060 280,1040 360,1060 440,1040 500,1080 520,1140 500,1200 460,1260 400,1300 320,1320 240,1300 180,1240 140,1160" fill="#E0DCC8"/>
+
+  <!-- Italy -->
+  <polygon points="720,900 760,860 800,880 820,940 800,1000 780,1060 760,1120 740,1160 700,1200 680,1160 700,1100 720,1040 730,980 720,920" fill="#E0DCC8"/>
+
+  <!-- Greece -->
+  <polygon points="940,1100 980,1080 1020,1100 1040,1160 1020,1220 980,1240 940,1220 920,1160" fill="#E0DCC8"/>
+
+  <!-- Mediterranean sea -->
+  <ellipse cx="700" cy="1350" rx="500" ry="180" fill="url(#water)" opacity="0.8"/>
+
+  <!-- Country border lines -->
+  <line x1="500" y1="700" x2="520" y2="800" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="600" y1="750" x2="640" y2="900" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="700" y1="680" x2="720" y2="860" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="800" y1="700" x2="800" y2="900" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="900" y1="720" x2="920" y2="1000" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="400" y1="700" x2="380" y2="900" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+  <line x1="300" y1="760" x2="280" y2="960" stroke="#C8C4B8" stroke-width="2" opacity="0.6"/>
+
+  <!-- Country labels -->
+  <text x="260" y="560" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle" font-weight="500">United</text>
+  <text x="260" y="596" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle" font-weight="500">Kingdom</text>
+  <text x="450" y="820" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888" text-anchor="middle" font-weight="500">France</text>
+  <text x="650" y="820" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888" text-anchor="middle" font-weight="500">Germany</text>
+  <text x="550" y="920" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Switzerland</text>
+  <text x="760" y="940" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Austria</text>
+  <text x="870" y="860" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Poland</text>
+  <text x="750" y="1060" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888" text-anchor="middle" font-weight="500">Italy</text>
+  <text x="320" y="1180" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888" text-anchor="middle" font-weight="500">Spain</text>
+  <text x="700" y="700" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Denmark</text>
+  <text x="650" y="560" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Sweden</text>
+  <text x="980" y="600" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Finland</text>
+  <text x="990" y="840" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Romania</text>
+  <text x="960" y="960" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Serbia</text>
+  <text x="960" y="1100" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Greece</text>
+  <text x="450" y="640" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">Belgium</text>
+  <text x="1080" y="960" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Bulgaria</text>
+  <text x="320" y="1380" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Morocco</text>
+  <text x="620" y="1440" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#888" text-anchor="middle">Tunisia</text>
+  <text x="130" y="1380" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Rabat</text>
+  <text x="130" y="1410" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#999">⊙</text>
+  <text x="380" y="618" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">London</text>
+  <text x="390" y="648" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#999" text-anchor="middle">⊙</text>
+  <text x="660" y="780" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Berlin</text>
+  <text x="660" y="808" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#999" text-anchor="middle">⊙</text>
+  <text x="960" y="760" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Warsaw</text>
+  <text x="840" y="940" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Croatia</text>
+  <text x="1020" y="700" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Estonia</text>
+  <text x="1060" y="740" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Latvia</text>
+  <text x="1060" y="778" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Lithuania</text>
+  <text x="1090" y="820" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Belarus</text>
+  <text x="860" y="740" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Czech</text>
+  <text x="470" y="1010" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Portugal</text>
+  <text x="840" y="760" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Slovakia</text>
+  <text x="200" y="800" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Ireland</text>
+  <text x="870" y="960" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Bosnia</text>
+  <text x="840" y="1060" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Albania</text>
+  <text x="800" y="840" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Hungary</text>
+  <text x="770" y="780" font-family="system-ui,-apple-system,sans-serif" font-size="20" fill="#888" text-anchor="middle">Slovakia</text>
+  <text x="180" y="1060" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Portugal</text>
+  <text x="300" y="720" font-family="system-ui,-apple-system,sans-serif" font-size="24" fill="#888" text-anchor="middle">Netherlands</text>
+  <text x="570" y="760" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Lux.</text>
+  <text x="1180" y="820" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle" opacity="0.7">Mold.</text>
+  <text x="590" y="1000" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888" text-anchor="middle">Slovenia</text>
+
+  <!-- Map roads suggestion (thin lines) -->
+  <line x1="400" y1="600" x2="700" y2="700" stroke="#D0CCC0" stroke-width="2" opacity="0.6"/>
+  <line x1="700" y1="700" x2="900" y2="750" stroke="#D0CCC0" stroke-width="2" opacity="0.6"/>
+  <line x1="500" y1="800" x2="800" y2="900" stroke="#D0CCC0" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Status bar on map -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">6:42</text>
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#E0DCC8"/>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- "0 adventures" pill (top left) -->
+  <rect x="62" y="110" width="250" height="68" rx="34" fill="#1A1A1A" opacity="0.85"/>
+  <text x="187" y="153" font-family="system-ui,-apple-system,sans-serif" font-size="30" font-weight="600" fill="#FFFFFF" text-anchor="middle">0 adventures</text>
+
+  <!-- Filter button (top right) -->
+  <rect x="1104" y="110" width="78" height="68" rx="20" fill="#FFFFFF" opacity="0.95"/>
+  <rect x="1118" y="130" width="48" height="4" rx="2" fill="#555"/>
+  <rect x="1124" y="143" width="36" height="4" rx="2" fill="#555"/>
+  <rect x="1118" y="156" width="48" height="4" rx="2" fill="#555"/>
+  <!-- Filter dots -->
+  <circle cx="1126" cy="132" r="5" fill="#FFFFFF" stroke="#555" stroke-width="2"/>
+  <circle cx="1150" cy="145" r="5" fill="#FFFFFF" stroke="#555" stroke-width="2"/>
+
+  <!-- Bottom sheet -->
+  <rect x="0" y="2340" width="1242" height="348" rx="0" fill="#FFFFFF"/>
+  <rect x="0" y="2340" width="1242" height="30" rx="20" fill="#FFFFFF"/>
+  <!-- Sheet handle -->
+  <rect x="521" y="2360" width="200" height="6" rx="3" fill="#D4D0C8"/>
+  <!-- Sheet content -->
+  <text x="621" y="2444" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">0 public adventures</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#FFFFFF"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#E0E0DA"/>
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

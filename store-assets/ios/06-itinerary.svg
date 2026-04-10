@@ -1,0 +1,133 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="alley" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6A5040"/>
+      <stop offset="40%" stop-color="#8A6A54"/>
+      <stop offset="100%" stop-color="#4A3828"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="#EDEAE3"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#1A1A1A"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">9:28</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Top nav bar -->
+  <!-- Back arrow -->
+  <circle cx="96" cy="160" r="42" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <text x="96" y="172" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#1A1A1A" text-anchor="middle">←</text>
+  <!-- Title -->
+  <text x="621" y="172" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" fill="#1A1A1A" text-anchor="middle">Itinerary</text>
+  <!-- Right icons -->
+  <circle cx="1086" cy="160" r="34" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <text x="1086" y="172" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#1A1A1A" text-anchor="middle">👤+</text>
+  <circle cx="1166" cy="160" r="34" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <text x="1166" y="172" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#1A1A1A" text-anchor="middle">🗺</text>
+
+  <rect x="0" y="202" width="1242" height="1.5" fill="#D8D5CE"/>
+
+  <!-- Day tabs -->
+  <rect x="80" y="226" width="200" height="76" rx="38" fill="#1A1A1A"/>
+  <text x="180" y="274" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#FFFFFF" text-anchor="middle">Day 1</text>
+  <rect x="298" y="226" width="200" height="76" rx="38" fill="none" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="398" y="274" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Day 2</text>
+  <rect x="516" y="226" width="200" height="76" rx="38" fill="none" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="616" y="274" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Day 3</text>
+  <rect x="734" y="226" width="200" height="76" rx="38" fill="none" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="834" y="274" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Day 4</text>
+  <rect x="952" y="226" width="140" height="76" rx="38" fill="none" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="1022" y="274" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Da...</text>
+
+  <!-- Date row -->
+  <rect x="0" y="320" width="1242" height="1.5" fill="#D8D5CE"/>
+  <text x="80" y="388" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" fill="#1A1A1A">Monday 1 September</text>
+  <!-- Rate button -->
+  <rect x="978" y="356" width="184" height="58" rx="29" fill="none" stroke="#294E38" stroke-width="2"/>
+  <text x="1070" y="392" font-family="system-ui,-apple-system,sans-serif" font-size="30" font-weight="600" fill="#294E38" text-anchor="middle">☆ Rate</text>
+
+  <!-- ── STOP CARD ── -->
+  <!-- Number badge -->
+  <circle cx="80" cy="516" r="44" fill="#1A1A1A"/>
+  <text x="80" y="528" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="700" fill="#FFFFFF" text-anchor="middle">1</text>
+  <!-- Vertical line below badge -->
+  <rect x="78" y="560" width="4" height="200" rx="2" fill="#D0CDC6"/>
+
+  <!-- Stop card (white) -->
+  <rect x="142" y="434" width="1040" height="1200" rx="20" fill="#FFFFFF"/>
+
+  <!-- Stop photo: brick alley -->
+  <rect x="142" y="434" width="1040" height="380" rx="20" fill="url(#alley)"/>
+  <rect x="142" y="714" width="1040" height="100" rx="0" fill="url(#alley)"/>
+  <!-- Brick wall textures -->
+  <rect x="142" y="434" width="1040" height="380" rx="20" fill="#7A5A44" opacity="0.3"/>
+  <!-- Alley walls suggestion -->
+  <rect x="142" y="434" width="220" height="380" fill="#5A4030" opacity="0.4"/>
+  <rect x="962" y="434" width="220" height="380" fill="#5A4030" opacity="0.4"/>
+  <!-- Ivy/plants -->
+  <ellipse cx="280" cy="490" rx="80" ry="50" fill="#3A5A20" opacity="0.6"/>
+  <ellipse cx="240" cy="520" rx="60" ry="40" fill="#4A6A28" opacity="0.5"/>
+  <!-- Alley ground -->
+  <rect x="360" y="720" width="520" height="94" fill="#6A5840" opacity="0.4"/>
+
+  <!-- Stop name -->
+  <text x="182" y="888" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" fill="#1A1A1A">Les Houches to Les Contamines</text>
+  <!-- Location -->
+  <text x="182" y="940" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888">📍 Départ: Les Houches, Haute-Savoie, France</text>
+  <!-- Free badge -->
+  <rect x="182" y="964" width="100" height="44" rx="22" fill="#F0EDE8" stroke="#D8D5CE" stroke-width="1.5"/>
+  <text x="232" y="992" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#555" text-anchor="middle">Free</text>
+
+  <!-- Distance + elevation badges -->
+  <rect x="182" y="1026" width="148" height="52" rx="26" fill="#F0EDE8"/>
+  <text x="256" y="1059" font-family="system-ui,-apple-system,sans-serif" font-size="30" font-weight="600" fill="#1A1A1A" text-anchor="middle">18 km</text>
+  <rect x="346" y="1026" width="166" height="52" rx="26" fill="#F0EDE8"/>
+  <text x="429" y="1059" font-family="system-ui,-apple-system,sans-serif" font-size="30" font-weight="600" fill="#1A1A1A" text-anchor="middle">↑ 950 m</text>
+
+  <!-- Divider -->
+  <rect x="182" y="1096" width="960" height="1.5" fill="#EDEAE3"/>
+
+  <!-- Actions row -->
+  <text x="230" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">🔊</text>
+  <text x="260" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#555">Voice guide</text>
+  <rect x="470" y="1124" width="2" height="50" fill="#EDEAE3"/>
+  <text x="570" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">↗</text>
+  <text x="600" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#555">Directions</text>
+  <rect x="800" y="1124" width="2" height="50" fill="#EDEAE3"/>
+  <text x="900" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">⊢</text>
+  <text x="930" y="1154" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#555">Route</text>
+
+  <!-- Divider -->
+  <rect x="182" y="1186" width="960" height="1.5" fill="#EDEAE3"/>
+
+  <!-- Star rating (5 empty stars) -->
+  <text x="182" y="1256" font-family="system-ui,-apple-system,sans-serif" font-size="46" fill="#D8D5CE">★ ★ ★ ★ ★</text>
+
+  <!-- Note input -->
+  <rect x="182" y="1280" width="960" height="140" rx="14" fill="#F5F3EE"/>
+  <text x="222" y="1360" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#BBBBBB">Add a note about this stop...</text>
+
+  <!-- Add photo button -->
+  <text x="222" y="1466" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#294E38">📷  Add photo</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#EDEAE3"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#D8D5CE"/>
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

@@ -1,0 +1,73 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg02" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A8B4BC"/>
+      <stop offset="100%" stop-color="#7A8A94"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background (dim version of welcome photo) -->
+  <rect width="1242" height="2688" fill="url(#bg02)"/>
+  <rect width="1242" height="2688" fill="rgba(0,0,0,0.38)"/>
+
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#FFFFFF">9:41</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#FFFFFF" opacity="0.5"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#FFFFFF"/>
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#8A9A9E"/>
+
+  <!-- Bottom sheet (white, slides up) -->
+  <rect x="0" y="1430" width="1242" height="1258" rx="0" fill="#FFFFFF"/>
+  <rect x="0" y="1430" width="1242" height="50" rx="30" fill="#FFFFFF"/>
+
+  <!-- Sheet handle -->
+  <rect x="521" y="1458" width="200" height="6" rx="3" fill="#D4D0C8"/>
+
+  <!-- Sheet content -->
+  <text x="621" y="1580" font-family="system-ui,-apple-system,sans-serif" font-size="54" font-weight="800" fill="#1A1A1A" text-anchor="middle">Welcome to TruthStay</text>
+  <text x="621" y="1640" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">Sport-first adventure planning</text>
+
+  <!-- Sign Up button (black, primary) -->
+  <rect x="80" y="1710" width="1082" height="100" rx="50" fill="#1A1A1A"/>
+  <text x="621" y="1772" font-family="system-ui,-apple-system,sans-serif" font-size="38" font-weight="700" fill="#FFFFFF" text-anchor="middle">Sign Up</text>
+
+  <!-- Login button (outlined) -->
+  <rect x="80" y="1834" width="1082" height="100" rx="50" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <text x="621" y="1896" font-family="system-ui,-apple-system,sans-serif" font-size="38" font-weight="600" fill="#1A1A1A" text-anchor="middle">Login to TruthStay</text>
+
+  <!-- OR divider -->
+  <line x1="80" y1="1990" x2="560" y2="1990" stroke="#E0DDD6" stroke-width="1.5"/>
+  <text x="621" y="1996" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#AAA" text-anchor="middle">or</text>
+  <line x1="682" y1="1990" x2="1162" y2="1990" stroke="#E0DDD6" stroke-width="1.5"/>
+
+  <!-- Continue with Apple -->
+  <rect x="80" y="2030" width="1082" height="100" rx="50" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <!-- Apple logo approximation -->
+  <text x="200" y="2095" font-family="system-ui,-apple-system,sans-serif" font-size="42" fill="#1A1A1A" text-anchor="middle"></text>
+  <rect x="176" y="2058" width="32" height="36" rx="4" fill="#1A1A1A"/>
+  <ellipse cx="192" cy="2055" rx="10" ry="7" fill="#1A1A1A"/>
+  <text x="621" y="2094" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="600" fill="#1A1A1A" text-anchor="middle">Continue with Apple</text>
+
+  <!-- Continue with Facebook -->
+  <rect x="80" y="2154" width="1082" height="100" rx="50" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <!-- Facebook F -->
+  <circle cx="192" cy="2204" r="26" fill="#1877F2"/>
+  <text x="192" y="2214" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="800" fill="#FFFFFF" text-anchor="middle">f</text>
+  <text x="621" y="2218" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="600" fill="#1A1A1A" text-anchor="middle">Continue with Facebook</text>
+
+  <!-- Continue with Google -->
+  <rect x="80" y="2278" width="1082" height="100" rx="50" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <!-- Google G approximation (colored circle) -->
+  <circle cx="192" cy="2328" r="26" fill="#FFFFFF" stroke="#E0E0E0" stroke-width="1.5"/>
+  <text x="192" y="2338" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="800" fill="#4285F4" text-anchor="middle">G</text>
+  <text x="621" y="2342" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="600" fill="#1A1A1A" text-anchor="middle">Continue with Google</text>
+
+  <!-- Fine print -->
+  <text x="621" y="2450" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#AAAAAA" text-anchor="middle">By continuing you agree to our Terms of Service</text>
+  <text x="621" y="2486" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#AAAAAA" text-anchor="middle">and Privacy Policy.</text>
+
+  <!-- iOS home indicator -->
+  <rect x="471" y="2650" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

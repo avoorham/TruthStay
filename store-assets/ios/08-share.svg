@@ -1,0 +1,140 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shareBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7AAEC8"/>
+      <stop offset="50%" stop-color="#90BACE"/>
+      <stop offset="100%" stop-color="#B8A890"/>
+    </linearGradient>
+    <linearGradient id="shareOverlay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,0,0,0.1)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.55)"/>
+    </linearGradient>
+    <!-- Avatar 1: sunset/dark sky -->
+    <linearGradient id="avatar1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A0A1A"/>
+      <stop offset="60%" stop-color="#1A1A40"/>
+      <stop offset="100%" stop-color="#D46020"/>
+    </linearGradient>
+    <!-- Avatar 2: city/building -->
+    <linearGradient id="avatar2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#606870"/>
+      <stop offset="100%" stop-color="#404850"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background (itinerary view: sea photo) -->
+  <rect width="1242" height="2688" fill="url(#shareBg)"/>
+  <!-- Building shapes in background -->
+  <rect x="0" y="700" width="200" height="400" fill="#D8CCBA" opacity="0.6"/>
+  <rect x="180" y="720" width="160" height="380" fill="#CBBFAA" opacity="0.5"/>
+  <rect x="320" y="700" width="180" height="400" fill="#D4C8B2" opacity="0.55"/>
+  <rect x="800" y="710" width="180" height="390" fill="#CEBFA8" opacity="0.5"/>
+  <rect x="960" y="690" width="200" height="410" fill="#D2C6B0" opacity="0.55"/>
+  <rect x="1080" y="720" width="162" height="380" fill="#CAC0AA" opacity="0.5"/>
+  <rect width="1242" height="1100" fill="url(#shareOverlay)"/>
+
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#FFFFFF">10:54</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#FFFFFF" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#FFFFFF" opacity="0.5"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#FFFFFF"/>
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#88A8BC"/>
+
+  <!-- Back arrow and title -->
+  <text x="80" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#FFFFFF">←</text>
+  <text x="621" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="42" font-weight="700" fill="#FFFFFF" text-anchor="middle">Itinerary</text>
+  <!-- Right icons -->
+  <circle cx="1086" cy="158" r="34" fill="rgba(255,255,255,0.2)"/>
+  <text x="1086" y="170" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#FFFFFF" text-anchor="middle">👤+</text>
+  <circle cx="1166" cy="158" r="34" fill="rgba(255,255,255,0.2)"/>
+  <text x="1166" y="170" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#FFFFFF" text-anchor="middle">🗺</text>
+
+  <!-- ── BOTTOM SHEET ── -->
+  <rect x="0" y="1360" width="1242" height="1328" fill="#FFFFFF"/>
+  <rect x="0" y="1360" width="1242" height="50" rx="28" fill="#FFFFFF"/>
+
+  <!-- Sheet handle -->
+  <rect x="521" y="1386" width="200" height="6" rx="3" fill="#D4D0C8"/>
+
+  <!-- Sheet header -->
+  <text x="80" y="1488" font-family="system-ui,-apple-system,sans-serif" font-size="46" font-weight="800" fill="#1A1A1A">Share trip itinerary</text>
+  <!-- QR button -->
+  <circle cx="1148" cy="1466" r="44" fill="none" stroke="#D0CDC6" stroke-width="2.5"/>
+  <!-- QR code approximation -->
+  <rect x="1128" y="1446" width="14" height="14" rx="2" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+  <rect x="1148" y="1446" width="14" height="14" rx="2" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+  <rect x="1128" y="1466" width="14" height="14" rx="2" fill="none" stroke="#1A1A1A" stroke-width="2"/>
+  <rect x="1148" y="1466" width="6" height="6" fill="#1A1A1A"/>
+  <rect x="1158" y="1456" width="6" height="6" fill="#1A1A1A"/>
+  <rect x="1158" y="1472" width="6" height="6" fill="#1A1A1A"/>
+
+  <!-- Subtitle -->
+  <text x="80" y="1548" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888">Give your friends access to this trip and</text>
+  <text x="80" y="1590" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888">start collaborating in real time.</text>
+
+  <!-- Adventure card (green tinted) -->
+  <rect x="80" y="1630" width="1082" height="370" rx="18" fill="#E8F2EC" stroke="#C8E0D0" stroke-width="1.5"/>
+
+  <!-- Trip info row -->
+  <text x="128" y="1694" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#294E38">📍</text>
+  <text x="172" y="1694" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="700" fill="#1A1A1A">Sa Calobra Loop</text>
+  <text x="172" y="1734" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888">2 Friends</text>
+  <!-- Copy link button -->
+  <rect x="960" y="1660" width="162" height="56" rx="28" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <text x="1041" y="1695" font-family="system-ui,-apple-system,sans-serif" font-size="26" fill="#1A1A1A" text-anchor="middle">⎘ Copy link</text>
+
+  <!-- Divider -->
+  <rect x="100" y="1762" width="1042" height="1.5" fill="#D8E8DC"/>
+
+  <!-- Friends label -->
+  <text x="120" y="1810" font-family="system-ui,-apple-system,sans-serif" font-size="30" font-weight="600" fill="#1A1A1A">Friends</text>
+
+  <!-- Friend 1: You (Owner) -->
+  <circle cx="168" cy="1876" r="42" fill="url(#avatar1)"/>
+  <!-- Sunset horizon line in avatar -->
+  <rect x="126" y="1896" width="84" height="22" rx="0" fill="#D46020" opacity="0.6"/>
+  <text x="228" y="1872" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="600" fill="#1A1A1A">You</text>
+  <text x="228" y="1910" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888">@you</text>
+  <!-- Owner badge -->
+  <rect x="950" y="1852" width="152" height="50" rx="25" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <text x="1026" y="1884" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">Owner</text>
+
+  <!-- Friend 2: Luca Bianchi (Editor) -->
+  <circle cx="168" cy="1968" r="42" fill="url(#avatar2)"/>
+  <!-- City building silhouette in avatar -->
+  <rect x="148" y="1975" width="12" height="35" fill="#888" opacity="0.6"/>
+  <rect x="163" y="1980" width="10" height="30" fill="#888" opacity="0.5"/>
+  <rect x="176" y="1970" width="14" height="40" fill="#888" opacity="0.6"/>
+  <rect x="193" y="1978" width="11" height="32" fill="#888" opacity="0.5"/>
+  <text x="228" y="1964" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="600" fill="#1A1A1A">Luca Bianchi</text>
+  <text x="228" y="2002" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888">@luca_b</text>
+  <!-- Editor badge with dropdown -->
+  <rect x="934" y="1944" width="168" height="50" rx="25" fill="#FFFFFF" stroke="#D0CDC6" stroke-width="2"/>
+  <text x="1018" y="1976" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">Editor ▾</text>
+
+  <!-- Search input -->
+  <rect x="80" y="2058" width="1082" height="88" rx="44" fill="#F0EDE8" stroke="#D8D5CE" stroke-width="1.5"/>
+  <text x="142" y="2110" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#BBBBBB">🔍</text>
+  <text x="196" y="2110" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#AAAAAA">Write username or email...</text>
+
+  <!-- Invite button (disabled) -->
+  <rect x="80" y="2184" width="1082" height="100" rx="50" fill="#E8E5DE"/>
+  <text x="621" y="2246" font-family="system-ui,-apple-system,sans-serif" font-size="38" font-weight="600" fill="#BBBBBB" text-anchor="middle">Invite</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#EDEAE3"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#D8D5CE"/>
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

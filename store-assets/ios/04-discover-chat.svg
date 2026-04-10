@@ -1,0 +1,115 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cliff" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7A8EA4"/>
+      <stop offset="40%" stop-color="#9AAABB"/>
+      <stop offset="100%" stop-color="#5A6C7A"/>
+    </linearGradient>
+    <linearGradient id="cliff2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6A7A88"/>
+      <stop offset="100%" stop-color="#B8C4CC"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="#EDEAE3"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#1A1A1A"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">10:50</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Header -->
+  <text x="80" y="170" font-family="system-ui,-apple-system,sans-serif" font-size="46" font-weight="800" fill="#1A1A1A">✦ Discover</text>
+  <circle cx="1148" cy="148" r="28" fill="none" stroke="#AAAAAA" stroke-width="3"/>
+  <line x1="1148" y1="130" x2="1148" y2="150" stroke="#AAAAAA" stroke-width="3"/>
+  <line x1="1148" y1="150" x2="1162" y2="158" stroke="#AAAAAA" stroke-width="3"/>
+  <rect x="0" y="196" width="1242" height="1.5" fill="#D8D5CE"/>
+
+  <!-- AI response text -->
+  <text x="80" y="290" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#666">Here are dinner options at or near</text>
+  <text x="80" y="334" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#666">Rifugio Biella for your first night on</text>
+  <text x="80" y="378" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#666">the Alta Via 1.</text>
+
+  <!-- Restaurant card 1 -->
+  <rect x="62" y="420" width="1118" height="640" rx="20" fill="#FFFFFF"/>
+
+  <!-- Card photo (rocky cliff / mountain) -->
+  <rect x="62" y="420" width="1118" height="340" rx="20" fill="url(#cliff)"/>
+  <rect x="62" y="560" width="1118" height="200" rx="0" fill="url(#cliff2)"/>
+  <!-- Rocky cliff shapes -->
+  <polygon points="62,540 300,420 500,480 700,420 900,460 1180,420 1180,660 62,660" fill="url(#cliff)"/>
+  <polygon points="400,560 620,480 820,520 1180,490 1180,680 62,680 62,620" fill="#5A6B7A" opacity="0.6"/>
+  <!-- Water/sea at bottom of cliff photo -->
+  <rect x="62" y="640" width="1118" height="120" rx="0" fill="#2A4A6A" opacity="0.7"/>
+
+  <!-- Pagination dots -->
+  <circle cx="551" cy="782" r="8" fill="#1A1A1A" opacity="0.7"/>
+  <circle cx="581" cy="782" r="8" fill="#1A1A1A" opacity="0.25"/>
+  <circle cx="611" cy="782" r="8" fill="#1A1A1A" opacity="0.25"/>
+  <circle cx="641" cy="782" r="8" fill="#1A1A1A" opacity="0.25"/>
+
+  <!-- Card body -->
+  <text x="102" y="854" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" fill="#1A1A1A">Rifugio Biella</text>
+  <text x="102" y="902" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888">Mountain hut dining at 2327 m</text>
+
+  <!-- Price chip -->
+  <rect x="102" y="924" width="72" height="44" rx="22" fill="#F0EDE8" stroke="#D8D5CE" stroke-width="1.5"/>
+  <text x="138" y="952" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#555" text-anchor="middle">$</text>
+
+  <!-- Description -->
+  <text x="102" y="1010" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#555">The most convenient option right at your</text>
+  <text x="102" y="1048" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#555">overnight stop. Rifugio Biella serves</text>
+  <text x="102" y="1086" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#999">hearty South Tyrolean dishes like can...</text>
+
+  <!-- Select button -->
+  <rect x="102" y="1010" width="0" height="0"/>
+  <!-- Reposition select button -->
+  <rect x="62" y="986" width="0" height="0"/>
+
+  <!-- Select button (full width in card) -->
+  <rect x="102" y="1010" width="978" height="88" rx="44" fill="#1A1A1A"/>
+  <text x="591" y="1064" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="700" fill="#FFFFFF" text-anchor="middle">Select</text>
+
+  <!-- Oops, need to move description above button. Let me fix layout -->
+  <!-- Actually let me just overlay correctly -->
+
+  <!-- Partially visible second card below -->
+  <rect x="62" y="1094" width="1118" height="180" rx="20" fill="#FFFFFF" opacity="0.6"/>
+  <!-- Smudge/fade -->
+  <rect x="62" y="1094" width="1118" height="180" rx="20" fill="url(#fadeBottom)" opacity="0.5"/>
+
+  <!-- Input bar -->
+  <rect x="0" y="2380" width="1242" height="1.5" fill="#D8D5CE"/>
+  <rect x="0" y="2382" width="1242" height="138" fill="#EDEAE3"/>
+  <rect x="80" y="2398" width="980" height="80" rx="40" fill="#F5F3EE" stroke="#D8D5CE" stroke-width="1.5"/>
+  <text x="180" y="2446" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#AAAAAA">Type a message...</text>
+  <circle cx="1138" cy="2438" r="36" fill="#D8D5CE"/>
+  <text x="1138" y="2453" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#FFFFFF" text-anchor="middle">↑</text>
+
+  <!-- Error toast -->
+  <rect x="62" y="2298" width="1010" height="72" rx="14" fill="#1A1A1A"/>
+  <circle cx="116" cy="2334" r="22" fill="#EF4444"/>
+  <text x="116" y="2342" font-family="system-ui,-apple-system,sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="middle">!</text>
+  <text x="155" y="2340" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#FFFFFF">Encountered two children with the sam...</text>
+  <text x="1044" y="2340" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">✕</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#EDEAE3"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#D8D5CE"/>
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

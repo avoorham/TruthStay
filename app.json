@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "53fa9a07-3d73-40c5-a6a4-c130d3193e55"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.avoorham.truthstay",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

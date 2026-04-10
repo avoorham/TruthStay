@@ -1,0 +1,117 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Avatar: dark tools/screws photo -->
+    <linearGradient id="avatar" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#3A3020"/>
+      <stop offset="40%" stop-color="#4A3A28"/>
+      <stop offset="100%" stop-color="#2A2018"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="#EDEAE3"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#1A1A1A"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">11:15</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Header -->
+  <text x="80" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="64" font-weight="800" fill="#1A1A1A">Profile</text>
+  <!-- Three dots menu -->
+  <text x="1162" y="178" font-family="system-ui,-apple-system,sans-serif" font-size="44" fill="#1A1A1A" text-anchor="middle">···</text>
+
+  <!-- Profile card (white) -->
+  <rect x="62" y="210" width="1118" height="230" rx="20" fill="#FFFFFF"/>
+
+  <!-- Avatar circle -->
+  <circle cx="176" cy="325" r="82" fill="url(#avatar)"/>
+  <!-- Tools/hardware detail in avatar -->
+  <rect x="148" y="318" width="8" height="40" rx="4" fill="#888" opacity="0.5" transform="rotate(-20 148 318)"/>
+  <rect x="164" y="310" width="6" height="44" rx="3" fill="#777" opacity="0.4" transform="rotate(15 164 310)"/>
+  <rect x="178" y="322" width="10" height="36" rx="5" fill="#888" opacity="0.45" transform="rotate(-5 178 322)"/>
+  <rect x="196" y="314" width="7" height="42" rx="3" fill="#777" opacity="0.4" transform="rotate(25 196 314)"/>
+  <!-- Screws -->
+  <circle cx="156" cy="304" r="5" fill="#999" opacity="0.5"/>
+  <circle cx="196" cy="346" r="5" fill="#999" opacity="0.45"/>
+  <circle cx="174" cy="350" r="4" fill="#888" opacity="0.4"/>
+
+  <!-- User info -->
+  <text x="292" y="296" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" fill="#1A1A1A">avoorham</text>
+  <text x="292" y="340" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888">@avoorham</text>
+  <text x="292" y="382" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#AAAAAA">alexandervoorham@gmail.com</text>
+
+  <!-- Edit pencil icon -->
+  <circle cx="1120" cy="325" r="36" fill="none" stroke="#D0CDC6" stroke-width="2"/>
+  <text x="1120" y="338" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888" text-anchor="middle">✎</text>
+
+  <!-- Stats row -->
+  <rect x="62" y="468" width="340" height="130" rx="16" fill="#FFFFFF"/>
+  <text x="232" y="528" font-family="system-ui,-apple-system,sans-serif" font-size="52" font-weight="800" fill="#1A1A1A" text-anchor="middle">0</text>
+  <text x="232" y="570" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888" text-anchor="middle">Trips</text>
+
+  <rect x="422" y="468" width="398" height="130" rx="16" fill="#FFFFFF"/>
+  <text x="621" y="528" font-family="system-ui,-apple-system,sans-serif" font-size="52" font-weight="800" fill="#1A1A1A" text-anchor="middle">0</text>
+  <text x="621" y="570" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888" text-anchor="middle">km covered</text>
+
+  <rect x="840" y="468" width="340" height="130" rx="16" fill="#FFFFFF"/>
+  <text x="1010" y="528" font-family="system-ui,-apple-system,sans-serif" font-size="52" font-weight="800" fill="#1A1A1A" text-anchor="middle">0</text>
+  <text x="1010" y="570" font-family="system-ui,-apple-system,sans-serif" font-size="30" fill="#888" text-anchor="middle">Countries</text>
+
+  <!-- Settings card -->
+  <rect x="62" y="626" width="1118" height="280" rx="20" fill="#FFFFFF"/>
+
+  <!-- Friends row -->
+  <rect x="102" y="666" width="72" height="72" rx="16" fill="#E8F2EC"/>
+  <text x="138" y="712" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#294E38" text-anchor="middle">👥</text>
+  <text x="210" y="700" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="600" fill="#1A1A1A">Friends</text>
+  <text x="210" y="738" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888">Manage your friends</text>
+  <text x="1114" y="714" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#CCCCCC" text-anchor="middle">›</text>
+
+  <!-- Divider -->
+  <rect x="102" y="764" width="1038" height="1.5" fill="#EDEAE3"/>
+
+  <!-- Language row -->
+  <rect x="102" y="790" width="72" height="72" rx="16" fill="#E8F2EC"/>
+  <text x="138" y="836" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#294E38" text-anchor="middle">🌐</text>
+  <text x="210" y="840" font-family="system-ui,-apple-system,sans-serif" font-size="36" font-weight="600" fill="#1A1A1A">Language</text>
+  <text x="1114" y="840" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#CCCCCC" text-anchor="middle">›</text>
+
+  <!-- ── EDIT PROFILE BOTTOM SHEET ── -->
+  <!-- Dim overlay -->
+  <rect x="0" y="0" width="1242" height="2688" fill="rgba(0,0,0,0.3)"/>
+
+  <!-- Sheet -->
+  <rect x="0" y="1256" width="1242" height="1432" fill="#FFFFFF"/>
+  <rect x="0" y="1256" width="1242" height="50" rx="28" fill="#FFFFFF"/>
+
+  <!-- Sheet handle -->
+  <rect x="521" y="1282" width="200" height="6" rx="3" fill="#D4D0C8"/>
+
+  <!-- Sheet header -->
+  <text x="80" y="1394" font-family="system-ui,-apple-system,sans-serif" font-size="52" font-weight="800" fill="#1A1A1A">Edit Profile</text>
+  <!-- Close button -->
+  <circle cx="1162" cy="1372" r="40" fill="#F0EDE8"/>
+  <text x="1162" y="1386" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#555" text-anchor="middle">✕</text>
+
+  <!-- Display Name -->
+  <text x="80" y="1486" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="500" fill="#888" letter-spacing="1">Display Name</text>
+  <rect x="80" y="1510" width="1082" height="100" rx="16" fill="#F0EDE8"/>
+  <text x="128" y="1572" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#1A1A1A">avoorham</text>
+
+  <!-- Username -->
+  <text x="80" y="1672" font-family="system-ui,-apple-system,sans-serif" font-size="28" font-weight="500" fill="#888" letter-spacing="1">Username</text>
+  <rect x="80" y="1696" width="1082" height="100" rx="16" fill="#F0EDE8"/>
+  <text x="128" y="1758" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#1A1A1A">avoorham</text>
+
+  <!-- Save button (black, full width at bottom of sheet) -->
+  <rect x="0" y="2534" width="1242" height="154" fill="#FFFFFF"/>
+  <rect x="62" y="2548" width="1118" height="108" rx="54" fill="#1A1A1A"/>
+  <text x="621" y="2614" font-family="system-ui,-apple-system,sans-serif" font-size="42" font-weight="700" fill="#FFFFFF" text-anchor="middle">Save</text>
+
+  <!-- iOS home indicator -->
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

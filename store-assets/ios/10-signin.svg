@@ -1,0 +1,54 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="signinBg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#DFE2EA"/>
+      <stop offset="100%" stop-color="#C8CDD8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background (light gray-blue) -->
+  <rect width="1242" height="2688" fill="url(#signinBg)"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#D0D4DC"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">6:41</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Back button -->
+  <circle cx="96" cy="198" r="54" fill="#FFFFFF"/>
+  <text x="96" y="214" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#1A1A1A" text-anchor="middle">‹</text>
+
+  <!-- Heading -->
+  <text x="80" y="450" font-family="system-ui,-apple-system,sans-serif" font-size="72" font-weight="800" fill="#1A1A1A">Welcome back</text>
+  <text x="80" y="520" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#888">Sign in to your TruthStay account</text>
+
+  <!-- Email field -->
+  <text x="80" y="640" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="600" fill="#1A1A1A">Email</text>
+  <rect x="80" y="664" width="1082" height="104" rx="20" fill="#FFFFFF"/>
+  <text x="130" y="724" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#CCCCCC">Enter your email</text>
+
+  <!-- Password field -->
+  <text x="80" y="838" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="600" fill="#1A1A1A">Password</text>
+  <rect x="80" y="862" width="1082" height="104" rx="20" fill="#FFFFFF"/>
+  <text x="130" y="922" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#CCCCCC">Enter your password</text>
+  <!-- Eye icon -->
+  <circle cx="1100" cy="914" r="18" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="1100" cy="914" r="7" fill="#888"/>
+  <path d="M1068,914 Q1100,886 1132,914 Q1100,942 1068,914 Z" fill="none" stroke="#888" stroke-width="3"/>
+
+  <!-- Forgot password -->
+  <text x="1162" y="1038" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#007AFF" text-anchor="end">Forgot password?</text>
+
+  <!-- Sign in button (disabled / gray) -->
+  <rect x="80" y="1076" width="1082" height="108" rx="54" fill="#D8D5CE"/>
+  <text x="621" y="1142" font-family="system-ui,-apple-system,sans-serif" font-size="42" font-weight="700" fill="#AAAAAA" text-anchor="middle">Sign in</text>
+
+  <!-- No account? Sign up -->
+  <text x="621" y="1274" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#888" text-anchor="middle">No account? <tspan fill="#007AFF" font-weight="600">Sign up</tspan></text>
+
+  <!-- iOS home indicator -->
+  <rect x="471" y="2650" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

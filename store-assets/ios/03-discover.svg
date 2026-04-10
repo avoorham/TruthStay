@@ -1,0 +1,65 @@
+<svg width="1242" height="2688" viewBox="0 0 1242 2688" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1242" height="2688" fill="#EDEAE3"/>
+
+  <!-- Notch -->
+  <path d="M308,0 L308,60 Q308,88 338,88 L904,88 Q934,88 934,60 L934,0 Z" fill="#1A1A1A"/>
+  <!-- Status bar -->
+  <text x="60" y="65" font-family="system-ui,-apple-system,sans-serif" font-size="34" font-weight="600" fill="#1A1A1A">9:41</text>
+  <rect x="1118" y="40" width="54" height="24" rx="5" fill="none" stroke="#1A1A1A" stroke-width="2.5"/>
+  <rect x="1172" y="47" width="4" height="10" rx="2" fill="#1A1A1A" opacity="0.4"/>
+  <rect x="1121" y="43" width="44" height="18" rx="3" fill="#1A1A1A"/>
+
+  <!-- Header -->
+  <text x="80" y="170" font-family="system-ui,-apple-system,sans-serif" font-size="46" font-weight="800" fill="#1A1A1A">✦ Discover</text>
+  <!-- Clock icon -->
+  <circle cx="1148" cy="148" r="28" fill="none" stroke="#AAAAAA" stroke-width="3"/>
+  <line x1="1148" y1="130" x2="1148" y2="150" stroke="#AAAAAA" stroke-width="3"/>
+  <line x1="1148" y1="150" x2="1162" y2="158" stroke="#AAAAAA" stroke-width="3"/>
+
+  <!-- Divider -->
+  <rect x="0" y="196" width="1242" height="1.5" fill="#D8D5CE"/>
+
+  <!-- Question text -->
+  <text x="80" y="340" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#888888">Are you looking to plan a new</text>
+  <text x="80" y="388" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#888888">adventure, or update a current or</text>
+  <text x="80" y="436" font-family="system-ui,-apple-system,sans-serif" font-size="36" fill="#888888">upcoming trip?</text>
+
+  <!-- Quick reply buttons -->
+  <rect x="80" y="490" width="430" height="86" rx="43" fill="#EDEAE3" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="295" y="543" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="500" fill="#1A1A1A" text-anchor="middle">Plan a new adventure</text>
+
+  <rect x="80" y="598" width="388" height="86" rx="43" fill="#EDEAE3" stroke="#C8C5BE" stroke-width="2"/>
+  <text x="274" y="651" font-family="system-ui,-apple-system,sans-serif" font-size="32" font-weight="500" fill="#1A1A1A" text-anchor="middle">Update a current trip</text>
+
+  <!-- Input bar -->
+  <rect x="0" y="2380" width="1242" height="1.5" fill="#D8D5CE"/>
+  <rect x="0" y="2382" width="1242" height="138" fill="#EDEAE3"/>
+  <rect x="80" y="2398" width="980" height="80" rx="40" fill="#F5F3EE" stroke="#D8D5CE" stroke-width="1.5"/>
+  <text x="180" y="2446" font-family="system-ui,-apple-system,sans-serif" font-size="34" fill="#AAAAAA">Type a message...</text>
+  <!-- Send button (disabled) -->
+  <circle cx="1138" cy="2438" r="36" fill="#D8D5CE"/>
+  <text x="1138" y="2453" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#FFFFFF" text-anchor="middle">↑</text>
+
+  <!-- Bottom Navigation Bar -->
+  <rect x="0" y="2520" width="1242" height="168" fill="#EDEAE3"/>
+  <rect x="0" y="2519" width="1242" height="1.5" fill="#D8D5CE"/>
+  <!-- Center button (Discover - ACTIVE) -->
+  <circle cx="621" cy="2490" r="58" fill="#1B3828"/>
+  <text x="621" y="2506" font-family="system-ui,-apple-system,sans-serif" font-size="38" fill="#FFFFFF" text-anchor="middle">✦</text>
+  <!-- Hamburger -->
+  <rect x="80" y="2563" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2578" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <rect x="80" y="2593" width="48" height="4.5" rx="2.25" fill="#888"/>
+  <!-- Compass/Explore -->
+  <circle cx="311" cy="2580" r="24" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="311" cy="2580" r="6" fill="#888"/>
+  <!-- Location pin -->
+  <path d="M931,2548 C918,2548 908,2558 908,2572 C908,2588 931,2610 931,2610 C931,2610 954,2588 954,2572 C954,2558 944,2548 931,2548 Z" fill="none" stroke="#888" stroke-width="3"/>
+  <circle cx="931" cy="2572" r="6" fill="none" stroke="#888" stroke-width="2.5"/>
+  <!-- Person -->
+  <circle cx="1138" cy="2562" r="16" fill="none" stroke="#888" stroke-width="3"/>
+  <path d="M1108,2606 Q1108,2582 1138,2582 Q1168,2582 1168,2606" fill="none" stroke="#888" stroke-width="3"/>
+  <!-- Home indicator -->
+  <rect x="471" y="2652" width="300" height="5" rx="2.5" fill="#1A1A1A" opacity="0.18"/>
+</svg>

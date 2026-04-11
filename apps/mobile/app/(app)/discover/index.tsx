@@ -231,9 +231,6 @@ export default function DiscoverScreen() {
     const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
     const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
     const tripContext = `Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
-    // Legacy variable kept for the update-trip path (which still uses the old format)
-    const dateContext = `I want to plan a new adventure. ${tripContext}`;
-
     if (pendingUpdateTrip) {
       // Update-trip path: dates confirmed for existing trip
       const trip = pendingUpdateTrip;
@@ -254,7 +251,7 @@ export default function DiscoverScreen() {
     // New adventure path: send enriched context as first user message
     const result = wizardResult;
     const wizardContext = result
-      ? `\nVacation preferences:\n- Destination: ${result.destinations.join(", ")}\n- Focus: ${result.focuses.join(", ")}\n- Activities: ${result.activities.join(", ")}\n- Region: ${result.continent} — ${result.countries.join(", ")}`
+      ? `\nVacation preferences:\n- Location: ${result.locations.join(", ")}\n- Destination: ${result.destinations.join(", ")}\n- Focus: ${result.focuses.join(", ")}\n- Activities: ${result.activities.join(", ")}`
       : "";
     send(`I want to plan a new vacation.${wizardContext}\n${tripContext}`);
   }

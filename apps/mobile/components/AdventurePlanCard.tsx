@@ -72,7 +72,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
     setSaving(true);
     try {
       await saveAdventure(adventureId);
-      router.push("/(app)/trips");
+      router.push(`/(app)/trips/${adventureId}` as never);
     } catch (err) {
       setSaving(false);
       Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
@@ -270,7 +270,7 @@ export function AdventurePlanCard({ adventure, dayAlternatives, accommodationSto
           >
             {saving
               ? <ActivityIndicator color={colors.inverse} />
-              : <Text style={styles.ctaText}>Save this adventure</Text>
+              : <Text style={styles.ctaText}>{"Save & view itinerary"}</Text>
             }
           </TouchableOpacity>
           <TouchableOpacity

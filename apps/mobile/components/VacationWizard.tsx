@@ -1,5 +1,6 @@
 import {
-  Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Modal, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, View,
 } from "react-native";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,11 +10,10 @@ import { colors, fontSize, radius, spacing } from "../lib/theme";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface WizardResult {
+  locations: string[];
   destinations: string[];
   focuses: string[];
   activities: string[];
-  continent: string;
-  countries: string[];
 }
 
 interface Props {
@@ -22,7 +22,46 @@ interface Props {
   onCancel: () => void;
 }
 
-// ─── Static data ──────────────────────────────────────────────────────────────
+// ─── Static location data ─────────────────────────────────────────────────────
+
+const ALL_COUNTRIES = [
+  "France", "Spain", "Italy", "Greece", "Portugal", "Switzerland", "Austria",
+  "Croatia", "Norway", "Iceland", "Netherlands", "Scotland", "Slovenia",
+  "Montenegro", "USA", "Canada", "Mexico", "Costa Rica", "Cuba", "Jamaica",
+  "Dominican Republic", "Argentina", "Brazil", "Chile", "Peru", "Colombia",
+  "Ecuador", "Bolivia", "Uruguay", "Japan", "Thailand", "Vietnam", "Indonesia",
+  "India", "Nepal", "Sri Lanka", "Cambodia", "Philippines", "South Korea",
+  "Taiwan", "Georgia", "Kyrgyzstan", "Morocco", "South Africa", "Tanzania",
+  "Kenya", "Egypt", "Namibia", "Madagascar", "Rwanda", "Ethiopia", "Senegal",
+  "New Zealand", "Australia", "Fiji", "Papua New Guinea", "Samoa", "Vanuatu",
+  "Jordan", "Oman", "UAE", "Saudi Arabia", "Israel", "Lebanon", "Turkey", "Armenia",
+];
+
+const POPULAR_CITIES = [
+  "Paris", "Tokyo", "Bali", "New York", "Barcelona", "Rome", "Amsterdam",
+  "Dubai", "Bangkok", "Sydney", "Lisbon", "Prague", "Vienna", "Istanbul",
+  "Marrakech", "Cape Town", "Rio de Janeiro", "Buenos Aires", "Kyoto",
+  "Singapore", "Santorini", "Dubrovnik", "Reykjavik", "Vancouver",
+  "Mexico City", "Chiang Mai", "Hanoi", "Ho Chi Minh City", "Seville",
+  "Palma de Mallorca", "Florence", "Venice", "Bruges", "Edinburgh",
+  "Queenstown", "Zanzibar", "Nairobi", "Casablanca",
+];
+
+const POPULAR_REGIONS = [
+  "Algarve, Portugal", "Tuscany, Italy", "Provence, France",
+  "Scottish Highlands, UK", "Amalfi Coast, Italy", "Balearic Islands, Spain",
+  "Dolomites, Italy", "Swiss Alps, Switzerland", "Patagonia, South America",
+  "Maldives", "Seychelles", "Bali, Indonesia", "Phuket, Thailand",
+  "Costa Rica Rainforest", "Azores, Portugal", "Canary Islands, Spain",
+  "Lake District, UK", "Cotswolds, UK", "Normandy, France", "Andalusia, Spain",
+  "Catalonia, Spain", "Basque Country, Spain", "Lofoten Islands, Norway",
+  "Faroe Islands", "Cinque Terre, Italy", "Dalmatian Coast, Croatia",
+  "Black Forest, Germany", "Bohemia, Czech Republic",
+];
+
+const ALL_LOCATIONS = Array.from(new Set([...ALL_COUNTRIES, ...POPULAR_CITIES, ...POPULAR_REGIONS])).sort();
+
+// ─── Static activity data ─────────────────────────────────────────────────────
 
 const DESTINATIONS = [
   "Beach & Coast", "Mountains & Highlands", "Countryside & Rural", "City & Culture",
@@ -66,44 +105,41 @@ const OUTLIERS = [
   "Astronomy tour", "Origami workshop", "Local pottery class", "Sunrise meditation",
 ];
 
-const CONTINENTS = [
-  "Europe", "North America", "South America", "Asia", "Africa", "Oceania", "Middle East",
-];
+// ─── Activity sections ─────────────────────────────────────────────────────────
 
-const COUNTRIES_BY_CONTINENT: Record<string, string[]> = {
-  "Europe":        ["France", "Spain", "Italy", "Greece", "Portugal", "Switzerland", "Austria", "Croatia", "Norway", "Iceland", "Netherlands", "Scotland", "Slovenia", "Montenegro"],
-  "North America": ["USA", "Canada", "Mexico", "Costa Rica", "Cuba", "Jamaica", "Belize", "Panama", "Dominican Republic", "Guatemala"],
-  "South America": ["Argentina", "Brazil", "Chile", "Peru", "Colombia", "Ecuador", "Bolivia", "Uruguay", "Patagonia"],
-  "Asia":          ["Japan", "Thailand", "Vietnam", "Indonesia", "India", "Nepal", "Sri Lanka", "Cambodia", "Philippines", "South Korea", "Taiwan", "Georgia", "Kyrgyzstan"],
-  "Africa":        ["Morocco", "South Africa", "Tanzania", "Kenya", "Egypt", "Namibia", "Madagascar", "Rwanda", "Ethiopia", "Senegal"],
-  "Oceania":       ["New Zealand", "Australia", "Fiji", "Papua New Guinea", "Samoa", "Vanuatu"],
-  "Middle East":   ["Jordan", "Oman", "UAE", "Saudi Arabia", "Israel", "Lebanon", "Turkey", "Georgia", "Armenia"],
-};
+type ActivitySection = { label: string; items: string[] };
 
-function getActivitySuggestions(
-  destinations: string[],
-  focuses: string[],
-): { initial: string[]; full: string[] } {
-  const pool = new Set<string>();
-  destinations.forEach(d => DESTINATION_ACTIVITIES[d]?.forEach(a => pool.add(a)));
-  focuses.forEach(f => FOCUS_ACTIVITIES[f]?.forEach(a => pool.add(a)));
-  const all = Array.from(pool);
-  const outlier = OUTLIERS.find(o => !pool.has(o));
-  if (outlier) all.push(outlier);
-  return { initial: all.slice(0, 10), full: all };
+function getActivitySections(destinations: string[], focuses: string[]): ActivitySection[] {
+  const seen = new Set<string>();
+  const sections: ActivitySection[] = [];
+
+  for (const d of destinations) {
+    const items = (DESTINATION_ACTIVITIES[d] ?? []).filter(a => !seen.has(a));
+    items.forEach(a => seen.add(a));
+    if (items.length > 0) sections.push({ label: d, items });
+  }
+  for (const f of focuses) {
+    const items = (FOCUS_ACTIVITIES[f] ?? []).filter(a => !seen.has(a));
+    items.forEach(a => seen.add(a));
+    if (items.length > 0) sections.push({ label: f, items });
+  }
+
+  const outlier = OUTLIERS.find(o => !seen.has(o));
+  if (outlier && sections.length > 0) sections[sections.length - 1].items.push(outlier);
+
+  return sections;
 }
 
-// ─── Step config ──────────────────────────────────────────────────────────────
+// ─── Step config ───────────────────────────────────────────────────────────────
 
 const STEP_QUESTIONS = [
   "Where would you like to go?",
+  "What's the setting?",
   "What would you like to do?",
   "Which activities interest you?",
-  "Which part of the world?",
-  "Which countries?",
 ];
 
-// ─── Chip component ───────────────────────────────────────────────────────────
+// ─── Chip component ────────────────────────────────────────────────────────────
 
 function Chip({
   label, selected, onPress, outline,
@@ -123,27 +159,25 @@ function Chip({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export function VacationWizard({ visible, onComplete, onCancel }: Props) {
   const insets = useSafeAreaInsets();
 
   const [step, setStep]                   = useState(1);
+  const [locationQuery, setLocationQuery] = useState("");
+  const [locations, setLocations]         = useState<string[]>([]);
   const [destinations, setDestinations]   = useState<string[]>([]);
   const [focuses, setFocuses]             = useState<string[]>([]);
   const [activities, setActivities]       = useState<string[]>([]);
-  const [continent, setContinent]         = useState<string | null>(null);
-  const [countries, setCountries]         = useState<string[]>([]);
-  const [showAllActivities, setShowAllActivities] = useState(false);
 
   function reset() {
     setStep(1);
+    setLocationQuery("");
+    setLocations([]);
     setDestinations([]);
     setFocuses([]);
     setActivities([]);
-    setContinent(null);
-    setCountries([]);
-    setShowAllActivities(false);
   }
 
   function handleCancel() {
@@ -153,18 +187,17 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
 
   function handleBack() {
     if (step === 1) { handleCancel(); return; }
-    if (step === 3) setShowAllActivities(false);
+    if (step === 1) setLocationQuery("");
     setStep(s => s - 1);
   }
 
   function handleNext() {
-    if (step < 5) {
-      if (step === 2) setShowAllActivities(false);
+    if (step < 4) {
       setStep(s => s + 1);
       return;
     }
-    // Step 5 — complete
-    onComplete({ destinations, focuses, activities, continent: continent!, countries });
+    // Step 4 — complete
+    onComplete({ locations, destinations, focuses, activities });
     reset();
   }
 
@@ -172,22 +205,17 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
     setList(list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
   }
 
-  // Compute activity suggestions when on step 3
-  const activitySuggestions = getActivitySuggestions(destinations, focuses);
-  const displayedActivities = showAllActivities
-    ? activitySuggestions.full
-    : activitySuggestions.initial;
-  const hasMore = !showAllActivities && activitySuggestions.full.length > activitySuggestions.initial.length;
+  const filteredLocations = locationQuery.trim().length >= 1
+    ? ALL_LOCATIONS.filter(l => l.toLowerCase().includes(locationQuery.toLowerCase()))
+    : ALL_LOCATIONS;
 
-  // Determine if Next should be enabled
+  const activitySections = getActivitySections(destinations, focuses);
+
   const canProceed =
-    (step === 1 && destinations.length > 0) ||
-    (step === 2 && focuses.length > 0) ||
-    (step === 3 && activities.length > 0) ||
-    (step === 4 && continent !== null) ||
-    (step === 5 && countries.length > 0);
-
-  const countryList = continent ? (COUNTRIES_BY_CONTINENT[continent] ?? []) : [];
+    (step === 1 && locations.length > 0) ||
+    (step === 2 && destinations.length > 0) ||
+    (step === 3 && focuses.length > 0) ||
+    (step === 4 && activities.length > 0);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
@@ -197,12 +225,12 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
           <TouchableOpacity onPress={handleBack} style={s.headerBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Feather name="arrow-left" size={22} color={colors.text} />
           </TouchableOpacity>
-          <Text style={s.stepCounter}>{step} / 5</Text>
+          <Text style={s.stepCounter}>{step} / 4</Text>
         </View>
 
         {/* ── Progress dots ── */}
         <View style={s.dots}>
-          {[1, 2, 3, 4, 5].map(n => (
+          {[1, 2, 3, 4].map(n => (
             <View key={n} style={[s.dot, n <= step && s.dotFilled]} />
           ))}
         </View>
@@ -210,14 +238,37 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
         {/* ── Question ── */}
         <Text style={s.question}>{STEP_QUESTIONS[step - 1]}</Text>
 
+        {/* ── Step 1: Location search + chips ── */}
+        {step === 1 && (
+          <TextInput
+            style={s.searchInput}
+            placeholder="Search country, city or region…"
+            placeholderTextColor={colors.muted}
+            value={locationQuery}
+            onChangeText={setLocationQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        )}
+
         {/* ── Chips ── */}
         <ScrollView
           style={s.scroll}
-          contentContainerStyle={s.chipContainer}
+          contentContainerStyle={step === 4 ? s.sectionedContainer : s.chipContainer}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          {/* Step 1 — Destinations */}
-          {step === 1 && DESTINATIONS.map(opt => (
+          {/* Step 1 — Location */}
+          {step === 1 && filteredLocations.map(opt => (
+            <Chip
+              key={opt} label={opt}
+              selected={locations.includes(opt)}
+              onPress={() => toggle(locations, setLocations, opt)}
+            />
+          ))}
+
+          {/* Step 2 — Destinations */}
+          {step === 2 && DESTINATIONS.map(opt => (
             <Chip
               key={opt} label={opt}
               selected={destinations.includes(opt)}
@@ -225,8 +276,8 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
             />
           ))}
 
-          {/* Step 2 — Focuses */}
-          {step === 2 && FOCUSES.map(opt => (
+          {/* Step 3 — Focuses */}
+          {step === 3 && FOCUSES.map(opt => (
             <Chip
               key={opt} label={opt}
               selected={focuses.includes(opt)}
@@ -234,42 +285,20 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
             />
           ))}
 
-          {/* Step 3 — Activities */}
-          {step === 3 && (
-            <>
-              {displayedActivities.map(opt => (
-                <Chip
-                  key={opt} label={opt}
-                  selected={activities.includes(opt)}
-                  onPress={() => toggle(activities, setActivities, opt)}
-                />
-              ))}
-              {hasMore && (
-                <Chip
-                  label="Show more +"
-                  outline
-                  onPress={() => setShowAllActivities(true)}
-                />
-              )}
-            </>
-          )}
-
-          {/* Step 4 — Continent */}
-          {step === 4 && CONTINENTS.map(opt => (
-            <Chip
-              key={opt} label={opt}
-              selected={continent === opt}
-              onPress={() => setContinent(opt)}
-            />
-          ))}
-
-          {/* Step 5 — Countries */}
-          {step === 5 && countryList.map(opt => (
-            <Chip
-              key={opt} label={opt}
-              selected={countries.includes(opt)}
-              onPress={() => toggle(countries, setCountries, opt)}
-            />
+          {/* Step 4 — Sectioned activities */}
+          {step === 4 && activitySections.map(section => (
+            <View key={section.label} style={s.sectionBlock}>
+              <Text style={s.sectionLabel}>{section.label}</Text>
+              <View style={s.chipContainer}>
+                {section.items.map(opt => (
+                  <Chip
+                    key={opt} label={opt}
+                    selected={activities.includes(opt)}
+                    onPress={() => toggle(activities, setActivities, opt)}
+                  />
+                ))}
+              </View>
+            </View>
           ))}
         </ScrollView>
 
@@ -281,10 +310,10 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
           activeOpacity={0.85}
         >
           <Text style={s.nextBtnText}>
-            {step === 5 ? "Let's plan" : "Next"}
+            {step === 4 ? "Let's plan" : "Next"}
           </Text>
           <Feather
-            name={step === 5 ? "check" : "arrow-right"}
+            name={step === 4 ? "check" : "arrow-right"}
             size={18}
             color={colors.inverse}
             style={{ marginLeft: 6 }}
@@ -295,7 +324,7 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles ────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   root: {
@@ -338,6 +367,15 @@ const s = StyleSheet.create({
     marginBottom: spacing.lg,
     lineHeight: 34,
   },
+  searchInput: {
+    backgroundColor: colors.aiBubble,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
+    fontSize: fontSize.base,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
   scroll: {
     flex: 1,
   },
@@ -346,6 +384,20 @@ const s = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
     paddingBottom: spacing.xl,
+  },
+  sectionedContainer: {
+    paddingBottom: spacing.xl,
+  },
+  sectionBlock: {
+    marginBottom: spacing.lg,
+  },
+  sectionLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: "600",
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: spacing.xs,
   },
   chip: {
     backgroundColor: colors.aiBubble,

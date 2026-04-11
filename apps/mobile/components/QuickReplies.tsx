@@ -96,15 +96,15 @@ export function detectQuickReplies(text: string): string[] | null {
 const styles = StyleSheet.create({
   stack: {
     marginTop: spacing.sm,
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.xs,
-    alignItems: "flex-start",
   },
   chip: {
     backgroundColor: colors.aiBubble,
     borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
-    alignSelf: "flex-start",
   },
   chipDisabled: {
     opacity: 0.4,

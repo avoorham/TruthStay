@@ -19,6 +19,7 @@ import type {
   GeneratedAdventure, DayAlternativesMap, AccommodationStop,
   RichOption, RichOptionCategory, RichOptionsMsg,
 } from "../../../lib/adventure-types";
+import { VacationWizard, type WizardResult } from "../../../components/VacationWizard";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,8 @@ export default function DiscoverScreen() {
   const [myTrips, setMyTrips]           = useState<AdventureRow[]>([]);
   const [sessionActivityType, setSessionActivityType] = useState<string | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardResult, setWizardResult] = useState<WizardResult | null>(null);
   const [pendingUpdateTrip, setPendingUpdateTrip] = useState<AdventureRow | null>(null);
   const listRef = useRef<FlatList>(null);
 
@@ -209,6 +212,8 @@ export default function DiscoverScreen() {
     setMyTrips([]);
     setSessionActivityType(undefined);
     setShowDatePicker(false);
+    setShowWizard(false);
+    setWizardResult(null);
     setInput("");
     setInputHeight(MIN_INPUT_HEIGHT);
   }
@@ -225,7 +230,9 @@ export default function DiscoverScreen() {
     setShowDatePicker(false);
     const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
     const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
-    const dateContext = `I want to plan a new adventure. Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
+    const tripContext = `Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
+    // Legacy variable kept for the update-trip path (which still uses the old format)
+    const dateContext = `I want to plan a new adventure. ${tripContext}`;
 
     if (pendingUpdateTrip) {
       // Update-trip path: dates confirmed for existing trip
@@ -244,8 +251,18 @@ export default function DiscoverScreen() {
       return;
     }
 
-    // New adventure path: send date context as first user message
-    send(dateContext);
+    // New adventure path: send enriched context as first user message
+    const result = wizardResult;
+    const wizardContext = result
+      ? `\nVacation preferences:\n- Destination: ${result.destinations.join(", ")}\n- Focus: ${result.focuses.join(", ")}\n- Activities: ${result.activities.join(", ")}\n- Region: ${result.continent} — ${result.countries.join(", ")}`
+      : "";
+    send(`I want to plan a new vacation.${wizardContext}\n${tripContext}`);
+  }
+
+  function handleWizardComplete(result: WizardResult) {
+    setWizardResult(result);
+    setShowWizard(false);
+    setShowDatePicker(true);
   }
 
   async function handleRefresh() {
@@ -331,6 +348,8 @@ export default function DiscoverScreen() {
         ["Cycling", "cycling"], ["MTB", "mtb"], ["Hiking", "hiking"],
         ["Trail Running", "trail_running"], ["Climbing", "climbing"],
         ["Skiing", "skiing"], ["Kayaking", "kayaking"],
+        ["Surfing", "other"], ["Yoga", "other"], ["Safari", "other"],
+        ["Wildlife", "other"], ["Wellness", "other"], ["Snorkeling", "other"],
       ];
       for (const [prefix, type] of ACTIVITY_PREFIXES) {
         if (trimmed.startsWith(prefix)) { setSessionActivityType(type); break; }
@@ -344,8 +363,8 @@ export default function DiscoverScreen() {
 
       if (trimmed === "Plan a new adventure") {
         setMode("new");
-        // Show date/guest picker before starting the AI conversation
-        setShowDatePicker(true);
+        // Show vacation wizard first, then date/guest picker
+        setShowWizard(true);
         return;
       }
 
@@ -718,6 +737,17 @@ export default function DiscoverScreen() {
           <Feather name="arrow-up" size={18} color={colors.inverse} />
         </TouchableOpacity>
       </View>
+
+      {/* ── Vacation wizard ────────────────────────────────────────────────── */}
+      <VacationWizard
+        visible={showWizard}
+        onComplete={handleWizardComplete}
+        onCancel={() => {
+          setShowWizard(false);
+          setMode(null);
+          setMessages([INITIAL]);
+        }}
+      />
 
       {/* ── Date range picker ─────────────────────────────────────────────── */}
       <DateRangePicker

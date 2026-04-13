@@ -2,15 +2,15 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Dimensions, Image, Keyboard, Modal, PanResponder, Platform,
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Keyboard, Linking, Modal,
+  PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
@@ -24,6 +24,9 @@ export interface RestaurantStop {
   priceRange: string;
   night: number;
   coords: [number, number];
+  websiteUrl?: string;
+  theforkUrl?: string;
+  googleMapsUrl?: string;
 }
 
 export interface Booking {
@@ -40,6 +43,7 @@ export interface TripMeta {
   dayCoords: Record<number, [number, number]>;
   accommodation: string;
   accommodationCoords: [number, number];
+  accommodationUrl?: string;
   pricePerNight: number;
   nights: string;
   restaurants: RestaurantStop[];
@@ -58,6 +62,7 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
   const restaurants: RestaurantStop[] = [];
   const dayCoords: Record<number, [number, number]> = {};
   let accommodation = "";
+  let accommodationUrl: string | undefined;
   let pricePerNight = 0;
 
   for (const day of adventure.adventure_days ?? []) {
@@ -72,6 +77,9 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
         priceRange: r.price_range ?? "",
         night: day.dayNumber,
         coords: baseCoords,
+        websiteUrl: r.website_url,
+        theforkUrl: r.thefork_url,
+        googleMapsUrl: r.google_maps_url,
       });
     }
 
@@ -80,6 +88,7 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
     if (accomOpt && !accommodation) {
       accommodation = accomOpt.name ?? "";
       pricePerNight = accomOpt.price_per_night_eur ?? 0;
+      accommodationUrl = accomOpt.booking_url;
     }
   }
 
@@ -88,6 +97,7 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
     dayCoords,
     accommodation,
     accommodationCoords: baseCoords,
+    accommodationUrl,
     pricePerNight,
     nights: `${adventure.durationDays - 1} nights`,
     restaurants,
@@ -95,6 +105,7 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
   };
 }
 
+const SCREEN_W = Dimensions.get("window").width;
 const SCREEN_H = Dimensions.get("window").height;
 const HERO_H   = Math.round(SCREEN_H * 0.3);
 
@@ -687,7 +698,13 @@ function StopCard({
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId: string }) {
+function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }: {
+  meta: TripMeta;
+  adventureId: string;
+  dayNumber: number;
+  totalDays: number;
+  onMoved: () => void;
+}) {
   const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -697,6 +714,11 @@ function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId:
         </View>
       </View>
       <View style={tileStyles.card}>
+        <DragHandle
+          disabled={totalDays <= 1}
+          onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
+          onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
+        />
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{meta.accommodation}</Text>
@@ -710,12 +732,24 @@ function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId:
           </View>
         </View>
         <View style={tileStyles.actionRow}>
-          <TouchableOpacity style={tileStyles.actionBtn}>
+          <TouchableOpacity
+            style={tileStyles.actionBtn}
+            onPress={() => {
+              if (meta.accommodationUrl) Linking.openURL(meta.accommodationUrl);
+              else Alert.alert("Not available", "No booking details found.");
+            }}
+          >
             <Feather name="info" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>View details</Text>
           </TouchableOpacity>
           <View style={tileStyles.actionDivider} />
-          <TouchableOpacity style={tileStyles.actionBtn}>
+          <TouchableOpacity
+            style={tileStyles.actionBtn}
+            onPress={() => {
+              if (meta.accommodationUrl) Linking.openURL(meta.accommodationUrl);
+              else Alert.alert("Not available", "No booking link for this accommodation.");
+            }}
+          >
             <Feather name="external-link" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Book</Text>
           </TouchableOpacity>
@@ -727,7 +761,14 @@ function AccommodationCard({ meta, adventureId }: { meta: TripMeta; adventureId:
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx }: { restaurant: RestaurantStop; adventureId: string; idx: number }) {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved }: {
+  restaurant: RestaurantStop;
+  adventureId: string;
+  idx: number;
+  dayNumber: number;
+  totalDays: number;
+  onMoved: () => void;
+}) {
   const photoUrl = `https://picsum.photos/seed/${adventureId}-rest${idx}/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -737,6 +778,11 @@ function RestaurantCard({ restaurant, adventureId, idx }: { restaurant: Restaura
         </View>
       </View>
       <View style={tileStyles.card}>
+        <DragHandle
+          disabled={totalDays <= 1}
+          onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
+          onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
+        />
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{restaurant.name}</Text>
@@ -750,12 +796,26 @@ function RestaurantCard({ restaurant, adventureId, idx }: { restaurant: Restaura
           </View>
         </View>
         <View style={tileStyles.actionRow}>
-          <TouchableOpacity style={tileStyles.actionBtn}>
+          <TouchableOpacity
+            style={tileStyles.actionBtn}
+            onPress={() => {
+              const url = restaurant.websiteUrl ?? restaurant.googleMapsUrl;
+              if (url) Linking.openURL(url);
+              else Alert.alert("Not available", "No menu link for this restaurant.");
+            }}
+          >
             <Feather name="info" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>View menu</Text>
           </TouchableOpacity>
           <View style={tileStyles.actionDivider} />
-          <TouchableOpacity style={tileStyles.actionBtn}>
+          <TouchableOpacity
+            style={tileStyles.actionBtn}
+            onPress={() => {
+              const url = restaurant.theforkUrl ?? restaurant.websiteUrl ?? restaurant.googleMapsUrl;
+              if (url) Linking.openURL(url);
+              else Alert.alert("Not available", "No reservation link for this restaurant.");
+            }}
+          >
             <Feather name="external-link" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Reserve</Text>
           </TouchableOpacity>
@@ -1430,6 +1490,172 @@ const fbStyles = StyleSheet.create({
   submitText: { color: "#FFFFFF", fontSize: fontSize.base, fontWeight: "700" },
 });
 
+// ─── Drag handle ─────────────────────────────────────────────────────────────
+
+function DragHandle({ onDragLeft, onDragRight, disabled }: {
+  onDragLeft?: () => void;
+  onDragRight?: () => void;
+  disabled?: boolean;
+}) {
+  const pan = useRef(new Animated.ValueXY()).current;
+  const THRESHOLD = 60;
+
+  const panResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => !disabled,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8,
+    onPanResponderGrant: () => { Vibration.vibrate(30); },
+    onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
+    onPanResponderRelease: (_, g) => {
+      if (g.dx < -THRESHOLD && onDragLeft) onDragLeft();
+      else if (g.dx > THRESHOLD && onDragRight) onDragRight();
+      Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+  })).current;
+
+  return (
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[tileStyles.dragHandle, { transform: [{ translateX: pan.x }] }, disabled && { opacity: 0.25 }]}
+    >
+      <MaterialCommunityIcons name="drag" size={20} color={colors.muted} />
+    </Animated.View>
+  );
+}
+
+// ─── Edit trip modal ──────────────────────────────────────────────────────────
+
+function EditTripModal({
+  adventure, visible, onClose, onSave, onDelete,
+}: {
+  adventure: AdventureRow;
+  visible: boolean;
+  onClose: () => void;
+  onSave: (fields: { title: string; startDate: string | null; description: string }) => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [title, setTitle]           = useState(adventure.title);
+  const [startDate, setStartDate]   = useState(adventure.startDate ?? "");
+  const [description, setDescription] = useState(adventure.description ?? "");
+  const [saving, setSaving]         = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setTitle(adventure.title);
+      setStartDate(adventure.startDate ?? "");
+      setDescription(adventure.description ?? "");
+    }
+  }, [visible, adventure]);
+
+  function handleDelete() {
+    Alert.alert(
+      "Delete trip",
+      "This will permanently delete your trip. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => onDelete() },
+      ],
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, justifyContent: "flex-end" }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={editStyles.sheet}>
+          <View style={editStyles.handle} />
+          <View style={editStyles.headerRow}>
+            <Text style={editStyles.headerTitle}>Edit Trip</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={22} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={editStyles.label}>Title</Text>
+          <TextInput
+            style={editStyles.input}
+            value={title}
+            onChangeText={setTitle}
+            placeholderTextColor={colors.muted}
+          />
+
+          <Text style={editStyles.label}>Start date (YYYY-MM-DD)</Text>
+          <TextInput
+            style={editStyles.input}
+            value={startDate}
+            onChangeText={setStartDate}
+            placeholder="Leave empty if not set"
+            placeholderTextColor={colors.muted}
+          />
+
+          <Text style={editStyles.label}>Description</Text>
+          <TextInput
+            style={[editStyles.input, { height: 80, textAlignVertical: "top" }]}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            placeholderTextColor={colors.muted}
+          />
+
+          <TouchableOpacity
+            style={[editStyles.saveBtn, saving && { opacity: 0.6 }]}
+            disabled={saving}
+            onPress={async () => {
+              setSaving(true);
+              try {
+                await onSave({ title, startDate: startDate.trim() || null, description });
+                onClose();
+              } catch {
+                Alert.alert("Error", "Could not save changes. Please try again.");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving
+              ? <ActivityIndicator color={colors.inverse} size="small" />
+              : <Text style={editStyles.saveBtnText}>Save changes</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity style={editStyles.deleteBtn} onPress={handleDelete}>
+            <Feather name="trash-2" size={15} color="#E53E3E" />
+            <Text style={editStyles.deleteBtnText}>Delete trip</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const editStyles = StyleSheet.create({
+  sheet: {
+    backgroundColor: colors.sheet,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: spacing.lg, paddingBottom: spacing.xxl ?? 40,
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: "center", marginBottom: spacing.md,
+  },
+  headerRow: {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginBottom: spacing.lg,
+  },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  label:       { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted, marginBottom: spacing.xs },
+  input: {
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    padding: spacing.sm, fontSize: fontSize.base, color: colors.text, marginBottom: spacing.md,
+  },
+  saveBtn: {
+    backgroundColor: colors.text, borderRadius: radius.full,
+    paddingVertical: spacing.sm + 2, alignItems: "center", marginBottom: spacing.sm,
+  },
+  saveBtnText:   { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+  deleteBtn:     { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.xs, paddingVertical: spacing.sm },
+  deleteBtnText: { color: "#E53E3E", fontWeight: "600", fontSize: fontSize.sm },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen() {
@@ -1451,6 +1677,10 @@ export default function TripDetailScreen() {
   const [shareDay, setShareDay]           = useState<number | null>(null);
   const [isPublicState, setIsPublicState] = useState(false);
   const [sharing, setSharing]             = useState(false);
+  const [editVisible, setEditVisible]     = useState(false);
+  const [swipeEnabled, setSwipeEnabled]   = useState(true);
+  const dayListRef  = useRef<FlatList<AdventureDayRow>>(null);
+  const swipeCooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSelectedDay(1);
@@ -1508,13 +1738,20 @@ export default function TripDetailScreen() {
     );
   }
 
-  const sortedDays  = [...(adventure.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber);
+  const sortedDays  = React.useMemo(
+    () => [...(adventure?.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber),
+    [adventure],
+  );
   const meta        = deriveMetaMeta(adventure);
   const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
-  const currentDay  = sortedDays.find(d => d.dayNumber === selectedDay) ?? sortedDays[0];
-  const todayRestaurants = meta.restaurants.filter((r: RestaurantStop) => r.night === selectedDay);
   const isOwner     = isOwnAdventure;
+
+  // Sync FlatList position when selectedDay changes via chip tap
+  useEffect(() => {
+    const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
+    if (idx >= 0) dayListRef.current?.scrollToIndex({ index: idx, animated: true });
+  }, [selectedDay, sortedDays]);
 
   async function handleShareToExplore() {
     if (!adventure) return;
@@ -1548,6 +1785,33 @@ export default function TripDetailScreen() {
   const setReview = (dayNum: number, r: { rating: number; comment: string }) =>
     setReviews(prev => ({ ...prev, [dayNum]: r }));
 
+  async function handleSaveTrip(fields: { title: string; startDate: string | null; description: string }) {
+    if (!adventure) return;
+    await updateAdventure(adventure.id, fields);
+    setAdventure(prev => prev ? { ...prev, ...fields } : prev);
+  }
+
+  async function handleDeleteTrip() {
+    if (!adventure) return;
+    await deleteAdventure(adventure.id);
+    router.back();
+  }
+
+  async function handleActivityMoved() {
+    if (!adventure) return;
+    const adv = await getAdventureById(adventure.id);
+    setAdventure(adv);
+  }
+
+  function handleDaySwipe(idx: number) {
+    const day = sortedDays[idx];
+    if (!day) return;
+    setSelectedDay(day.dayNumber);
+    setSwipeEnabled(false);
+    if (swipeCooldown.current) clearTimeout(swipeCooldown.current);
+    swipeCooldown.current = setTimeout(() => setSwipeEnabled(true), 500);
+  }
+
   return (
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -1558,9 +1822,14 @@ export default function TripDetailScreen() {
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
         <View style={detailStyles.headerRight}>
           {isOwner && (
-            <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
-              <Feather name="user-plus" size={20} color={colors.text} />
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setEditVisible(true)}>
+                <Feather name="edit-2" size={19} color={colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
+                <Feather name="user-plus" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </>
           )}
           <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
             <Feather name="map" size={20} color={colors.text} />
@@ -1568,112 +1837,151 @@ export default function TripDetailScreen() {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero */}
-        <View style={{ height: HERO_H }}>
-          <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
-          <View style={detailStyles.heroText}>
-            <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
-            <View style={detailStyles.heroMeta}>
-              <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
-              <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
-              <Text style={detailStyles.heroMetaDot}>·</Text>
-              <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
-              <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
-              <Text style={detailStyles.heroMetaDot}>·</Text>
-              <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
-            </View>
+      {/* Hero — fixed above pager */}
+      <View style={{ height: HERO_H }}>
+        <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
+        <View style={detailStyles.heroText}>
+          <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
+          <View style={detailStyles.heroMeta}>
+            <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
+            <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
+            <Text style={detailStyles.heroMetaDot}>·</Text>
+            <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
+            <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
+            <Text style={detailStyles.heroMetaDot}>·</Text>
+            <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
           </View>
-          {isOwner && (
-            <TouchableOpacity style={detailStyles.heroEditBtn} onPress={handleChangeCover}>
-              <Feather name="camera" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
         </View>
-
-        {/* Share / public status banner (own adventures only) */}
         {isOwner && (
-          isPublicState ? (
-            <View style={detailStyles.publicBadge}>
-              <Feather name="globe" size={13} color={colors.accent} />
-              <Text style={detailStyles.publicBadgeText}>Public · visible on Explore</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={detailStyles.shareBanner}
-              onPress={handleShareToExplore}
-              disabled={sharing}
-              activeOpacity={0.8}
+          <TouchableOpacity style={detailStyles.heroEditBtn} onPress={handleChangeCover}>
+            <Feather name="camera" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Share / public status banner (own adventures only) */}
+      {isOwner && (
+        isPublicState ? (
+          <View style={detailStyles.publicBadge}>
+            <Feather name="globe" size={13} color={colors.accent} />
+            <Text style={detailStyles.publicBadgeText}>Public · visible on Explore</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={detailStyles.shareBanner}
+            onPress={handleShareToExplore}
+            disabled={sharing}
+            activeOpacity={0.8}
+          >
+            {sharing
+              ? <ActivityIndicator size="small" color={colors.inverse} />
+              : <>
+                  <Feather name="globe" size={13} color={colors.inverse} />
+                  <Text style={detailStyles.shareBannerText}>Share to Explore</Text>
+                  <Feather name="arrow-right" size={13} color={colors.inverse} />
+                </>
+            }
+          </TouchableOpacity>
+        )
+      )}
+
+      {/* Day chips — fixed */}
+      <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
+
+      {/* Dot indicators */}
+      {sortedDays.length > 1 && (
+        <View style={detailStyles.dotRow}>
+          {sortedDays.map(d => (
+            <View key={d.dayNumber} style={[detailStyles.dot, selectedDay === d.dayNumber && detailStyles.dotActive]} />
+          ))}
+        </View>
+      )}
+
+      {/* Day pager — horizontal FlatList */}
+      <FlatList
+        ref={dayListRef}
+        data={sortedDays}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={d => String(d.dayNumber)}
+        getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
+        scrollEnabled={swipeEnabled}
+        onMomentumScrollEnd={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+          handleDaySwipe(idx);
+        }}
+        style={{ flex: 1 }}
+        renderItem={({ item: day }) => {
+          const dayRestaurants = meta.restaurants.filter(r => r.night === day.dayNumber);
+          const review = getReview(day.dayNumber);
+          const isPast = adventure.startDate
+            ? (() => { const d = new Date(adventure.startDate); d.setDate(d.getDate() + day.dayNumber - 1); return d < new Date(); })()
+            : false;
+          return (
+            <ScrollView
+              style={{ width: SCREEN_W }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={detailStyles.dayContent}
             >
-              {sharing
-                ? <ActivityIndicator size="small" color={colors.inverse} />
-                : <>
-                    <Feather name="globe" size={13} color={colors.inverse} />
-                    <Text style={detailStyles.shareBannerText}>Share to Explore</Text>
-                    <Feather name="arrow-right" size={13} color={colors.inverse} />
-                  </>
-              }
-            </TouchableOpacity>
-          )
-        )}
+              <View style={detailStyles.dateLabelRow}>
+                <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, day.dayNumber)}</Text>
+                {isPast && (
+                  <TouchableOpacity style={detailStyles.rateBtn} onPress={() => setFeedbackDay(day.dayNumber)}>
+                    <MaterialCommunityIcons name="star-outline" size={14} color={colors.accent} />
+                    <Text style={detailStyles.rateBtnText}>Rate</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
-        {/* Day tabs */}
-        <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
+              <StopCard
+                day={day}
+                adventureId={adventure.id}
+                stopNumber={day.dayNumber}
+                isLast={dayRestaurants.length === 0 && !meta.accommodation}
+                review={review}
+                onRate={r => setReview(day.dayNumber, { ...review, rating: r })}
+                onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
+                onConnectRoute={() => setRouteModal(true)}
+                photos={reviewPhotos[day.dayNumber] ?? []}
+                onAddPhoto={() => handleAddReviewPhoto(day.dayNumber)}
+                onShare={() => setShareDay(day.dayNumber)}
+              />
 
-        {/* Day content */}
-        {currentDay && (
-          <View style={detailStyles.dayContent}>
-            <View style={detailStyles.dateLabelRow}>
-              <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, currentDay.dayNumber)}</Text>
-              {adventure.startDate && (() => {
-                const d = new Date(adventure.startDate);
-                d.setDate(d.getDate() + currentDay.dayNumber - 1);
-                return d < new Date();
-              })() && (
-                <TouchableOpacity
-                  style={detailStyles.rateBtn}
-                  onPress={() => setFeedbackDay(currentDay.dayNumber)}
-                >
-                  <MaterialCommunityIcons name="star-outline" size={14} color={colors.accent} />
-                  <Text style={detailStyles.rateBtnText}>Rate</Text>
-                </TouchableOpacity>
+              {dayRestaurants.map((r, i) => (
+                <RestaurantCard
+                  key={i}
+                  restaurant={r}
+                  adventureId={adventure.id}
+                  idx={i}
+                  dayNumber={day.dayNumber}
+                  totalDays={sortedDays.length}
+                  onMoved={handleActivityMoved}
+                />
+              ))}
+
+              {meta.accommodation && (
+                <AccommodationCard
+                  meta={meta}
+                  adventureId={adventure.id}
+                  dayNumber={day.dayNumber}
+                  totalDays={sortedDays.length}
+                  onMoved={handleActivityMoved}
+                />
               )}
-            </View>
 
-            <StopCard
-              day={currentDay}
-              adventureId={adventure.id}
-              stopNumber={currentDay.dayNumber}
-              isLast={todayRestaurants.length === 0 && !meta}
-              review={getReview(currentDay.dayNumber)}
-              onRate={r => setReview(currentDay.dayNumber, { ...getReview(currentDay.dayNumber), rating: r })}
-              onComment={c => setReview(currentDay.dayNumber, { ...getReview(currentDay.dayNumber), comment: c })}
-              onConnectRoute={() => setRouteModal(true)}
-              photos={reviewPhotos[currentDay.dayNumber] ?? []}
-              onAddPhoto={() => handleAddReviewPhoto(currentDay.dayNumber)}
-              onShare={() => setShareDay(currentDay.dayNumber)}
-            />
+              {meta.bookings.length > 0 && (
+                <View style={{ marginBottom: spacing.md }}>
+                  <BookingsSection bookings={meta.bookings} />
+                </View>
+              )}
 
-            {/* Restaurants for today */}
-            {todayRestaurants.map((r, i) => (
-              <RestaurantCard key={i} restaurant={r} adventureId={adventure.id} idx={i} />
-            ))}
-
-            {/* Accommodation */}
-            {meta.accommodation ? <AccommodationCard meta={meta} adventureId={adventure.id} /> : null}
-          </View>
-        )}
-
-        {/* Bookings */}
-        {meta?.bookings && meta.bookings.length > 0 && (
-          <View style={{ marginHorizontal: spacing.md, marginBottom: spacing.md }}>
-            <BookingsSection bookings={meta.bookings} />
-          </View>
-        )}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+              <View style={{ height: 100 }} />
+            </ScrollView>
+          );
+        }}
+      />
 
       {/* Modals */}
       <TripMapModal
@@ -1707,6 +2015,13 @@ export default function TripDetailScreen() {
           onClose={() => setShareDay(null)}
         />
       )}
+      <EditTripModal
+        adventure={adventure}
+        visible={editVisible}
+        onClose={() => setEditVisible(false)}
+        onSave={handleSaveTrip}
+        onDelete={handleDeleteTrip}
+      />
     </View>
   );
 }
@@ -1743,6 +2058,9 @@ const detailStyles = StyleSheet.create({
   dayTabTextActive: { color: colors.inverse },
   tabFadeLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   tabFadeRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
+  dotRow: { flexDirection: "row", justifyContent: "center", gap: 5, paddingVertical: 6, backgroundColor: colors.card },
+  dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.border },
+  dotActive: { backgroundColor: colors.text, width: 14, borderRadius: 3 },
   dayContent: { padding: spacing.md, gap: spacing.md },
   dateLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
   dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
@@ -1802,6 +2120,7 @@ const tileStyles = StyleSheet.create({
   },
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
+  dragHandle: { position: "absolute", top: 10, right: 10, padding: 6, zIndex: 5 },
 });
 
 const reviewStyles = StyleSheet.create({

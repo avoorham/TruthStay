@@ -81,6 +81,42 @@ export async function shareAdventurePublic(id: string) {
   return res.json();
 }
 
+export async function updateAdventure(
+  id: string,
+  fields: { title?: string; startDate?: string | null; description?: string },
+) {
+  const res = await fetch(`${BASE}/api/adventures/${id}`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function deleteAdventure(id: string) {
+  const res = await fetch(`${BASE}/api/adventures/${id}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function moveActivity(
+  adventureId: string,
+  fromDay: number,
+  toDay: number,
+  activityType: "restaurant" | "accommodation",
+  activityIndex: number,
+) {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/move-activity`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ fromDay, toDay, activityType, activityIndex }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function recordSelection(
   adventureId: string,
   dayNumber: number,
@@ -157,8 +193,8 @@ export interface AdventureDayRow {
   routeNotes: string | null;
   komootTourId: string | null;
   alternatives: {
-    restaurants?: Array<{ name: string; cuisine?: string; price_range?: string; notes?: string; location_note?: string }>;
-    accommodationStop?: { options?: Array<{ name: string; type?: string; price_per_night_eur?: number; description?: string }> } | null;
+    restaurants?: Array<{ name: string; cuisine?: string; price_range?: string; notes?: string; location_note?: string; website_url?: string; thefork_url?: string; google_maps_url?: string }>;
+    accommodationStop?: { options?: Array<{ name: string; type?: string; price_per_night_eur?: number; description?: string; booking_url?: string }> } | null;
     [key: string]: unknown;
   } | null;
 }

@@ -75,7 +75,7 @@ export async function PATCH(
   const user = await getAuthUser(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { isSaved?: boolean; isPublic?: boolean };
+  let body: { isSaved?: boolean; isPublic?: boolean; title?: string; startDate?: string | null; description?: string };
   try {
     body = await request.json();
   } catch {
@@ -96,8 +96,11 @@ export async function PATCH(
   }
 
   const updateFields: Record<string, unknown> = {};
-  if (body.isSaved !== undefined) updateFields.isSaved = body.isSaved;
-  if (body.isPublic !== undefined) updateFields.isPublic = body.isPublic;
+  if (body.isSaved      !== undefined) updateFields.isSaved      = body.isSaved;
+  if (body.isPublic     !== undefined) updateFields.isPublic     = body.isPublic;
+  if (body.title        !== undefined) updateFields.title        = body.title;
+  if (body.startDate    !== undefined) updateFields.startDate    = body.startDate;
+  if (body.description  !== undefined) updateFields.description  = body.description;
 
   const { error } = await adminDb
     .from("adventures")
@@ -188,6 +191,37 @@ export async function PATCH(
       }
     } catch { /* RAG indexing failure must not block the response */ }
   }
+
+  return NextResponse.json({ ok: true });
+}
+
+// DELETE /api/adventures/[id] — permanently delete an adventure owned by the user
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: adventureId } = await params;
+
+  const user = await getAuthUser(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const adminDb = createAdminClient();
+
+  const { data: publicUser } = await adminDb
+    .from("users")
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  if (!publicUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const { error } = await adminDb
+    .from("adventures")
+    .delete()
+    .eq("id", adventureId)
+    .eq("userId", publicUser.id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });
 }

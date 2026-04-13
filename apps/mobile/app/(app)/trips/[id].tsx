@@ -1682,6 +1682,18 @@ export default function TripDetailScreen() {
   const dayListRef  = useRef<FlatList<AdventureDayRow>>(null);
   const swipeCooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Must be before any early return — Rules of Hooks
+  const sortedDays = React.useMemo(
+    () => [...(adventure?.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber),
+    [adventure],
+  );
+
+  // Sync FlatList position when selectedDay changes via chip tap
+  useEffect(() => {
+    const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
+    if (idx >= 0) dayListRef.current?.scrollToIndex({ index: idx, animated: true });
+  }, [selectedDay, sortedDays]);
+
   useEffect(() => {
     setSelectedDay(1);
     setLoadError(false);
@@ -1738,20 +1750,10 @@ export default function TripDetailScreen() {
     );
   }
 
-  const sortedDays  = React.useMemo(
-    () => [...(adventure?.adventure_days ?? [])].sort((a, b) => a.dayNumber - b.dayNumber),
-    [adventure],
-  );
   const meta        = deriveMetaMeta(adventure);
   const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
   const isOwner     = isOwnAdventure;
-
-  // Sync FlatList position when selectedDay changes via chip tap
-  useEffect(() => {
-    const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
-    if (idx >= 0) dayListRef.current?.scrollToIndex({ index: idx, animated: true });
-  }, [selectedDay, sortedDays]);
 
   async function handleShareToExplore() {
     if (!adventure) return;

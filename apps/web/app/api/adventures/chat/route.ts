@@ -469,7 +469,7 @@ export async function POST(request: NextRequest) {
   let response;
   try {
     response = await client.messages.create({
-      model: "claude-opus-4-6",
+      model: "claude-sonnet-4-6",
       max_tokens: 7000,
       system: finalSystemPrompt,
       messages: body.messages.map((m) => ({ role: m.role, content: m.content })),

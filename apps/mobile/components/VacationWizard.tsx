@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing } from "../lib/theme";
+import { ALL_LOCATIONS, DESTINATION_LIST, getAvailableDestinations } from "../lib/locationData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,51 +23,9 @@ interface Props {
   onCancel: () => void;
 }
 
-// ─── Static location data ─────────────────────────────────────────────────────
-
-const ALL_COUNTRIES = [
-  "France", "Spain", "Italy", "Greece", "Portugal", "Switzerland", "Austria",
-  "Croatia", "Norway", "Iceland", "Netherlands", "Scotland", "Slovenia",
-  "Montenegro", "USA", "Canada", "Mexico", "Costa Rica", "Cuba", "Jamaica",
-  "Dominican Republic", "Argentina", "Brazil", "Chile", "Peru", "Colombia",
-  "Ecuador", "Bolivia", "Uruguay", "Japan", "Thailand", "Vietnam", "Indonesia",
-  "India", "Nepal", "Sri Lanka", "Cambodia", "Philippines", "South Korea",
-  "Taiwan", "Georgia", "Kyrgyzstan", "Morocco", "South Africa", "Tanzania",
-  "Kenya", "Egypt", "Namibia", "Madagascar", "Rwanda", "Ethiopia", "Senegal",
-  "New Zealand", "Australia", "Fiji", "Papua New Guinea", "Samoa", "Vanuatu",
-  "Jordan", "Oman", "UAE", "Saudi Arabia", "Israel", "Lebanon", "Turkey", "Armenia",
-];
-
-const POPULAR_CITIES = [
-  "Paris", "Tokyo", "Bali", "New York", "Barcelona", "Rome", "Amsterdam",
-  "Dubai", "Bangkok", "Sydney", "Lisbon", "Prague", "Vienna", "Istanbul",
-  "Marrakech", "Cape Town", "Rio de Janeiro", "Buenos Aires", "Kyoto",
-  "Singapore", "Santorini", "Dubrovnik", "Reykjavik", "Vancouver",
-  "Mexico City", "Chiang Mai", "Hanoi", "Ho Chi Minh City", "Seville",
-  "Palma de Mallorca", "Florence", "Venice", "Bruges", "Edinburgh",
-  "Queenstown", "Zanzibar", "Nairobi", "Casablanca",
-];
-
-const POPULAR_REGIONS = [
-  "Algarve, Portugal", "Tuscany, Italy", "Provence, France",
-  "Scottish Highlands, UK", "Amalfi Coast, Italy", "Balearic Islands, Spain",
-  "Dolomites, Italy", "Swiss Alps, Switzerland", "Patagonia, South America",
-  "Maldives", "Seychelles", "Bali, Indonesia", "Phuket, Thailand",
-  "Costa Rica Rainforest", "Azores, Portugal", "Canary Islands, Spain",
-  "Lake District, UK", "Cotswolds, UK", "Normandy, France", "Andalusia, Spain",
-  "Catalonia, Spain", "Basque Country, Spain", "Lofoten Islands, Norway",
-  "Faroe Islands", "Cinque Terre, Italy", "Dalmatian Coast, Croatia",
-  "Black Forest, Germany", "Bohemia, Czech Republic",
-];
-
-const ALL_LOCATIONS = Array.from(new Set([...ALL_COUNTRIES, ...POPULAR_CITIES, ...POPULAR_REGIONS])).sort();
-
 // ─── Static activity data ─────────────────────────────────────────────────────
 
-const DESTINATIONS = [
-  "Beach & Coast", "Mountains & Highlands", "Countryside & Rural", "City & Culture",
-  "Lakes & Rivers", "Forest & Nature", "Islands", "Desert & Arid", "Snow & Ice", "Jungle & Tropics",
-];
+const DESTINATIONS = DESTINATION_LIST;
 
 const FOCUSES = [
   "Relax & Unwind", "Sport & Active", "Family Fun", "Sightseeing & Culture",
@@ -192,6 +151,12 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
   }
 
   function handleNext() {
+    if (step === 1) {
+      const available = getAvailableDestinations(locations);
+      setDestinations(prev => prev.filter(d => available.includes(d)));
+      setStep(s => s + 1);
+      return;
+    }
     if (step < 4) {
       setStep(s => s + 1);
       return;
@@ -205,9 +170,10 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
     setList(list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
   }
 
-  const filteredLocations = locationQuery.trim().length >= 1
-    ? ALL_LOCATIONS.filter(l => l.toLowerCase().includes(locationQuery.toLowerCase()))
-    : ALL_LOCATIONS;
+  const trimmedQuery = locationQuery.trim();
+  const filteredLocations = trimmedQuery.length >= 1
+    ? ALL_LOCATIONS.filter(l => l.toLowerCase().includes(trimmedQuery.toLowerCase()))
+    : [];
 
   const activitySections = getActivitySections(destinations, focuses);
 
@@ -259,6 +225,19 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
           keyboardShouldPersistTaps="handled"
         >
           {/* Step 1 — Location */}
+          {step === 1 && trimmedQuery.length === 0 && (
+            <Text style={s.searchHint}>Start typing to search…</Text>
+          )}
+          {step === 1 && trimmedQuery.length >= 1 &&
+            !ALL_LOCATIONS.some(l => l.toLowerCase() === trimmedQuery.toLowerCase()) && (
+            <Chip
+              key="__custom__"
+              label={`+ "${trimmedQuery}"`}
+              selected={locations.includes(trimmedQuery)}
+              onPress={() => toggle(locations, setLocations, trimmedQuery)}
+              outline
+            />
+          )}
           {step === 1 && filteredLocations.map(opt => (
             <Chip
               key={opt} label={opt}
@@ -267,8 +246,8 @@ export function VacationWizard({ visible, onComplete, onCancel }: Props) {
             />
           ))}
 
-          {/* Step 2 — Destinations */}
-          {step === 2 && DESTINATIONS.map(opt => (
+          {/* Step 2 — Destinations (geo-filtered) */}
+          {step === 2 && getAvailableDestinations(locations).map(opt => (
             <Chip
               key={opt} label={opt}
               selected={destinations.includes(opt)}
@@ -375,6 +354,12 @@ const s = StyleSheet.create({
     fontSize: fontSize.base,
     color: colors.text,
     marginBottom: spacing.md,
+  },
+  searchHint: {
+    fontSize: fontSize.sm,
+    color: colors.subtle,
+    marginTop: spacing.lg,
+    textAlign: "center",
   },
   scroll: {
     flex: 1,

@@ -639,9 +639,12 @@ function StopCard({
   onAddPhoto: () => void;
   onShare: () => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-${day.dayNumber}/800/500`;
   return (
     <View style={tileStyles.row}>
+      {/* Drag handle — left side, disabled for route cards */}
+      <DragHandle disabled onDraggingChange={setIsDragging} />
       <View style={tileStyles.timeline}>
         <View style={tileStyles.circle}>
           <Text style={tileStyles.circleNum}>{stopNumber}</Text>
@@ -649,8 +652,15 @@ function StopCard({
         {!isLast && <View style={tileStyles.line} />}
       </View>
 
-      <View style={tileStyles.card}>
+      <Animated.View style={[
+        tileStyles.card,
+        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+        {/* Camera button */}
+        <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+          <Feather name="camera" size={14} color={colors.muted} />
+        </TouchableOpacity>
         <View style={tileStyles.info}>
           <Text style={tileStyles.title} numberOfLines={2}>{day.title}</Text>
           {day.routeNotes ? (
@@ -691,24 +701,34 @@ function StopCard({
 
         {/* Review section */}
         <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }: {
+function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay }: {
   meta: TripMeta;
   adventureId: string;
   dayNumber: number;
   totalDays: number;
   onMoved: () => void;
+  onAddPhoto?: () => void;
+  onPreviewDay?: (dir: "left" | "right") => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
   return (
     <View style={tileStyles.row}>
+      {/* Drag handle — left side */}
+      <DragHandle
+        disabled={totalDays <= 1}
+        onDraggingChange={setIsDragging}
+        onPreviewDay={onPreviewDay}
+        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
+        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
+      />
       <View style={tileStyles.timeline}>
         <View style={[tileStyles.circle, { backgroundColor: colors.accent }]}>
           <Feather name="home" size={14} color="#FFFFFF" />
@@ -719,6 +739,12 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }:
         isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
       ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+        {/* Camera button */}
+        {onAddPhoto && (
+          <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+            <Feather name="camera" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        )}
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{meta.accommodation}</Text>
           <View style={tileStyles.infoRow}>
@@ -754,19 +780,13 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }:
           </TouchableOpacity>
         </View>
       </Animated.View>
-      <DragHandle
-        disabled={totalDays <= 1}
-        onDraggingChange={setIsDragging}
-        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
-        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
-      />
     </View>
   );
 }
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown }: {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay }: {
   restaurant: RestaurantStop;
   adventureId: string;
   idx: number;
@@ -776,11 +796,23 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   isLast?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onAddPhoto?: () => void;
+  onPreviewDay?: (dir: "left" | "right") => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-rest${idx}/800/500`;
   return (
     <View style={tileStyles.row}>
+      {/* Drag handle — left side */}
+      <DragHandle
+        disabled={totalDays <= 1}
+        onDraggingChange={setIsDragging}
+        onPreviewDay={onPreviewDay}
+        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
+        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+      />
       <View style={tileStyles.timeline}>
         <View style={[tileStyles.circle, { backgroundColor: "#E07B39" }]}>
           <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
@@ -792,6 +824,12 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
       ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+        {/* Camera button */}
+        {onAddPhoto && (
+          <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+            <Feather name="camera" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        )}
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{restaurant.name}</Text>
           <View style={tileStyles.infoRow}>
@@ -829,14 +867,6 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
           </TouchableOpacity>
         </View>
       </Animated.View>
-      <DragHandle
-        disabled={totalDays <= 1}
-        onDraggingChange={setIsDragging}
-        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
-        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
-        onMoveUp={onMoveUp}
-        onMoveDown={onMoveDown}
-      />
     </View>
   );
 }
@@ -1508,34 +1538,68 @@ const fbStyles = StyleSheet.create({
 
 // ─── Drag handle ─────────────────────────────────────────────────────────────
 
-function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange }: {
+function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange, onPreviewDay }: {
   onDragLeft?: () => void;
   onDragRight?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   disabled?: boolean;
   onDraggingChange?: (v: boolean) => void;
+  onPreviewDay?: (dir: "left" | "right") => void;
 }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const THRESHOLD = 60;
 
+  // Keep latest callbacks accessible inside PanResponder closure
+  const cb = useRef({ onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled });
+  cb.current = { onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled };
+
+  const dayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const daySwitched = useRef(false);
+  const lastDir = useRef<"left" | "right" | null>(null);
+
   const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => !disabled,
+    onStartShouldSetPanResponder: () => !cb.current.disabled,
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
     onPanResponderGrant: () => {
-      onDraggingChange?.(true);
+      cb.current.onDraggingChange?.(true);
       Vibration.vibrate(30);
+      daySwitched.current = false;
+      lastDir.current = null;
     },
-    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
-    onPanResponderRelease: (_, g) => {
-      onDraggingChange?.(false);
-      const isHorizontal = Math.abs(g.dx) >= Math.abs(g.dy);
-      if (isHorizontal) {
-        if (g.dx < -THRESHOLD && onDragLeft) onDragLeft();
-        else if (g.dx > THRESHOLD && onDragRight) onDragRight();
+    onPanResponderMove: (_, g) => {
+      pan.setValue({ x: g.dx, y: g.dy });
+      const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
+        const dir = g.dx < 0 ? "left" : "right";
+        if (!dayTimer.current && !daySwitched.current) {
+          lastDir.current = dir;
+          dayTimer.current = setTimeout(() => {
+            daySwitched.current = true;
+            dayTimer.current = null;
+            cb.current.onPreviewDay?.(dir);
+          }, 500);
+        }
       } else {
-        if (g.dy < -THRESHOLD && onMoveUp) onMoveUp();
-        else if (g.dy > THRESHOLD && onMoveDown) onMoveDown();
+        // Returned to center or gone vertical — cancel pending day switch
+        if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      }
+    },
+    onPanResponderRelease: (_, g) => {
+      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      cb.current.onDraggingChange?.(false);
+      if (daySwitched.current) {
+        // Day was previewed — commit the cross-day move
+        if (lastDir.current === "left") cb.current.onDragLeft?.();
+        else if (lastDir.current === "right") cb.current.onDragRight?.();
+        daySwitched.current = false;
+      } else {
+        // No day switch — check vertical reorder
+        const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+        if (!isHoriz) {
+          if (g.dy < -THRESHOLD) cb.current.onMoveUp?.();
+          else if (g.dy > THRESHOLD) cb.current.onMoveDown?.();
+        }
       }
       Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
@@ -1693,6 +1757,7 @@ export default function TripDetailScreen() {
   const router   = useRouter();
 
   const [adventure, setAdventure]         = useState<AdventureRow | null>(null);
+  const [allAdventures, setAllAdventures] = useState<AdventureRow[]>([]);
   const [loadError, setLoadError]         = useState(false);
   const [isOwnAdventure, setIsOwnAdventure] = useState(false);
   const [selectedDay, setSelectedDay]     = useState(1);
@@ -1708,8 +1773,10 @@ export default function TripDetailScreen() {
   const [sharing, setSharing]             = useState(false);
   const [editVisible, setEditVisible]     = useState(false);
   const [swipeEnabled, setSwipeEnabled]   = useState(true);
-  const dayListRef  = useRef<FlatList<AdventureDayRow>>(null);
-  const swipeCooldown = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
+  const heroCarouselRef = useRef<FlatList<AdventureRow>>(null);
+  const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroOffset      = useRef(new Animated.Value(0)).current;
 
   // Must be before any early return — Rules of Hooks
   const sortedDays = React.useMemo(
@@ -1724,16 +1791,27 @@ export default function TripDetailScreen() {
   }, [selectedDay, sortedDays]);
 
   useEffect(() => {
+    setAdventure(null);      // clear stale content immediately → shows spinner
     setSelectedDay(1);
+    heroOffset.setValue(0);
     setLoadError(false);
     async function load() {
       try {
         // Try own adventures first (may fail if not logged in — that's fine)
         let isOwn = false;
+        let myAdventures: AdventureRow[] = [];
         try {
-          const list = await getMyAdventures();
-          isOwn = list.some(a => a.id === id);
+          myAdventures = await getMyAdventures();
+          isOwn = myAdventures.some(a => a.id === id);
         } catch { /* not logged in or no adventures */ }
+
+        // Sort: current → upcoming → past (same order as My Trips screen)
+        const sorted = [...myAdventures].sort((a, b) => {
+          const sa = a.startDate ? (new Date(a.startDate) <= new Date() ? 0 : 1) : 1;
+          const sb = b.startDate ? (new Date(b.startDate) <= new Date() ? 0 : 1) : 1;
+          return sa - sb || (a.startDate ?? "").localeCompare(b.startDate ?? "");
+        });
+        setAllAdventures(sorted);
 
         // Always load via getAdventureById so we get isPublic for owners
         const adv = await getAdventureById(id ?? "");
@@ -1834,6 +1912,52 @@ export default function TripDetailScreen() {
     setAdventure(adv);
   }
 
+  function handlePreviewDay(dir: "left" | "right") {
+    const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
+    const targetIdx = dir === "left" ? idx - 1 : idx + 1;
+    if (targetIdx >= 0 && targetIdx < sortedDays.length) {
+      dayListRef.current?.scrollToIndex({ index: targetIdx, animated: true });
+      setSelectedDay(sortedDays[targetIdx].dayNumber);
+    }
+  }
+
+  async function handleAddActivityPhoto(dayNum: number, key: string) {
+    const uri = await pickImage([4, 3]);
+    if (!uri) return;
+    const url = await uploadReviewPhoto(`${adventure!.id}-${key}-${Date.now()}`, uri);
+    if (url) setReviewPhotos(prev => ({ ...prev, [dayNum]: [...(prev[dayNum] ?? []), url] }));
+  }
+
+  async function handleShareToFeed() {
+    const allPhotos = Object.values(reviewPhotos).flat();
+    if (allPhotos.length === 0) {
+      Alert.alert("No photos yet", "Add photos to your activities first using the camera icon on each tile.");
+      return;
+    }
+    Alert.alert(
+      "Share to Feed",
+      `Share ${allPhotos.length} photo${allPhotos.length !== 1 ? "s" : ""} from this trip to your feed?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Share",
+          onPress: async () => {
+            try {
+              await createPost({
+                adventure_id: adventure!.id,
+                caption: adventure!.title,
+                media_urls: allPhotos,
+              });
+              Alert.alert("Shared!", "Your trip photos have been posted to the feed.");
+            } catch {
+              Alert.alert("Error", "Could not share to feed. Please try again.");
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function handleDaySwipe(idx: number) {
     const day = sortedDays[idx];
     if (!day) return;
@@ -1868,9 +1992,39 @@ export default function TripDetailScreen() {
         </View>
       </View>
 
-      {/* Hero — fixed above pager */}
-      <View style={{ height: HERO_H }}>
-        <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {/* Hero — collapsible, driven by inner ScrollView scroll */}
+      <Animated.View style={{
+        height: heroOffset.interpolate({ inputRange: [0, HERO_H], outputRange: [HERO_H, 0], extrapolate: "clamp" }),
+        overflow: "hidden",
+      }}>
+        {/* Trip photo carousel — swipe left/right to switch trips */}
+        {allAdventures.length > 0 ? (
+          <FlatList
+            ref={heroCarouselRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            data={allAdventures}
+            initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
+            getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
+            keyExtractor={a => a.id}
+            renderItem={({ item }) => (
+              <Image
+                source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
+                style={{ width: SCREEN_W, height: HERO_H }}
+                resizeMode="cover"
+              />
+            )}
+            onMomentumScrollEnd={e => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+              const target = allAdventures[idx];
+              if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
+            }}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        )}
         <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
         <View style={detailStyles.heroText}>
           <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
@@ -1884,12 +2038,7 @@ export default function TripDetailScreen() {
             <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
           </View>
         </View>
-        {isOwner && (
-          <TouchableOpacity style={detailStyles.heroEditBtn} onPress={handleChangeCover}>
-            <Feather name="camera" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-      </View>
+      </Animated.View>
 
       {/* Share / public status banner (own adventures only) */}
       {isOwner && (
@@ -1955,6 +2104,12 @@ export default function TripDetailScreen() {
               style={{ width: SCREEN_W }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={detailStyles.dayContent}
+              scrollEventThrottle={16}
+              onScroll={e => {
+                if (day.dayNumber === selectedDay) {
+                  heroOffset.setValue(e.nativeEvent.contentOffset.y);
+                }
+              }}
             >
               <View style={detailStyles.dateLabelRow}>
                 <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, day.dayNumber)}</Text>
@@ -1976,7 +2131,7 @@ export default function TripDetailScreen() {
                 onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
                 onConnectRoute={() => setRouteModal(true)}
                 photos={reviewPhotos[day.dayNumber] ?? []}
-                onAddPhoto={() => handleAddReviewPhoto(day.dayNumber)}
+                onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `route${day.dayNumber}`)}
                 onShare={() => setShareDay(day.dayNumber)}
               />
 
@@ -1990,6 +2145,8 @@ export default function TripDetailScreen() {
                   totalDays={sortedDays.length}
                   isLast={i === dayRestaurants.length - 1 && !meta.accommodation}
                   onMoved={handleActivityMoved}
+                  onPreviewDay={handlePreviewDay}
+                  onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${i}`)}
                   onMoveUp={i > 0 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i - 1); handleActivityMoved(); } : undefined}
                   onMoveDown={i < dayRestaurants.length - 1 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1); handleActivityMoved(); } : undefined}
                 />
@@ -2002,6 +2159,8 @@ export default function TripDetailScreen() {
                   dayNumber={day.dayNumber}
                   totalDays={sortedDays.length}
                   onMoved={handleActivityMoved}
+                  onPreviewDay={handlePreviewDay}
+                  onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom")}
                 />
               )}
 
@@ -2056,6 +2215,18 @@ export default function TripDetailScreen() {
         onSave={handleSaveTrip}
         onDelete={handleDeleteTrip}
       />
+
+      {/* Floating Share to Feed button — only for owner with photos */}
+      {isOwner && Object.values(reviewPhotos).flat().length > 0 && (
+        <TouchableOpacity
+          style={[detailStyles.shareFeedBtn, { bottom: insets.bottom + 16 }]}
+          onPress={handleShareToFeed}
+          activeOpacity={0.85}
+        >
+          <Feather name="share-2" size={15} color="#fff" />
+          <Text style={detailStyles.shareFeedText}>Share to Feed</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -2100,12 +2271,15 @@ const detailStyles = StyleSheet.create({
   dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
   rateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.accent },
   rateBtnText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.accent },
-  heroEditBtn: {
-    position: "absolute", bottom: spacing.md, right: spacing.md,
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    alignItems: "center", justifyContent: "center",
+  shareFeedBtn: {
+    position: "absolute", right: 20,
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: radius.full,
+    ...shadow.md,
   },
+  shareFeedText: { color: "#fff", fontWeight: "700", fontSize: fontSize.sm },
   shareBanner: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 6, backgroundColor: colors.accent,
@@ -2155,6 +2329,7 @@ const tileStyles = StyleSheet.create({
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
   dragColumn: { width: 28, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, paddingTop: 4 },
+  cameraBtn: { position: "absolute", top: 8, right: 8, padding: 6, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16, zIndex: 2 },
 });
 
 const reviewStyles = StyleSheet.create({

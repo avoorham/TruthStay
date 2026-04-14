@@ -1,14 +1,14 @@
 import {
-  ActivityIndicator, Dimensions, FlatList, Image, StyleSheet,
+  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, type AdventureRow } from "../../../lib/api";
+import { getMyAdventures, deleteAdventure, type AdventureRow } from "../../../lib/api";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 const ACTIVITY_ICON: Record<string, string> = {
@@ -51,45 +51,83 @@ function formatDateRange(startDate: string | null, durationDays: number): string
 
 // ─── Trip photo card ──────────────────────────────────────────────────────────
 
-function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPress: () => void }) {
+function TripPhotoCard({
+  adventure, onPress, isEditMode, isSelected, onToggleSelect, onLongPress,
+}: {
+  adventure: AdventureRow;
+  onPress: () => void;
+  isEditMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onLongPress: () => void;
+}) {
   const status = tripStatus(adventure);
   const iconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   const statusLabel = status === "current" ? "In Progress" : status === "upcoming" ? "Upcoming" : "Completed";
   const statusColor = status === "current" ? colors.easy : status === "upcoming" ? colors.accent : colors.muted;
   const photoUrl = `https://picsum.photos/seed/${adventure.id}/800/500`;
 
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: isEditMode ? 44 : 0,
+      useNativeDriver: true,
+      bounciness: 6,
+    }).start();
+  }, [isEditMode, slideAnim]);
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-
-      {/* Gradient */}
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.75)"]}
-        style={styles.gradient}
-      />
-
-      {/* Text overlay */}
-      <View style={styles.textOverlay}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
-        <View style={styles.subtitleRow}>
-          <MaterialCommunityIcons name={iconName} size={14} color="rgba(255,255,255,0.85)" />
-          <Text style={styles.subtitleText}>
-            {formatDateRange(adventure.startDate, adventure.durationDays)}
-          </Text>
-        </View>
-        <View style={styles.bottomRow}>
-          <View style={styles.regionRow}>
-            <Feather name="map-pin" size={11} color="rgba(255,255,255,0.65)" />
-            <Text style={styles.regionText} numberOfLines={1}>{adventure.region}</Text>
+    <View style={styles.cardRow}>
+      {/* Checkbox — slides in from the left in edit mode */}
+      {isEditMode && (
+        <TouchableOpacity style={styles.checkbox} onPress={onToggleSelect}>
+          <View style={[styles.checkboxInner, isSelected && styles.checkboxSelected]}>
+            {isSelected && <Feather name="check" size={13} color="#fff" />}
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
-            <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
-              {statusLabel}
-            </Text>
+        </TouchableOpacity>
+      )}
+
+      <Animated.View style={{ transform: [{ translateX: slideAnim }], flex: 1 }}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={isEditMode ? onToggleSelect : onPress}
+          onLongPress={onLongPress}
+          activeOpacity={0.9}
+          delayLongPress={400}
+        >
+          <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+
+          {/* Gradient */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.75)"]}
+            style={styles.gradient}
+          />
+
+          {/* Text overlay */}
+          <View style={styles.textOverlay}>
+            <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
+            <View style={styles.subtitleRow}>
+              <MaterialCommunityIcons name={iconName} size={14} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.subtitleText}>
+                {formatDateRange(adventure.startDate, adventure.durationDays)}
+              </Text>
+            </View>
+            <View style={styles.bottomRow}>
+              <View style={styles.regionRow}>
+                <Feather name="map-pin" size={11} color="rgba(255,255,255,0.65)" />
+                <Text style={styles.regionText} numberOfLines={1}>{adventure.region}</Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
+                <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
+                  {statusLabel}
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -98,7 +136,14 @@ function TripPhotoCard({ adventure, onPress }: { adventure: AdventureRow; onPres
 type TabKey = "current" | "upcoming" | "past";
 const TAB_LABELS: Record<TabKey, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
 
-function TabStrip({ tabs, active, onChange }: { tabs: TabKey[]; active: TabKey; onChange: (t: TabKey) => void }) {
+function TabStrip({
+  tabs, active, onChange, onAdd,
+}: {
+  tabs: TabKey[];
+  active: TabKey;
+  onChange: (t: TabKey) => void;
+  onAdd: () => void;
+}) {
   return (
     <View style={styles.tabStrip}>
       {tabs.map(t => (
@@ -110,6 +155,9 @@ function TabStrip({ tabs, active, onChange }: { tabs: TabKey[]; active: TabKey; 
           <Text style={[styles.tabText, active === t && styles.tabTextActive]}>{TAB_LABELS[t]}</Text>
         </TouchableOpacity>
       ))}
+      <TouchableOpacity style={styles.addPill} onPress={onAdd} activeOpacity={0.8}>
+        <Feather name="plus" size={17} color={colors.inverse} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -131,6 +179,9 @@ export default function TripsScreen() {
   const [tab, setTab] = useState<TabKey>("upcoming");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -171,21 +222,67 @@ export default function TripsScreen() {
     [adventures, tab],
   );
 
+  function exitEditMode() {
+    setIsEditMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDeleteSelected() {
+    Alert.alert(
+      "Delete trips",
+      `Delete ${selectedIds.size} trip${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await Promise.all([...selectedIds].map(id => deleteAdventure(id)));
+              await load();
+              exitEditMode();
+            } catch {
+              Alert.alert("Error", "Some trips could not be deleted. Please try again.");
+            } finally {
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>My Trips</Text>
-          <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => router.push("/(app)/discover")}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={20} color={colors.inverse} />
-          </TouchableOpacity>
+          {isEditMode ? (
+            <TouchableOpacity onPress={exitEditMode}>
+              <Text style={styles.editToggleText}>Done</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setIsEditMode(true)}>
+              <Text style={styles.editToggleText}>Edit</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        <TabStrip tabs={availableTabs} active={tab} onChange={setTab} />
+        <TabStrip
+          tabs={availableTabs}
+          active={tab}
+          onChange={setTab}
+          onAdd={() => router.push("/(app)/discover")}
+        />
       </View>
 
       {/* Loading */}
@@ -215,9 +312,13 @@ export default function TripsScreen() {
             <TripPhotoCard
               adventure={item}
               onPress={() => router.push(`/(app)/trips/${item.id}`)}
+              isEditMode={isEditMode}
+              isSelected={selectedIds.has(item.id)}
+              onToggleSelect={() => toggleSelect(item.id)}
+              onLongPress={() => { if (!isEditMode) setIsEditMode(true); }}
             />
           )}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isEditMode && { paddingBottom: 120 }]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
@@ -226,6 +327,27 @@ export default function TripsScreen() {
             </View>
           }
         />
+      )}
+
+      {/* Edit mode bottom bar */}
+      {isEditMode && (
+        <View style={[styles.editBar, { paddingBottom: insets.bottom + spacing.md }]}>
+          <TouchableOpacity style={styles.cancelEditBtn} onPress={exitEditMode}>
+            <Text style={styles.cancelEditText}>Cancel</Text>
+          </TouchableOpacity>
+          {selectedIds.size > 0 && (
+            <TouchableOpacity
+              style={[styles.deleteBtn, deleting && { opacity: 0.6 }]}
+              onPress={handleDeleteSelected}
+              disabled={deleting}
+            >
+              {deleting
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.deleteBtnText}>Delete ({selectedIds.size})</Text>
+              }
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );
@@ -245,12 +367,8 @@ const styles = StyleSheet.create({
   },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
-  addBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.text,
-    alignItems: "center", justifyContent: "center",
-  },
-  tabStrip: { flexDirection: "row", gap: spacing.sm },
+  editToggleText: { fontSize: fontSize.base, fontWeight: "600", color: colors.accent },
+  tabStrip: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   tabPill: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
@@ -261,25 +379,28 @@ const styles = StyleSheet.create({
   tabPillActive: { backgroundColor: colors.text, borderColor: colors.text },
   tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
   tabTextActive: { color: colors.inverse },
+  addPill: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: colors.text,
+    alignItems: "center", justifyContent: "center",
+  },
   list: { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
+  cardRow: { flexDirection: "row", alignItems: "center" },
   card: {
-    width: SCREEN_W - 32,
+    flex: 1,
     height: 220,
     borderRadius: 16,
     overflow: "hidden",
     backgroundColor: colors.sheet,
     ...shadow.md,
   },
-  heartBtn: {
-    position: "absolute",
-    top: 12, right: 12,
-    width: 34, height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 2,
+  checkbox: { width: 44, alignItems: "center", justifyContent: "center" },
+  checkboxInner: {
+    width: 24, height: 24, borderRadius: 12,
+    borderWidth: 2, borderColor: colors.accent,
+    alignItems: "center", justifyContent: "center",
   },
+  checkboxSelected: { backgroundColor: colors.accent },
   gradient: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
@@ -332,4 +453,24 @@ const styles = StyleSheet.create({
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
   },
   retryText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  editBar: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: spacing.lg, paddingTop: spacing.md,
+    backgroundColor: colors.bg,
+    borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  cancelEditBtn: {
+    paddingHorizontal: 24, paddingVertical: 12,
+    borderRadius: radius.full,
+    backgroundColor: colors.sheet,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  cancelEditText: { color: colors.muted, fontWeight: "600", fontSize: fontSize.base },
+  deleteBtn: {
+    paddingHorizontal: 24, paddingVertical: 12,
+    borderRadius: radius.full,
+    backgroundColor: "#E53E3E",
+  },
+  deleteBtnText: { color: "#fff", fontWeight: "700", fontSize: fontSize.base },
 });

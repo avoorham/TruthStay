@@ -10,7 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, reorderActivity, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
@@ -705,6 +705,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }:
   totalDays: number;
   onMoved: () => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -713,12 +714,10 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }:
           <Feather name="home" size={14} color="#FFFFFF" />
         </View>
       </View>
-      <View style={tileStyles.card}>
-        <DragHandle
-          disabled={totalDays <= 1}
-          onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
-          onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
-        />
+      <Animated.View style={[
+        tileStyles.card,
+        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{meta.accommodation}</Text>
@@ -754,21 +753,31 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved }:
             <Text style={tileStyles.actionText}>Book</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
+      <DragHandle
+        disabled={totalDays <= 1}
+        onDraggingChange={setIsDragging}
+        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
+        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
+      />
     </View>
   );
 }
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved }: {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown }: {
   restaurant: RestaurantStop;
   adventureId: string;
   idx: number;
   dayNumber: number;
   totalDays: number;
   onMoved: () => void;
+  isLast?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-rest${idx}/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -776,13 +785,12 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         <View style={[tileStyles.circle, { backgroundColor: "#E07B39" }]}>
           <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
         </View>
+        {!isLast && <View style={tileStyles.line} />}
       </View>
-      <View style={tileStyles.card}>
-        <DragHandle
-          disabled={totalDays <= 1}
-          onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
-          onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
-        />
+      <Animated.View style={[
+        tileStyles.card,
+        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+      ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{restaurant.name}</Text>
@@ -820,7 +828,15 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
             <Text style={tileStyles.actionText}>Reserve</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
+      <DragHandle
+        disabled={totalDays <= 1}
+        onDraggingChange={setIsDragging}
+        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
+        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+      />
     </View>
   );
 }
@@ -1492,22 +1508,35 @@ const fbStyles = StyleSheet.create({
 
 // ─── Drag handle ─────────────────────────────────────────────────────────────
 
-function DragHandle({ onDragLeft, onDragRight, disabled }: {
+function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange }: {
   onDragLeft?: () => void;
   onDragRight?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   disabled?: boolean;
+  onDraggingChange?: (v: boolean) => void;
 }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const THRESHOLD = 60;
 
   const panResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !disabled,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8,
-    onPanResponderGrant: () => { Vibration.vibrate(30); },
-    onPanResponderMove: Animated.event([null, { dx: pan.x }], { useNativeDriver: false }),
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
+    onPanResponderGrant: () => {
+      onDraggingChange?.(true);
+      Vibration.vibrate(30);
+    },
+    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
     onPanResponderRelease: (_, g) => {
-      if (g.dx < -THRESHOLD && onDragLeft) onDragLeft();
-      else if (g.dx > THRESHOLD && onDragRight) onDragRight();
+      onDraggingChange?.(false);
+      const isHorizontal = Math.abs(g.dx) >= Math.abs(g.dy);
+      if (isHorizontal) {
+        if (g.dx < -THRESHOLD && onDragLeft) onDragLeft();
+        else if (g.dx > THRESHOLD && onDragRight) onDragRight();
+      } else {
+        if (g.dy < -THRESHOLD && onMoveUp) onMoveUp();
+        else if (g.dy > THRESHOLD && onMoveDown) onMoveDown();
+      }
       Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
   })).current;
@@ -1515,9 +1544,9 @@ function DragHandle({ onDragLeft, onDragRight, disabled }: {
   return (
     <Animated.View
       {...panResponder.panHandlers}
-      style={[tileStyles.dragHandle, { transform: [{ translateX: pan.x }] }, disabled && { opacity: 0.25 }]}
+      style={[tileStyles.dragColumn, disabled && { opacity: 0.25 }]}
     >
-      <MaterialCommunityIcons name="drag" size={20} color={colors.muted} />
+      <MaterialCommunityIcons name="drag" size={22} color={colors.muted} />
     </Animated.View>
   );
 }
@@ -1818,7 +1847,7 @@ export default function TripDetailScreen() {
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={detailStyles.header}>
-        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.navigate("/(app)/trips")}>
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
@@ -1959,7 +1988,10 @@ export default function TripDetailScreen() {
                   idx={i}
                   dayNumber={day.dayNumber}
                   totalDays={sortedDays.length}
+                  isLast={i === dayRestaurants.length - 1 && !meta.accommodation}
                   onMoved={handleActivityMoved}
+                  onMoveUp={i > 0 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i - 1); handleActivityMoved(); } : undefined}
+                  onMoveDown={i < dayRestaurants.length - 1 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1); handleActivityMoved(); } : undefined}
                 />
               ))}
 
@@ -2122,7 +2154,7 @@ const tileStyles = StyleSheet.create({
   },
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
-  dragHandle: { position: "absolute", top: 10, right: 10, padding: 6, zIndex: 5 },
+  dragColumn: { width: 28, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, paddingTop: 4 },
 });
 
 const reviewStyles = StyleSheet.create({

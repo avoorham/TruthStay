@@ -117,6 +117,21 @@ export async function moveActivity(
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+export async function reorderActivity(
+  adventureId: string,
+  dayNumber: number,
+  activityType: "restaurant",
+  fromIndex: number,
+  toIndex: number,
+) {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/reorder-activity`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ dayNumber, activityType, fromIndex, toIndex }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function recordSelection(
   adventureId: string,
   dayNumber: number,

@@ -639,12 +639,9 @@ function StopCard({
   onAddPhoto: () => void;
   onShare: () => void;
 }) {
-  const [isDragging, setIsDragging] = useState(false);
   const photoUrl = `https://picsum.photos/seed/${adventureId}-${day.dayNumber}/800/500`;
   return (
     <View style={tileStyles.row}>
-      {/* Drag handle — left side, disabled for route cards */}
-      <DragHandle disabled onDraggingChange={setIsDragging} />
       <View style={tileStyles.timeline}>
         <View style={tileStyles.circle}>
           <Text style={tileStyles.circleNum}>{stopNumber}</Text>
@@ -652,10 +649,7 @@ function StopCard({
         {!isLast && <View style={tileStyles.line} />}
       </View>
 
-      <Animated.View style={[
-        tileStyles.card,
-        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
-      ]}>
+      <View style={tileStyles.card}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
         <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
@@ -701,14 +695,14 @@ function StopCard({
 
         {/* Review section */}
         <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
-      </Animated.View>
+      </View>
     </View>
   );
 }
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay }: {
+function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay, onDraggingChange }: {
   meta: TripMeta;
   adventureId: string;
   dayNumber: number;
@@ -716,31 +710,113 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
   onMoved: () => void;
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
+  onDraggingChange?: (v: boolean) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
   const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
+
+  const isDraggingRef  = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dayTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const daySwitchedRef = useRef(false);
+  const lastDirRef     = useRef<"left" | "right" | null>(null);
+  const THRESHOLD      = 60;
+  const LONG_PRESS_MS  = 400;
+  const DAY_SWITCH_MS  = 500;
+
+  const cbAccom = useRef({
+    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
+    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
+    onDraggingChange, onPreviewDay,
+    disabled: totalDays <= 1,
+  });
+  cbAccom.current = {
+    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined,
+    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined,
+    onDraggingChange, onPreviewDay,
+    disabled: totalDays <= 1,
+  };
+
+  const accomPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => !cbAccom.current.disabled,
+    onMoveShouldSetPanResponder:  () => isDraggingRef.current,
+    onPanResponderTerminationRequest: () => !isDraggingRef.current,
+
+    onPanResponderGrant: () => {
+      longPressTimer.current = setTimeout(() => {
+        isDraggingRef.current = true;
+        Vibration.vibrate(30);
+        setIsDragging(true);
+        cbAccom.current.onDraggingChange?.(true);
+      }, LONG_PRESS_MS);
+    },
+
+    onPanResponderMove: (_, g) => {
+      if (!isDraggingRef.current) {
+        if (Math.abs(g.dx) > 10 || Math.abs(g.dy) > 10) {
+          if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+        }
+        return;
+      }
+      cardPan.setValue({ x: g.dx, y: g.dy });
+      const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
+        const dir = g.dx < 0 ? "left" : "right";
+        if (!dayTimer.current && !daySwitchedRef.current) {
+          lastDirRef.current = dir;
+          dayTimer.current = setTimeout(() => {
+            daySwitchedRef.current = true;
+            dayTimer.current = null;
+            cbAccom.current.onPreviewDay?.(dir);
+          }, DAY_SWITCH_MS);
+        }
+      } else {
+        if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      }
+    },
+
+    onPanResponderRelease: (_) => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbAccom.current.onDraggingChange?.(false);
+      if (daySwitchedRef.current) {
+        if (lastDirRef.current === "left") cbAccom.current.onDragLeft?.();
+        else if (lastDirRef.current === "right") cbAccom.current.onDragRight?.();
+        daySwitchedRef.current = false;
+      }
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+
+    onPanResponderTerminate: () => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbAccom.current.onDraggingChange?.(false);
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+  })).current;
+
   return (
     <View style={tileStyles.row}>
-      {/* Drag handle — left side */}
-      <DragHandle
-        disabled={totalDays <= 1}
-        onDraggingChange={setIsDragging}
-        onPreviewDay={onPreviewDay}
-        cardPan={cardPan}
-        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
-        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
-      />
       <View style={tileStyles.timeline}>
         <View style={[tileStyles.circle, { backgroundColor: colors.accent }]}>
           <Feather name="home" size={14} color="#FFFFFF" />
         </View>
       </View>
-      {/* Outer: handles transform + zIndex */}
-      <Animated.View style={[
-        { flex: 1, transform: cardPan.getTranslateTransform() },
-        isDragging && { zIndex: 100 },
-      ]}>
+      {/* Outer: handles transform + zIndex + pan gesture */}
+      <Animated.View
+        {...accomPan.panHandlers}
+        style={[
+          { flex: 1, transform: cardPan.getTranslateTransform() },
+          isDragging && { zIndex: 100 },
+        ]}
+      >
       {/* Inner: retains overflow:hidden for rounded photo corners */}
       <Animated.View style={[
         tileStyles.card,
@@ -795,7 +871,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay }: {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay, onDraggingChange }: {
   restaurant: RestaurantStop;
   adventureId: string;
   idx: number;
@@ -807,34 +883,122 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   onMoveDown?: () => void;
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
+  onDraggingChange?: (v: boolean) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
   const photoUrl = `https://picsum.photos/seed/${adventureId}-rest${idx}/800/500`;
+
+  const isDraggingRef    = useRef(false);
+  const longPressTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dayTimer         = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const daySwitchedRef   = useRef(false);
+  const lastDirRef       = useRef<"left" | "right" | null>(null);
+  const THRESHOLD        = 60;
+  const LONG_PRESS_MS    = 400;
+  const DAY_SWITCH_MS    = 500;
+
+  const cbRest = useRef({
+    onMoveUp, onMoveDown,
+    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined as (() => void) | undefined,
+    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined as (() => void) | undefined,
+    onDraggingChange, onPreviewDay,
+    disabled: totalDays <= 1,
+  });
+  cbRest.current = {
+    onMoveUp, onMoveDown,
+    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined,
+    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined,
+    onDraggingChange, onPreviewDay,
+    disabled: totalDays <= 1,
+  };
+
+  const restPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => !cbRest.current.disabled,
+    onMoveShouldSetPanResponder:  () => isDraggingRef.current,
+    onPanResponderTerminationRequest: () => !isDraggingRef.current,
+
+    onPanResponderGrant: () => {
+      longPressTimer.current = setTimeout(() => {
+        isDraggingRef.current = true;
+        Vibration.vibrate(30);
+        setIsDragging(true);
+        cbRest.current.onDraggingChange?.(true);
+      }, LONG_PRESS_MS);
+    },
+
+    onPanResponderMove: (_, g) => {
+      if (!isDraggingRef.current) {
+        if (Math.abs(g.dx) > 10 || Math.abs(g.dy) > 10) {
+          if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+        }
+        return;
+      }
+      cardPan.setValue({ x: g.dx, y: g.dy });
+      const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
+        const dir = g.dx < 0 ? "left" : "right";
+        if (!dayTimer.current && !daySwitchedRef.current) {
+          lastDirRef.current = dir;
+          dayTimer.current = setTimeout(() => {
+            daySwitchedRef.current = true;
+            dayTimer.current = null;
+            cbRest.current.onPreviewDay?.(dir);
+          }, DAY_SWITCH_MS);
+        }
+      } else {
+        if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      }
+    },
+
+    onPanResponderRelease: (_, g) => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbRest.current.onDraggingChange?.(false);
+      if (daySwitchedRef.current) {
+        if (lastDirRef.current === "left") cbRest.current.onDragLeft?.();
+        else if (lastDirRef.current === "right") cbRest.current.onDragRight?.();
+        daySwitchedRef.current = false;
+      } else {
+        const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+        if (!isHoriz) {
+          if (g.dy < -THRESHOLD) cbRest.current.onMoveUp?.();
+          else if (g.dy > THRESHOLD) cbRest.current.onMoveDown?.();
+        }
+      }
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+
+    onPanResponderTerminate: () => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbRest.current.onDraggingChange?.(false);
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+  })).current;
+
   return (
     <View style={tileStyles.row}>
-      {/* Drag handle — left side */}
-      <DragHandle
-        disabled={totalDays <= 1}
-        onDraggingChange={setIsDragging}
-        onPreviewDay={onPreviewDay}
-        cardPan={cardPan}
-        onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
-        onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
-        onMoveUp={onMoveUp}
-        onMoveDown={onMoveDown}
-      />
       <View style={tileStyles.timeline}>
         <View style={[tileStyles.circle, { backgroundColor: "#E07B39" }]}>
           <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
         </View>
         {!isLast && <View style={tileStyles.line} />}
       </View>
-      {/* Outer: handles transform + zIndex (no overflow:hidden so card can float above siblings) */}
-      <Animated.View style={[
-        { flex: 1, transform: cardPan.getTranslateTransform() },
-        isDragging && { zIndex: 100 },
-      ]}>
+      {/* Outer: handles transform + zIndex + pan gesture (no overflow:hidden so card can float above siblings) */}
+      <Animated.View
+        {...restPan.panHandlers}
+        style={[
+          { flex: 1, transform: cardPan.getTranslateTransform() },
+          isDragging && { zIndex: 100 },
+        ]}
+      >
       {/* Inner: retains overflow:hidden for rounded photo corners */}
       <Animated.View style={[
         tileStyles.card,
@@ -1554,90 +1718,6 @@ const fbStyles = StyleSheet.create({
   submitText: { color: "#FFFFFF", fontSize: fontSize.base, fontWeight: "700" },
 });
 
-// ─── Drag handle ─────────────────────────────────────────────────────────────
-
-function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange, onPreviewDay, cardPan }: {
-  onDragLeft?: () => void;
-  onDragRight?: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  disabled?: boolean;
-  onDraggingChange?: (v: boolean) => void;
-  onPreviewDay?: (dir: "left" | "right") => void;
-  cardPan?: Animated.ValueXY;
-}) {
-  const pan = useRef(new Animated.ValueXY()).current;
-  const THRESHOLD = 60;
-
-  // Keep latest callbacks accessible inside PanResponder closure
-  const cb = useRef({ onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled, cardPan });
-  cb.current = { onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled, cardPan };
-
-  const dayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const daySwitched = useRef(false);
-  const lastDir = useRef<"left" | "right" | null>(null);
-
-  const panResponder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => !cb.current.disabled,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
-    onPanResponderGrant: () => {
-      cb.current.onDraggingChange?.(true);
-      Vibration.vibrate(30);
-      daySwitched.current = false;
-      lastDir.current = null;
-    },
-    onPanResponderMove: (_, g) => {
-      pan.setValue({ x: g.dx, y: g.dy });
-      cb.current.cardPan?.setValue({ x: g.dx, y: g.dy });
-      const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
-      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
-        const dir = g.dx < 0 ? "left" : "right";
-        if (!dayTimer.current && !daySwitched.current) {
-          lastDir.current = dir;
-          dayTimer.current = setTimeout(() => {
-            daySwitched.current = true;
-            dayTimer.current = null;
-            cb.current.onPreviewDay?.(dir);
-          }, 500);
-        }
-      } else {
-        // Returned to center or gone vertical — cancel pending day switch
-        if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
-      }
-    },
-    onPanResponderRelease: (_, g) => {
-      if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
-      cb.current.onDraggingChange?.(false);
-      if (daySwitched.current) {
-        // Day was previewed — commit the cross-day move
-        if (lastDir.current === "left") cb.current.onDragLeft?.();
-        else if (lastDir.current === "right") cb.current.onDragRight?.();
-        daySwitched.current = false;
-      } else {
-        // No day switch — check vertical reorder
-        const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
-        if (!isHoriz) {
-          if (g.dy < -THRESHOLD) cb.current.onMoveUp?.();
-          else if (g.dy > THRESHOLD) cb.current.onMoveDown?.();
-        }
-      }
-      Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
-      if (cb.current.cardPan) {
-        Animated.spring(cb.current.cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
-      }
-    },
-  })).current;
-
-  return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      style={[tileStyles.dragColumn, disabled && { opacity: 0.25 }]}
-    >
-      <MaterialCommunityIcons name="drag" size={22} color={colors.muted} />
-    </Animated.View>
-  );
-}
-
 // ─── Edit trip modal ──────────────────────────────────────────────────────────
 
 function EditTripModal({
@@ -2189,6 +2269,7 @@ export default function TripDetailScreen() {
                     await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1);
                     handleActivityMoved();
                   } : undefined}
+                  onDraggingChange={(active) => setSwipeEnabled(!active)}
                 />
               ))}
 
@@ -2201,6 +2282,7 @@ export default function TripDetailScreen() {
                   onMoved={handleActivityMoved}
                   onPreviewDay={handlePreviewDay}
                   onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom")}
+                  onDraggingChange={(active) => setSwipeEnabled(!active)}
                 />
               )}
 
@@ -2368,7 +2450,6 @@ const tileStyles = StyleSheet.create({
   },
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
-  dragColumn: { width: 28, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, paddingTop: 4 },
   cameraBtn: { position: "absolute", top: 8, right: 8, padding: 6, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16, zIndex: 2 },
 });
 

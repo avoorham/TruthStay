@@ -718,6 +718,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
   onPreviewDay?: (dir: "left" | "right") => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const cardPan = useRef(new Animated.ValueXY()).current;
   const photoUrl = `https://picsum.photos/seed/${adventureId}-accom/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -726,6 +727,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
         disabled={totalDays <= 1}
         onDraggingChange={setIsDragging}
         onPreviewDay={onPreviewDay}
+        cardPan={cardPan}
         onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined}
         onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined}
       />
@@ -734,9 +736,15 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
           <Feather name="home" size={14} color="#FFFFFF" />
         </View>
       </View>
+      {/* Outer: handles transform + zIndex */}
+      <Animated.View style={[
+        { flex: 1, transform: cardPan.getTranslateTransform() },
+        isDragging && { zIndex: 100 },
+      ]}>
+      {/* Inner: retains overflow:hidden for rounded photo corners */}
       <Animated.View style={[
         tileStyles.card,
-        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+        isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
@@ -780,6 +788,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
           </TouchableOpacity>
         </View>
       </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -800,6 +809,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   onPreviewDay?: (dir: "left" | "right") => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const cardPan = useRef(new Animated.ValueXY()).current;
   const photoUrl = `https://picsum.photos/seed/${adventureId}-rest${idx}/800/500`;
   return (
     <View style={tileStyles.row}>
@@ -808,6 +818,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         disabled={totalDays <= 1}
         onDraggingChange={setIsDragging}
         onPreviewDay={onPreviewDay}
+        cardPan={cardPan}
         onDragLeft={dayNumber > 1 ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined}
         onDragRight={dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined}
         onMoveUp={onMoveUp}
@@ -819,9 +830,15 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         </View>
         {!isLast && <View style={tileStyles.line} />}
       </View>
+      {/* Outer: handles transform + zIndex (no overflow:hidden so card can float above siblings) */}
+      <Animated.View style={[
+        { flex: 1, transform: cardPan.getTranslateTransform() },
+        isDragging && { zIndex: 100 },
+      ]}>
+      {/* Inner: retains overflow:hidden for rounded photo corners */}
       <Animated.View style={[
         tileStyles.card,
-        isDragging && { elevation: 12, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
+        isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
@@ -866,6 +883,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
             <Text style={tileStyles.actionText}>Reserve</Text>
           </TouchableOpacity>
         </View>
+      </Animated.View>
       </Animated.View>
     </View>
   );
@@ -1538,7 +1556,7 @@ const fbStyles = StyleSheet.create({
 
 // ─── Drag handle ─────────────────────────────────────────────────────────────
 
-function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange, onPreviewDay }: {
+function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, onDraggingChange, onPreviewDay, cardPan }: {
   onDragLeft?: () => void;
   onDragRight?: () => void;
   onMoveUp?: () => void;
@@ -1546,13 +1564,14 @@ function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, o
   disabled?: boolean;
   onDraggingChange?: (v: boolean) => void;
   onPreviewDay?: (dir: "left" | "right") => void;
+  cardPan?: Animated.ValueXY;
 }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const THRESHOLD = 60;
 
   // Keep latest callbacks accessible inside PanResponder closure
-  const cb = useRef({ onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled });
-  cb.current = { onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled };
+  const cb = useRef({ onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled, cardPan });
+  cb.current = { onDragLeft, onDragRight, onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, disabled, cardPan };
 
   const dayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const daySwitched = useRef(false);
@@ -1569,6 +1588,7 @@ function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, o
     },
     onPanResponderMove: (_, g) => {
       pan.setValue({ x: g.dx, y: g.dy });
+      cb.current.cardPan?.setValue({ x: g.dx, y: g.dy });
       const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
       if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
         const dir = g.dx < 0 ? "left" : "right";
@@ -1602,6 +1622,9 @@ function DragHandle({ onDragLeft, onDragRight, onMoveUp, onMoveDown, disabled, o
         }
       }
       Animated.spring(pan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+      if (cb.current.cardPan) {
+        Animated.spring(cb.current.cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+      }
     },
   })).current;
 
@@ -1773,6 +1796,7 @@ export default function TripDetailScreen() {
   const [sharing, setSharing]             = useState(false);
   const [editVisible, setEditVisible]     = useState(false);
   const [swipeEnabled, setSwipeEnabled]   = useState(true);
+  const [localRestaurantOrder, setLocalRestaurantOrder] = useState<Record<number, RestaurantStop[]>>({});
   const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
   const heroCarouselRef = useRef<FlatList<AdventureRow>>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1908,8 +1932,16 @@ export default function TripDetailScreen() {
 
   async function handleActivityMoved() {
     if (!adventure) return;
+    setLocalRestaurantOrder({});   // discard local overrides; server is now source of truth
     const adv = await getAdventureById(adventure.id);
     setAdventure(adv);
+  }
+
+  function applyLocalReorder(dayNum: number, restaurants: RestaurantStop[], fromIdx: number, toIdx: number) {
+    const next = [...restaurants];
+    const [removed] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, removed);
+    setLocalRestaurantOrder(prev => ({ ...prev, [dayNum]: next }));
   }
 
   function handlePreviewDay(dir: "left" | "right") {
@@ -2094,7 +2126,7 @@ export default function TripDetailScreen() {
         }}
         style={{ flex: 1 }}
         renderItem={({ item: day }) => {
-          const dayRestaurants = meta.restaurants.filter(r => r.night === day.dayNumber);
+          const dayRestaurants = localRestaurantOrder[day.dayNumber] ?? meta.restaurants.filter(r => r.night === day.dayNumber);
           const review = getReview(day.dayNumber);
           const isPast = adventure.startDate
             ? (() => { const d = new Date(adventure.startDate); d.setDate(d.getDate() + day.dayNumber - 1); return d < new Date(); })()
@@ -2103,7 +2135,7 @@ export default function TripDetailScreen() {
             <ScrollView
               style={{ width: SCREEN_W }}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={detailStyles.dayContent}
+              contentContainerStyle={[detailStyles.dayContent, { overflow: "visible" }]}
               scrollEventThrottle={16}
               onScroll={e => {
                 if (day.dayNumber === selectedDay) {
@@ -2137,7 +2169,7 @@ export default function TripDetailScreen() {
 
               {dayRestaurants.map((r, i) => (
                 <RestaurantCard
-                  key={i}
+                  key={r.name + String(i)}
                   restaurant={r}
                   adventureId={adventure.id}
                   idx={i}
@@ -2147,8 +2179,16 @@ export default function TripDetailScreen() {
                   onMoved={handleActivityMoved}
                   onPreviewDay={handlePreviewDay}
                   onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${i}`)}
-                  onMoveUp={i > 0 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i - 1); handleActivityMoved(); } : undefined}
-                  onMoveDown={i < dayRestaurants.length - 1 ? async () => { await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1); handleActivityMoved(); } : undefined}
+                  onMoveUp={i > 0 ? async () => {
+                    applyLocalReorder(day.dayNumber, dayRestaurants, i, i - 1);
+                    await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i - 1);
+                    handleActivityMoved();
+                  } : undefined}
+                  onMoveDown={i < dayRestaurants.length - 1 ? async () => {
+                    applyLocalReorder(day.dayNumber, dayRestaurants, i, i + 1);
+                    await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1);
+                    handleActivityMoved();
+                  } : undefined}
                 />
               ))}
 
@@ -2295,7 +2335,7 @@ const detailStyles = StyleSheet.create({
 });
 
 const tileStyles = StyleSheet.create({
-  row: { flexDirection: "row", gap: spacing.sm },
+  row: { flexDirection: "row", gap: spacing.sm, overflow: "visible" },
   timeline: { alignItems: "center", width: 36 },
   circle: {
     width: 36, height: 36, borderRadius: 18,

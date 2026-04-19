@@ -73,6 +73,25 @@ export async function POST(
     const [moved] = restaurants.splice(activityIndex, 1);
     sourceAlts.restaurants = restaurants;
     targetAlts.restaurants = [...((targetAlts.restaurants as unknown[]) ?? []), moved];
+
+    // Rebuild source tileOrder: remove moved tile and renumber subsequent rest:N entries
+    const srcTileOrder = sourceAlts.tileOrder as string[] | undefined;
+    if (srcTileOrder) {
+      sourceAlts.tileOrder = srcTileOrder
+        .filter(t => t !== `rest:${activityIndex}`)
+        .map(t => {
+          if (!t.startsWith("rest:")) return t;
+          const n = parseInt(t.slice(5), 10);
+          return n > activityIndex ? `rest:${n - 1}` : t;
+        });
+    }
+
+    // Rebuild target tileOrder: append new tile at its index (end of target restaurants)
+    const newIdx = (targetAlts.restaurants as unknown[]).length - 1;
+    const tgtTileOrder = targetAlts.tileOrder as string[] | undefined;
+    if (tgtTileOrder) {
+      targetAlts.tileOrder = [...tgtTileOrder, `rest:${newIdx}`];
+    }
   } else if (activityType === "accommodation") {
     const accomStop = sourceAlts.accommodationStop as Record<string, unknown> | null;
     const opts = [...((accomStop?.options as unknown[]) ?? [])];
@@ -86,6 +105,18 @@ export async function POST(
       ...(targetAccom ?? {}),
       options: [moved, ...((targetAccom?.options as unknown[]) ?? [])],
     };
+
+    // Fix source tileOrder: remove "accommodation" if no options remain
+    const srcTileOrder = sourceAlts.tileOrder as string[] | undefined;
+    if (srcTileOrder && opts.length === 0) {
+      sourceAlts.tileOrder = srcTileOrder.filter(t => t !== "accommodation");
+    }
+
+    // Fix target tileOrder: prepend "accommodation" if not already present
+    const tgtTileOrder = targetAlts.tileOrder as string[] | undefined;
+    if (tgtTileOrder && !tgtTileOrder.includes("accommodation")) {
+      targetAlts.tileOrder = ["accommodation", ...tgtTileOrder];
+    }
   }
 
   const [sourceResult, targetResult] = await Promise.all([

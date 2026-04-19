@@ -612,7 +612,7 @@ function RouteConnectModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 function StopCard({
   day, adventureId, stopNumber, isLast, review, onRate, onComment, onConnectRoute, photos, onAddPhoto, onShare,
-  onMoveUp, onMoveDown, onDraggingChange,
+  onMoveUp, onMoveDown, onDraggingChange, onDragMove,
 }: {
   day: AdventureDayRow;
   adventureId: string;
@@ -628,6 +628,7 @@ function StopCard({
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDraggingChange?: (v: boolean) => void;
+  onDragMove?: (dy: number) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -638,8 +639,8 @@ function StopCard({
   const THRESHOLD      = 60;
   const LONG_PRESS_MS  = 400;
 
-  const cbStop = useRef({ onMoveUp, onMoveDown, onDraggingChange });
-  cbStop.current = { onMoveUp, onMoveDown, onDraggingChange };
+  const cbStop = useRef({ onMoveUp, onMoveDown, onDraggingChange, onDragMove });
+  cbStop.current = { onMoveUp, onMoveDown, onDraggingChange, onDragMove };
 
   const stopPan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -664,6 +665,7 @@ function StopCard({
       }
       // Route tile only moves vertically
       cardPan.setValue({ x: 0, y: g.dy });
+      cbStop.current.onDragMove?.(g.dy);
     },
 
     onPanResponderRelease: (_, g) => {
@@ -763,17 +765,19 @@ function StopCard({
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay, onMoveUp, onMoveDown, onDraggingChange }: {
+function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, onMovedToDay, onAddPhoto, onPreviewDay, onMoveUp, onMoveDown, onDraggingChange, onDragMove }: {
+  accomOpt: { name: string; price_per_night_eur?: number; booking_url?: string } | null;
   meta: TripMeta;
   adventureId: string;
   dayNumber: number;
   totalDays: number;
-  onMoved: () => void;
+  onMovedToDay: (fromDay: number, toDay: number, type: "accommodation", index: number) => void;
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDraggingChange?: (v: boolean) => void;
+  onDragMove?: (dy: number) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -782,22 +786,23 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
   const isDraggingRef  = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dayTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const daySwitchedRef = useRef(false);
+  const previewDayRef  = useRef(dayNumber);
+  const dayRepeatRef   = useRef(false);
   const lastDirRef     = useRef<"left" | "right" | null>(null);
   const THRESHOLD      = 60;
   const LONG_PRESS_MS  = 400;
   const DAY_SWITCH_MS  = 500;
+  const DAY_REPEAT_MS  = 200;
+  const EDGE_ZONE      = 80;
 
   const cbAccom = useRef({
-    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
-    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
-    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay,
+    onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "accommodation", 0),
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove,
     disabled: totalDays <= 1,
   });
   cbAccom.current = {
-    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined,
-    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined,
-    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay,
+    onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "accommodation", 0),
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove,
     disabled: totalDays <= 1,
   };
 
@@ -807,6 +812,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
     onPanResponderTerminationRequest: () => !isDraggingRef.current,
 
     onPanResponderGrant: () => {
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       longPressTimer.current = setTimeout(() => {
         isDraggingRef.current = true;
         Vibration.vibrate(30);
@@ -823,16 +830,26 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
         return;
       }
       cardPan.setValue({ x: g.dx, y: g.dy });
+      cbAccom.current.onDragMove?.(g.dy);
       const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
-      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
-        const dir = g.dx < 0 ? "left" : "right";
-        if (!dayTimer.current && !daySwitchedRef.current) {
+      const nearLeft  = g.moveX < EDGE_ZONE;
+      const nearRight = g.moveX > SCREEN_W - EDGE_ZONE;
+      if (isHoriz && (nearLeft || nearRight)) {
+        const dir = nearLeft ? "left" : "right";
+        if (!dayTimer.current) {
           lastDirRef.current = dir;
+          const delay = dayRepeatRef.current ? DAY_REPEAT_MS : DAY_SWITCH_MS;
           dayTimer.current = setTimeout(() => {
-            daySwitchedRef.current = true;
+            const nextDay = dir === "left"
+              ? Math.max(1, previewDayRef.current - 1)
+              : Math.min(totalDays, previewDayRef.current + 1);
+            if (nextDay !== previewDayRef.current) {
+              previewDayRef.current = nextDay;
+              dayRepeatRef.current = true;
+              cbAccom.current.onPreviewDay?.(dir);
+            }
             dayTimer.current = null;
-            cbAccom.current.onPreviewDay?.(dir);
-          }, DAY_SWITCH_MS);
+          }, delay);
         }
       } else {
         if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
@@ -846,10 +863,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
       isDraggingRef.current = false;
       setIsDragging(false);
       cbAccom.current.onDraggingChange?.(false);
-      if (daySwitchedRef.current) {
-        if (lastDirRef.current === "left") cbAccom.current.onDragLeft?.();
-        else if (lastDirRef.current === "right") cbAccom.current.onDragRight?.();
-        daySwitchedRef.current = false;
+      if (previewDayRef.current !== dayNumber) {
+        cbAccom.current.onDragToDay(previewDayRef.current);
       } else {
         const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
         if (!isHoriz) {
@@ -857,6 +872,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
           else if (g.dy > THRESHOLD) cbAccom.current.onMoveDown?.();
         }
       }
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
 
@@ -867,6 +884,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
       isDraggingRef.current = false;
       setIsDragging(false);
       cbAccom.current.onDraggingChange?.(false);
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
   })).current;
@@ -900,21 +919,24 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
           </TouchableOpacity>
         )}
         <View style={tileStyles.info}>
-          <Text style={tileStyles.title}>{meta.accommodation}</Text>
+          <Text style={tileStyles.title}>{accomOpt?.name ?? meta.accommodation}</Text>
           <View style={tileStyles.infoRow}>
             <Feather name="moon" size={11} color={colors.muted} />
             <Text style={tileStyles.infoText}>{meta.nights}</Text>
           </View>
-          <View style={tileStyles.infoRow}>
-            <Feather name="tag" size={11} color={colors.muted} />
-            <Text style={tileStyles.infoText}>From €{meta.pricePerNight}/night</Text>
-          </View>
+          {(accomOpt?.price_per_night_eur ?? meta.pricePerNight) > 0 && (
+            <View style={tileStyles.infoRow}>
+              <Feather name="tag" size={11} color={colors.muted} />
+              <Text style={tileStyles.infoText}>From €{accomOpt?.price_per_night_eur ?? meta.pricePerNight}/night</Text>
+            </View>
+          )}
         </View>
         <View style={tileStyles.actionRow}>
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              if (meta.accommodationUrl) Linking.openURL(meta.accommodationUrl);
+              const url = accomOpt?.booking_url ?? meta.accommodationUrl;
+              if (url) Linking.openURL(url);
               else Alert.alert("Not available", "No booking details found.");
             }}
           >
@@ -925,7 +947,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              if (meta.accommodationUrl) Linking.openURL(meta.accommodationUrl);
+              const url = accomOpt?.booking_url ?? meta.accommodationUrl;
+              if (url) Linking.openURL(url);
               else Alert.alert("Not available", "No booking link for this accommodation.");
             }}
           >
@@ -941,19 +964,20 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMoved, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay, onDraggingChange }: {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMovedToDay, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay, onDraggingChange, onDragMove }: {
   restaurant: RestaurantStop;
   adventureId: string;
   idx: number;
   dayNumber: number;
   totalDays: number;
-  onMoved: () => void;
+  onMovedToDay: (fromDay: number, toDay: number, type: "restaurant", index: number) => void;
   isLast?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
   onDraggingChange?: (v: boolean) => void;
+  onDragMove?: (dy: number) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -962,24 +986,25 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   const isDraggingRef    = useRef(false);
   const longPressTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dayTimer         = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const daySwitchedRef   = useRef(false);
+  const previewDayRef    = useRef(dayNumber);
+  const dayRepeatRef     = useRef(false);
   const lastDirRef       = useRef<"left" | "right" | null>(null);
   const THRESHOLD        = 60;
   const LONG_PRESS_MS    = 400;
   const DAY_SWITCH_MS    = 500;
+  const DAY_REPEAT_MS    = 200;
+  const EDGE_ZONE        = 80;
 
   const cbRest = useRef({
     onMoveUp, onMoveDown,
-    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined as (() => void) | undefined,
-    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined as (() => void) | undefined,
-    onDraggingChange, onPreviewDay,
+    onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "restaurant", idx),
+    onDraggingChange, onPreviewDay, onDragMove,
     disabled: totalDays <= 1,
   });
   cbRest.current = {
     onMoveUp, onMoveDown,
-    onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "restaurant", idx); onMoved(); } : undefined,
-    onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "restaurant", idx); onMoved(); } : undefined,
-    onDraggingChange, onPreviewDay,
+    onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "restaurant", idx),
+    onDraggingChange, onPreviewDay, onDragMove,
     disabled: totalDays <= 1,
   };
 
@@ -989,6 +1014,8 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
     onPanResponderTerminationRequest: () => !isDraggingRef.current,
 
     onPanResponderGrant: () => {
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       longPressTimer.current = setTimeout(() => {
         isDraggingRef.current = true;
         Vibration.vibrate(30);
@@ -1005,16 +1032,26 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         return;
       }
       cardPan.setValue({ x: g.dx, y: g.dy });
+      cbRest.current.onDragMove?.(g.dy);
       const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
-      if (isHoriz && Math.abs(g.dx) > THRESHOLD) {
-        const dir = g.dx < 0 ? "left" : "right";
-        if (!dayTimer.current && !daySwitchedRef.current) {
+      const nearLeft  = g.moveX < EDGE_ZONE;
+      const nearRight = g.moveX > SCREEN_W - EDGE_ZONE;
+      if (isHoriz && (nearLeft || nearRight)) {
+        const dir = nearLeft ? "left" : "right";
+        if (!dayTimer.current) {
           lastDirRef.current = dir;
+          const delay = dayRepeatRef.current ? DAY_REPEAT_MS : DAY_SWITCH_MS;
           dayTimer.current = setTimeout(() => {
-            daySwitchedRef.current = true;
+            const nextDay = dir === "left"
+              ? Math.max(1, previewDayRef.current - 1)
+              : Math.min(totalDays, previewDayRef.current + 1);
+            if (nextDay !== previewDayRef.current) {
+              previewDayRef.current = nextDay;
+              dayRepeatRef.current = true;
+              cbRest.current.onPreviewDay?.(dir);
+            }
             dayTimer.current = null;
-            cbRest.current.onPreviewDay?.(dir);
-          }, DAY_SWITCH_MS);
+          }, delay);
         }
       } else {
         if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
@@ -1028,10 +1065,8 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
       isDraggingRef.current = false;
       setIsDragging(false);
       cbRest.current.onDraggingChange?.(false);
-      if (daySwitchedRef.current) {
-        if (lastDirRef.current === "left") cbRest.current.onDragLeft?.();
-        else if (lastDirRef.current === "right") cbRest.current.onDragRight?.();
-        daySwitchedRef.current = false;
+      if (previewDayRef.current !== dayNumber) {
+        cbRest.current.onDragToDay(previewDayRef.current);
       } else {
         const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
         if (!isHoriz) {
@@ -1039,6 +1074,8 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
           else if (g.dy > THRESHOLD) cbRest.current.onMoveDown?.();
         }
       }
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
 
@@ -1049,6 +1086,8 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
       isDraggingRef.current = false;
       setIsDragging(false);
       cbRest.current.onDraggingChange?.(false);
+      previewDayRef.current = dayNumber;
+      dayRepeatRef.current = false;
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
   })).current;
@@ -2281,6 +2320,10 @@ export default function TripDetailScreen() {
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipScrollRef   = useRef(false);
   const heroOffset      = useRef(new Animated.Value(0)).current;
+  // Hover-push drag tracking
+  const tileHeightsRef    = useRef<Record<string, number>>({});
+  const dragBaseOrderRef  = useRef<Record<number, TileId[]>>({});
+  const lastHoverSlotRef  = useRef<Record<number, number>>({});
 
   // Must be before any early return — Rules of Hooks
   const sortedDays = React.useMemo(
@@ -2413,11 +2456,93 @@ export default function TripDetailScreen() {
     router.back();
   }
 
-  async function handleActivityMoved() {
+  async function handleActivityMovedToDay(
+    fromDay: number,
+    toDay: number,
+    type: "restaurant" | "accommodation",
+    index: number,
+  ) {
     if (!adventure) return;
-    setLocalTileOrder({});   // discard local overrides; server is now source of truth
-    const adv = await getAdventureById(adventure.id);
-    setAdventure(adv);
+    const snapshot = adventure;
+
+    // Optimistic update — reflect the move immediately in local state
+    const newDays = adventure.adventure_days.map(d => {
+      if (d.dayNumber === fromDay) {
+        const alts = { ...(d.alternatives ?? {}) };
+        if (type === "restaurant") {
+          type RestRow = NonNullable<NonNullable<AdventureDayRow["alternatives"]>["restaurants"]>[number];
+          const rests = [...((alts.restaurants as RestRow[] | undefined) ?? [])];
+          rests.splice(index, 1);
+          alts.restaurants = rests;
+          const to = alts.tileOrder as string[] | undefined;
+          if (to) {
+            alts.tileOrder = to
+              .filter(t => t !== `rest:${index}`)
+              .map(t => {
+                if (!t.startsWith("rest:")) return t;
+                const n = parseInt(t.slice(5), 10);
+                return n > index ? `rest:${n - 1}` : t;
+              });
+          }
+        } else {
+          type OptRow = NonNullable<NonNullable<NonNullable<AdventureDayRow["alternatives"]>["accommodationStop"]>["options"]>[number];
+          const accom = alts.accommodationStop as { options?: OptRow[] } | null;
+          const opts: OptRow[] = [...(accom?.options ?? [])];
+          opts.splice(index, 1);
+          alts.accommodationStop = { ...(accom ?? {}), options: opts };
+          const to = alts.tileOrder as string[] | undefined;
+          if (to && opts.length === 0) alts.tileOrder = to.filter(t => t !== "accommodation");
+        }
+        return { ...d, alternatives: alts };
+      }
+      if (d.dayNumber === toDay) {
+        const alts = { ...(d.alternatives ?? {}) };
+        if (type === "restaurant") {
+          type RestRow = NonNullable<NonNullable<AdventureDayRow["alternatives"]>["restaurants"]>[number];
+          const moved = snapshot.adventure_days
+            .find(sd => sd.dayNumber === fromDay)
+            ?.alternatives?.restaurants?.[index] as RestRow | undefined;
+          if (moved) {
+            const rests: RestRow[] = [...((alts.restaurants as RestRow[] | undefined) ?? []), moved];
+            alts.restaurants = rests;
+            const to = alts.tileOrder as string[] | undefined;
+            if (to) alts.tileOrder = [...to, `rest:${rests.length - 1}`];
+          }
+        } else {
+          type OptRow = NonNullable<NonNullable<NonNullable<AdventureDayRow["alternatives"]>["accommodationStop"]>["options"]>[number];
+          const srcAccom = snapshot.adventure_days
+            .find(sd => sd.dayNumber === fromDay)
+            ?.alternatives?.accommodationStop as { options?: OptRow[] } | null;
+          const moved = srcAccom?.options?.[index];
+          if (moved) {
+            const accom = alts.accommodationStop as { options?: OptRow[] } | null;
+            alts.accommodationStop = {
+              ...(accom ?? {}),
+              options: [moved, ...(accom?.options ?? [])],
+            };
+            const to = alts.tileOrder as string[] | undefined;
+            if (to && !to.includes("accommodation")) alts.tileOrder = ["accommodation", ...to];
+          }
+        }
+        return { ...d, alternatives: alts };
+      }
+      return d;
+    });
+
+    setAdventure(prev => prev ? { ...prev, adventure_days: newDays } : prev);
+    setLocalTileOrder(prev => {
+      const next = { ...prev };
+      delete next[fromDay];
+      delete next[toDay];
+      return next;
+    });
+
+    try {
+      await moveActivity(adventure.id, fromDay, toDay, type, index);
+    } catch {
+      // Rollback on API failure
+      setAdventure(snapshot);
+    }
   }
 
   async function handleAddItem(dayNumber: number, item: CustomItem) {
@@ -2442,12 +2567,34 @@ export default function TripDetailScreen() {
     setAddItemDay(null);
   }
 
-  function defaultTileOrder(_dayNum: number, restaurants: RestaurantStop[]): TileId[] {
+  function defaultTileOrder(dayNum: number, restaurants: RestaurantStop[]): TileId[] {
     const order: TileId[] = [];
-    if (meta.accommodation) order.push("accommodation");
+    const dayRow = adventure?.adventure_days.find(d => d.dayNumber === dayNum);
+    const hasAccom = !!((dayRow?.alternatives as { accommodationStop?: { options?: unknown[] } } | null)
+      ?.accommodationStop?.options?.length);
+    if (hasAccom) order.push("accommodation");
     restaurants.forEach((_, i) => order.push(`rest:${i}` as TileId));
     order.push("route");
     return order;
+  }
+
+  function handleTileDragMove(dayNum: number, dragTileId: TileId, dy: number) {
+    if (!adventure) return;
+    // Use the order captured when dragging started so fromSlot stays stable
+    const base = dragBaseOrderRef.current[dayNum];
+    if (!base) return;
+    const fromSlot = base.indexOf(dragTileId);
+    if (fromSlot < 0) return;
+    const draggedH = tileHeightsRef.current[`${dayNum}:${dragTileId}`] ?? 120;
+    const slotDelta = Math.round(dy / draggedH);
+    const hoverSlot = Math.max(0, Math.min(base.length - 1, fromSlot + slotDelta));
+    if (hoverSlot === lastHoverSlotRef.current[dayNum]) return;
+    lastHoverSlotRef.current[dayNum] = hoverSlot;
+    const newOrder = [...base];
+    newOrder.splice(fromSlot, 1);
+    newOrder.splice(hoverSlot, 0, dragTileId);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setLocalTileOrder(prev => ({ ...prev, [dayNum]: newOrder }));
   }
 
   function moveTile(dayNum: number, tileId: TileId, direction: "up" | "down") {
@@ -2704,44 +2851,71 @@ export default function TripDetailScreen() {
                 const canUp   = orderIdx > 0;
                 const canDown = orderIdx < tileOrder.length - 1;
                 const isLast  = orderIdx === tileOrder.length - 1;
+                const tileKey = `${day.dayNumber}:${tileId}`;
+
+                // Shared onDraggingChange: disable swipe + capture base order for hover-push
+                const handleDraggingChange = (active: boolean) => {
+                  setSwipeEnabled(!active);
+                  if (active) {
+                    dragBaseOrderRef.current[day.dayNumber] = [...tileOrder];
+                    lastHoverSlotRef.current[day.dayNumber] = orderIdx;
+                  } else {
+                    delete dragBaseOrderRef.current[day.dayNumber];
+                    delete lastHoverSlotRef.current[day.dayNumber];
+                  }
+                };
 
                 if (tileId === "route") {
                   return (
-                    <StopCard
+                    <View
                       key="route"
-                      day={day}
-                      adventureId={adventure.id}
-                      stopNumber={day.dayNumber}
-                      isLast={isLast}
-                      review={review}
-                      onRate={r => setReview(day.dayNumber, { ...review, rating: r })}
-                      onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
-                      onConnectRoute={() => setRouteModal(true)}
-                      photos={reviewPhotos[day.dayNumber] ?? []}
-                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `route${day.dayNumber}`, "route", day.title)}
-                      onShare={() => setShareDay(day.dayNumber)}
-                      onMoveUp={canUp ? () => moveTile(day.dayNumber, "route", "up") : undefined}
-                      onMoveDown={canDown ? () => moveTile(day.dayNumber, "route", "down") : undefined}
-                      onDraggingChange={(active) => setSwipeEnabled(!active)}
-                    />
+                      onLayout={e => { tileHeightsRef.current[tileKey] = e.nativeEvent.layout.height; }}
+                    >
+                      <StopCard
+                        day={day}
+                        adventureId={adventure.id}
+                        stopNumber={day.dayNumber}
+                        isLast={isLast}
+                        review={review}
+                        onRate={r => setReview(day.dayNumber, { ...review, rating: r })}
+                        onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
+                        onConnectRoute={() => setRouteModal(true)}
+                        photos={reviewPhotos[day.dayNumber] ?? []}
+                        onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `route${day.dayNumber}`, "route", day.title)}
+                        onShare={() => setShareDay(day.dayNumber)}
+                        onMoveUp={canUp ? () => moveTile(day.dayNumber, "route", "up") : undefined}
+                        onMoveDown={canDown ? () => moveTile(day.dayNumber, "route", "down") : undefined}
+                        onDraggingChange={handleDraggingChange}
+                        onDragMove={dy => handleTileDragMove(day.dayNumber, "route", dy)}
+                      />
+                    </View>
                   );
                 }
 
-                if (tileId === "accommodation" && meta.accommodation) {
+                if (tileId === "accommodation") {
+                  const dayAccomOpt = (day.alternatives as { accommodationStop?: { options?: Array<{ name: string; price_per_night_eur?: number; booking_url?: string }> } } | null)
+                    ?.accommodationStop?.options?.[0] ?? null;
+                  if (!dayAccomOpt) return null;
                   return (
-                    <AccommodationCard
+                    <View
                       key="accommodation"
-                      meta={meta}
-                      adventureId={adventure.id}
-                      dayNumber={day.dayNumber}
-                      totalDays={sortedDays.length}
-                      onMoved={handleActivityMoved}
-                      onPreviewDay={handlePreviewDay}
-                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom", "accommodation", meta.accommodation)}
-                      onMoveUp={canUp ? () => moveTile(day.dayNumber, "accommodation", "up") : undefined}
-                      onMoveDown={canDown ? () => moveTile(day.dayNumber, "accommodation", "down") : undefined}
-                      onDraggingChange={(active) => setSwipeEnabled(!active)}
-                    />
+                      onLayout={e => { tileHeightsRef.current[tileKey] = e.nativeEvent.layout.height; }}
+                    >
+                      <AccommodationCard
+                        accomOpt={dayAccomOpt}
+                        meta={meta}
+                        adventureId={adventure.id}
+                        dayNumber={day.dayNumber}
+                        totalDays={sortedDays.length}
+                        onMovedToDay={handleActivityMovedToDay}
+                        onPreviewDay={handlePreviewDay}
+                        onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom", "accommodation", dayAccomOpt.name)}
+                        onMoveUp={canUp ? () => moveTile(day.dayNumber, "accommodation", "up") : undefined}
+                        onMoveDown={canDown ? () => moveTile(day.dayNumber, "accommodation", "down") : undefined}
+                        onDraggingChange={handleDraggingChange}
+                        onDragMove={dy => handleTileDragMove(day.dayNumber, "accommodation", dy)}
+                      />
+                    </View>
                   );
                 }
 
@@ -2750,21 +2924,26 @@ export default function TripDetailScreen() {
                   const r = dayRestaurants[restIdx];
                   if (!r) return null;
                   return (
-                    <RestaurantCard
+                    <View
                       key={tileId}
-                      restaurant={r}
-                      adventureId={adventure.id}
-                      idx={restIdx}
-                      dayNumber={day.dayNumber}
-                      totalDays={sortedDays.length}
-                      isLast={isLast}
-                      onMoved={handleActivityMoved}
-                      onPreviewDay={handlePreviewDay}
-                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${restIdx}`, "restaurant", r.name)}
-                      onMoveUp={canUp ? () => moveTile(day.dayNumber, tileId, "up") : undefined}
-                      onMoveDown={canDown ? () => moveTile(day.dayNumber, tileId, "down") : undefined}
-                      onDraggingChange={(active) => setSwipeEnabled(!active)}
-                    />
+                      onLayout={e => { tileHeightsRef.current[tileKey] = e.nativeEvent.layout.height; }}
+                    >
+                      <RestaurantCard
+                        restaurant={r}
+                        adventureId={adventure.id}
+                        idx={restIdx}
+                        dayNumber={day.dayNumber}
+                        totalDays={sortedDays.length}
+                        isLast={isLast}
+                        onMovedToDay={handleActivityMovedToDay}
+                        onPreviewDay={handlePreviewDay}
+                        onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${restIdx}`, "restaurant", r.name)}
+                        onMoveUp={canUp ? () => moveTile(day.dayNumber, tileId, "up") : undefined}
+                        onMoveDown={canDown ? () => moveTile(day.dayNumber, tileId, "down") : undefined}
+                        onDraggingChange={handleDraggingChange}
+                        onDragMove={dy => handleTileDragMove(day.dayNumber, tileId, dy)}
+                      />
+                    </View>
                   );
                 }
 

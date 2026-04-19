@@ -7,12 +7,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Mapbox, {
-  MapView, Camera, ShapeSource,
-  CircleLayer, SymbolLayer, PointAnnotation,
+  MapView, Camera, PointAnnotation,
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
-import { getPublicAdventures, type PublicAdventureRow } from "../../../lib/api";
+import {
+  getPublicAdventures, bookmarkAdventure, unbookmarkAdventure,
+  type PublicAdventureRow,
+} from "../../../lib/api";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -97,32 +99,6 @@ const ACTIVITY_ICON: Record<string, string> = {
   other:         "map-marker-outline",
 };
 
-const PILL_ZOOM     = 4.5;
-const CLUSTER_RADIUS = 50;
-
-function getUnclusteredIds(adventures: Adventure[], zoom: number): Set<string> {
-  const scale = 256 * Math.pow(2, zoom);
-  const toPixel = (lng: number, lat: number) => {
-    const x = ((lng + 180) / 360) * scale;
-    const latRad = (lat * Math.PI) / 180;
-    const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * scale;
-    return { x, y };
-  };
-  const pts = adventures.map(a => ({ id: a.id, ...toPixel(a.coords[0], a.coords[1]) }));
-  const inCluster = new Set<string>();
-  for (let i = 0; i < pts.length; i++) {
-    if (inCluster.has(pts[i].id)) continue;
-    for (let j = i + 1; j < pts.length; j++) {
-      const dx = pts[i].x - pts[j].x;
-      const dy = pts[i].y - pts[j].y;
-      if (Math.sqrt(dx * dx + dy * dy) < CLUSTER_RADIUS) {
-        inCluster.add(pts[j].id);
-        inCluster.add(pts[i].id);
-      }
-    }
-  }
-  return new Set(adventures.map(a => a.id).filter(id => !inCluster.has(id)));
-}
 
 const DURATION_OPTIONS = [
   { key: "1-3", label: "1–3 days" },
@@ -179,28 +155,6 @@ function countActiveFilters(filters: FilterState): number {
   if (filters.rating !== null) n++;
   if (filters.region) n++;
   return n;
-}
-
-// ─── GeoJSON ──────────────────────────────────────────────────────────────────
-
-function toGeoJson(adventures: Adventure[]) {
-  return {
-    type: "FeatureCollection" as const,
-    features: adventures.map(a => ({
-      type: "Feature" as const,
-      id: a.id,
-      geometry: { type: "Point" as const, coordinates: a.coords },
-      properties: {
-        id: a.id,
-        title: a.title,
-        activityType: a.activityTypes[0],
-        color: ACTIVITY_COLOR[a.activityTypes[0]] ?? colors.accent,
-        label: ACTIVITY_SHORT[a.activityTypes[0]] ?? "ADV",
-        rating: a.rating,
-        days: a.days,
-      },
-    })),
-  };
 }
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
@@ -469,17 +423,12 @@ function AdventureSheet({
   );
 }
 
-// ─── Pill pin ─────────────────────────────────────────────────────────────────
+// ─── T pin ────────────────────────────────────────────────────────────────────
 
-function PillPin({ adventure }: { adventure: Adventure }) {
-  const label = adventure.uploadedBy ?? "Public";
+function TPin() {
   return (
-    <View style={pillStyles.pill}>
-      <Text style={pillStyles.label} numberOfLines={1}>{label}</Text>
-      {adventure.activityTypes.map(type => {
-        const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-        return <MaterialCommunityIcons key={type} name={iconName} size={15} color="#000000" />;
-      })}
+    <View style={pillStyles.tPin}>
+      <Text style={pillStyles.tPinText}>T</Text>
     </View>
   );
 }
@@ -835,9 +784,7 @@ export default function ExploreScreen() {
   const regions = useMemo(() => [...new Set(adventures.map(a => a.region))].sort(), [adventures]);
 
   const filtered = useMemo(() => applyFilters(adventures, filters), [adventures, filters]);
-  const geoJson  = useMemo(() => toGeoJson(filtered), [filtered]);
   const activeFilterCount = countActiveFilters(filters);
-  const unclusteredIds    = useMemo(() => getUnclusteredIds(filtered, zoom), [filtered, zoom]);
   const publicAdventures  = useMemo(() => filtered.filter(a => a.uploadedBy === null), [filtered]);
 
   const visiblePublicAdventures = useMemo(() => {
@@ -852,7 +799,16 @@ export default function ExploreScreen() {
   const toggleSaved = useCallback((id: string) => {
     setSavedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      const wasSaved = next.has(id);
+      wasSaved ? next.delete(id) : next.add(id);
+      (wasSaved ? unbookmarkAdventure : bookmarkAdventure)(id).catch(() => {
+        // Revert on failure
+        setSavedIds(s => {
+          const revert = new Set(s);
+          wasSaved ? revert.add(id) : revert.delete(id);
+          return revert;
+        });
+      });
       return next;
     });
   }, []);
@@ -878,25 +834,6 @@ export default function ExploreScreen() {
     });
   }, [sheetY, impressionsY]);
 
-  const onMapPress = useCallback((e: { features?: GeoJSON.Feature[] }) => {
-    const feature = e.features?.[0];
-    if (!feature) { hideSheet(); return; }
-
-    const props = feature.properties as Record<string, unknown>;
-
-    if (props?.cluster) {
-      const coords = (feature.geometry as GeoJSON.Point).coordinates;
-      const expansionZoom = (props.expansion_zoom as number) ?? 0;
-      cameraRef.current?.setCamera({
-        centerCoordinate: coords as [number, number],
-        zoomLevel: Math.max(expansionZoom, zoom + 2, PILL_ZOOM + 1),
-        animationDuration: 500,
-      });
-    } else if (props?.id) {
-      const adventure = adventures.find(a => a.id === String(props.id));
-      if (adventure) showSheet(adventure);
-    }
-  }, [hideSheet, showSheet]);
 
   if (loading) {
     return (
@@ -943,57 +880,24 @@ export default function ExploreScreen() {
           defaultSettings={{ centerCoordinate: [13.0, 46.5], zoomLevel: 3.8 }}
         />
 
-        <ShapeSource
-          id="adventures"
-          shape={geoJson}
-          cluster={true}
-          clusterRadius={50}
-          onPress={onMapPress}
-        >
-          <CircleLayer
-            id="clusters"
-            filter={["has", "point_count"]}
-            style={{
-              circleColor: "rgba(0,0,0,0.55)",
-              circleRadius: ["step", ["get", "point_count"], 22, 5, 30, 20, 38],
-              circleStrokeWidth: 2.5,
-              circleStrokeColor: "#FFFFFF",
+        {filtered.map(adv => (
+          <PointAnnotation
+            key={adv.id}
+            id={adv.id}
+            coordinate={adv.coords}
+            anchor={{ x: 0.5, y: 1 }}
+            onSelected={() => {
+              cameraRef.current?.setCamera({
+                centerCoordinate: adv.coords,
+                zoomLevel: Math.max(zoom, 8),
+                animationDuration: 400,
+              });
+              showSheet(adv);
             }}
-          />
-          <SymbolLayer
-            id="cluster-count"
-            filter={["has", "point_count"]}
-            style={{
-              textField: "{point_count_abbreviated}",
-              textFont: ["DIN Offc Pro Bold", "Arial Unicode MS Bold"],
-              textSize: 14,
-              textColor: "#FFFFFF",
-              textIgnorePlacement: true,
-              textAllowOverlap: true,
-            }}
-          />
-        </ShapeSource>
-
-        {zoom >= PILL_ZOOM && filtered
-          .filter(adv => unclusteredIds.has(adv.id))
-          .map(adv => (
-            <PointAnnotation
-              key={adv.id}
-              id={adv.id}
-              coordinate={adv.coords}
-              anchor={{ x: 0, y: 1 }}
-              onSelected={() => {
-                cameraRef.current?.setCamera({
-                  centerCoordinate: adv.coords,
-                  zoomLevel: Math.max(zoom, 8),
-                  animationDuration: 400,
-                });
-                showSheet(adv);
-              }}
-            >
-              <PillPin adventure={adv} />
-            </PointAnnotation>
-          ))}
+          >
+            <TPin />
+          </PointAnnotation>
+        ))}
       </MapView>
 
       {/* Filter button */}
@@ -1164,6 +1068,25 @@ const pillStyles = StyleSheet.create({
     fontWeight: "600",
     color: "#000000",
     flexShrink: 1,
+  },
+  tPin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.coral,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  tPinText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    lineHeight: 20,
   },
 });
 

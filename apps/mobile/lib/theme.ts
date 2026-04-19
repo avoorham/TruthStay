@@ -1,26 +1,39 @@
-// TruthStay design system — outdoor/adventure aesthetic
-// Warm neutrals + deep forest green accent + dark feed mode
+// TruthStay design system — warm adventure aesthetic
+// Coral primary · Ocean secondary · Sand neutrals · Dark feed mode
 
 export const colors = {
   // Backgrounds
-  bg: "#F5F4EF",        // Warm parchment
+  bg: "#FFFDF9",        // Cream
   card: "#FFFFFF",
-  sheet: "#EDECEA",     // Grouped section bg
+  sheet: "#F5E6D3",     // Sand
 
   // Text
-  text: "#1A1A1A",
-  muted: "#717182",
-  subtle: "#A0A0AA",
+  text: "#2D3142",      // Charcoal
+  muted: "#8E8D8A",     // Warm grey
+  subtle: "#B0AFA9",
   inverse: "#FFFFFF",
 
-  // Accent — deep forest green
-  accent: "#2A5C3E",
-  accentLight: "#E8F2EC",
-  accentMid: "#4A8C64",
+  // Primary — Coral
+  accent: "#E8694A",
+  accentLight: "#FDE8E2",
+  accentMid: "#C4522A",
+
+  // Secondary — Ocean
+  ocean: "#1B6B7D",
+  oceanLight: "#E0F2F5",
+  oceanMid: "#0E4A57",
+
+  // Named brand palette
+  coral: "#E8694A",
+  sage: "#8BAF7C",
+  sky: "#6BB5D6",
+  gold: "#D4A853",
+  sand: "#F5E6D3",
+  midnight: "#1A1F2E",
 
   // UI
-  border: "#E2E0D6",
-  inputBg: "#ECEAE3",
+  border: "#E8E6E1",
+  inputBg: "#F5E6D3",
   overlay: "rgba(0,0,0,0.45)",
 
   // Feed (full-screen dark mode)
@@ -29,22 +42,22 @@ export const colors = {
   feedMuted: "rgba(255,255,255,0.6)",
 
   // Difficulty
-  easy: "#22C55E",
-  intermediate: "#F59E0B",
-  hard: "#EF4444",
+  easy: "#8BAF7C",      // Sage
+  intermediate: "#D4A853", // Gold
+  hard: "#E8694A",      // Coral
 
   // Chat bubbles
-  aiBubble: "#ECEAE3",
-  userBubble: "#1A1A1A",
+  aiBubble: "#F5E6D3",
+  userBubble: "#2D3142",
 
   // Activity colours for pins/icons
-  cycling: "#3B82F6",
-  hiking: "#22C55E",
-  climbing: "#A78BFA",
-  trailRunning: "#F97316",
-  skiing: "#60A5FA",
-  mtb: "#84CC16",
-  kayaking: "#06B6D4",
+  cycling: "#1B6B7D",   // Ocean
+  hiking: "#8BAF7C",    // Sage
+  climbing: "#E8694A",  // Coral
+  trailRunning: "#D4A853", // Gold
+  skiing: "#1B6B7D",    // Ocean
+  mtb: "#8BAF7C",       // Sage
+  kayaking: "#1B6B7D",  // Ocean
 };
 
 export const spacing = {
@@ -96,6 +109,17 @@ export const shadow = {
     shadowRadius: 16,
     elevation: 8,
   },
+};
+
+// Font families — loaded via expo-google-fonts in app/_layout.tsx
+export const fonts = {
+  display: "DMSerifDisplay_400Regular",
+  displayItalic: "DMSerifDisplay_400Regular_Italic",
+  sans: "PlusJakartaSans_400Regular",
+  sansMedium: "PlusJakartaSans_500Medium",
+  sansSemiBold: "PlusJakartaSans_600SemiBold",
+  sansBold: "PlusJakartaSans_700Bold",
+  sansExtraBold: "PlusJakartaSans_800ExtraBold",
 };
 
 // Activity icon map — emoji fallback until we add a vector icon library

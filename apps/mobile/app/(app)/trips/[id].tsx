@@ -690,23 +690,13 @@ function StopCard({
   })).current;
 
   return (
-    <View style={tileStyles.row}>
-      <View style={tileStyles.timeline}>
-        <View style={tileStyles.circle}>
-          <Text style={tileStyles.circleNum}>{stopNumber}</Text>
-        </View>
-        {!isLast && <View style={tileStyles.line} />}
-      </View>
-
-      {/* Outer: handles transform + zIndex + pan gesture */}
-      <Animated.View
-        {...stopPan.panHandlers}
-        style={[
-          { flex: 1, transform: cardPan.getTranslateTransform() },
-          isDragging && { zIndex: 100 },
-        ]}
-      >
-      {/* Inner: retains overflow:hidden for rounded photo corners */}
+    <Animated.View
+      {...stopPan.panHandlers}
+      style={[
+        { transform: cardPan.getTranslateTransform() },
+        isDragging && { zIndex: 100 },
+      ]}
+    >
       <Animated.View style={[
         tileStyles.card,
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
@@ -758,8 +748,7 @@ function StopCard({
         {/* Review section */}
         <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
       </Animated.View>
-      </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -891,21 +880,13 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
   })).current;
 
   return (
-    <View style={tileStyles.row}>
-      <View style={tileStyles.timeline}>
-        <View style={[tileStyles.circle, { backgroundColor: colors.accent }]}>
-          <Feather name="home" size={14} color="#FFFFFF" />
-        </View>
-      </View>
-      {/* Outer: handles transform + zIndex + pan gesture */}
-      <Animated.View
-        {...accomPan.panHandlers}
-        style={[
-          { flex: 1, transform: cardPan.getTranslateTransform() },
-          isDragging && { zIndex: 100 },
-        ]}
-      >
-      {/* Inner: retains overflow:hidden for rounded photo corners */}
+    <Animated.View
+      {...accomPan.panHandlers}
+      style={[
+        { transform: cardPan.getTranslateTransform() },
+        isDragging && { zIndex: 100 },
+      ]}
+    >
       <Animated.View style={[
         tileStyles.card,
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
@@ -957,8 +938,7 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
           </TouchableOpacity>
         </View>
       </Animated.View>
-      </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1093,22 +1073,13 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   })).current;
 
   return (
-    <View style={tileStyles.row}>
-      <View style={tileStyles.timeline}>
-        <View style={[tileStyles.circle, { backgroundColor: "#E07B39" }]}>
-          <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
-        </View>
-        {!isLast && <View style={tileStyles.line} />}
-      </View>
-      {/* Outer: handles transform + zIndex + pan gesture (no overflow:hidden so card can float above siblings) */}
-      <Animated.View
-        {...restPan.panHandlers}
-        style={[
-          { flex: 1, transform: cardPan.getTranslateTransform() },
-          isDragging && { zIndex: 100 },
-        ]}
-      >
-      {/* Inner: retains overflow:hidden for rounded photo corners */}
+    <Animated.View
+      {...restPan.panHandlers}
+      style={[
+        { transform: cardPan.getTranslateTransform() },
+        isDragging && { zIndex: 100 },
+      ]}
+    >
       <Animated.View style={[
         tileStyles.card,
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
@@ -1158,8 +1129,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
           </TouchableOpacity>
         </View>
       </Animated.View>
-      </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1291,6 +1261,10 @@ function TripMapModal({
 }) {
   const insets = useSafeAreaInsets();
   const [activeIdx, setActiveIdx] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [showRoutes, setShowRoutes]             = useState(true);
+  const [showAccommodation, setShowAccommodation] = useState(true);
+  const [showRestaurants, setShowRestaurants]   = useState(true);
 
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const mapRef    = useRef<MapboxGL.MapView>(null);
@@ -1363,14 +1337,14 @@ function TripMapModal({
           />
 
           {/* Route line — canvas */}
-          {routeGeoJSON && (
+          {routeGeoJSON && showRoutes && (
             <MapboxGL.ShapeSource id="tripRoute" shape={routeGeoJSON}>
               <MapboxGL.LineLayer id="tripRouteLine" style={{ lineColor: colors.accent, lineWidth: 2, lineDasharray: [2, 2], lineOpacity: 0.8 }} />
             </MapboxGL.ShapeSource>
           )}
 
           {/* Restaurant dots — canvas (smallest, always below activity & accommodation) */}
-          {restaurantGeoJSON && (
+          {restaurantGeoJSON && showRestaurants && (
             <MapboxGL.ShapeSource id="restaurants" shape={restaurantGeoJSON}>
               <MapboxGL.CircleLayer
                 id="restaurantCircles"
@@ -1424,7 +1398,7 @@ function TripMapModal({
           </MapboxGL.ShapeSource>
 
           {/* Accommodation — PointAnnotation renders as RN view, always above canvas layers */}
-          {meta?.accommodationCoords && (
+          {meta?.accommodationCoords && showAccommodation && (
             <MapboxGL.PointAnnotation key="accom" id="accom" coordinate={meta.accommodationCoords}>
               <AccommodationPin />
             </MapboxGL.PointAnnotation>
@@ -1436,10 +1410,30 @@ function TripMapModal({
           <TouchableOpacity style={mapStyles.iconBtn} onPress={() => onClose()}>
             <Feather name="arrow-left" size={20} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={mapStyles.iconBtn}>
-            <Feather name="menu" size={20} color="#FFFFFF" />
+          <TouchableOpacity style={mapStyles.iconBtn} onPress={() => setFilterOpen(v => !v)}>
+            <Feather name="sliders" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
+
+        {/* Filter sheet */}
+        {filterOpen && (
+          <View style={[mapStyles.filterSheet, { top: insets.top + 56 }]}>
+            <Text style={mapStyles.filterTitle}>Map layers</Text>
+            {([
+              { label: "Routes", value: showRoutes, setter: setShowRoutes, color: colors.accent },
+              { label: "Accommodation", value: showAccommodation, setter: setShowAccommodation, color: colors.ocean },
+              { label: "Restaurants", value: showRestaurants, setter: setShowRestaurants, color: colors.gold },
+            ] as Array<{ label: string; value: boolean; setter: (v: boolean) => void; color: string }>).map(row => (
+              <TouchableOpacity key={row.label} style={mapStyles.filterRow} onPress={() => row.setter(!row.value)}>
+                <View style={[mapStyles.filterDot, { backgroundColor: row.color }]} />
+                <Text style={mapStyles.filterLabel}>{row.label}</Text>
+                <View style={[mapStyles.filterToggle, row.value && { backgroundColor: colors.accent }]}>
+                  <View style={[mapStyles.filterThumb, row.value && { alignSelf: "flex-end" }]} />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Zoom controls */}
         <View style={[mapStyles.zoomControls, { top: insets.top + 60 }]}>
@@ -2247,43 +2241,34 @@ const addItemStyles = StyleSheet.create({
 const CUSTOM_STRIPE: Record<ItemType, string> = {
   stay: colors.coral,
   restaurant: colors.coral,
-  activity: colors.sage,
+  activity: colors.sky,
 };
 
 function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem }) {
   const stripeColor = CUSTOM_STRIPE[item.type] ?? colors.muted;
   return (
-    <View style={tileStyles.row}>
-      <View style={tileStyles.timeline}>
-        <View style={[tileStyles.circle, { backgroundColor: stripeColor }]}>
-          <Text style={{ fontSize: 14 }}>
-            {item.type === "stay" ? "🏨" : item.type === "restaurant" ? "🍽️" : "🏃"}
-          </Text>
-        </View>
-      </View>
-      <View style={[tileStyles.card, { overflow: "hidden" }]}>
-        <View style={[tileStyles.accentStripe, { backgroundColor: stripeColor }]} />
-        {item.photos && item.photos.length > 0 && (
-          <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
-        )}
-        <View style={tileStyles.info}>
-          <Text style={tileStyles.title}>{item.name}</Text>
-          {item.location ? (
-            <View style={tileStyles.infoRow}>
-              <Feather name="map-pin" size={11} color={colors.muted} />
-              <Text style={tileStyles.infoText}>{item.location}</Text>
-            </View>
-          ) : null}
-          {item.rating ? (
-            <View style={tileStyles.infoRow}>
-              <MaterialCommunityIcons name="star" size={11} color="#F59E0B" />
-              <Text style={tileStyles.infoText}>{item.rating}/5</Text>
-            </View>
-          ) : null}
-          {item.notes ? (
-            <Text style={[tileStyles.infoText, { marginTop: 2 }]}>{item.notes}</Text>
-          ) : null}
-        </View>
+    <View style={[tileStyles.card, { overflow: "hidden" }]}>
+      <View style={[tileStyles.accentStripe, { backgroundColor: stripeColor }]} />
+      {item.photos && item.photos.length > 0 && (
+        <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
+      )}
+      <View style={tileStyles.info}>
+        <Text style={tileStyles.title}>{item.name}</Text>
+        {item.location ? (
+          <View style={tileStyles.infoRow}>
+            <Feather name="map-pin" size={11} color={colors.muted} />
+            <Text style={tileStyles.infoText}>{item.location}</Text>
+          </View>
+        ) : null}
+        {item.rating ? (
+          <View style={tileStyles.infoRow}>
+            <MaterialCommunityIcons name="star" size={11} color="#F59E0B" />
+            <Text style={tileStyles.infoText}>{item.rating}/5</Text>
+          </View>
+        ) : null}
+        {item.notes ? (
+          <Text style={[tileStyles.infoText, { marginTop: 2 }]}>{item.notes}</Text>
+        ) : null}
       </View>
     </View>
   );
@@ -3294,6 +3279,32 @@ const mapStyles = StyleSheet.create({
   },
   zoomBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   zoomDivider: { height: 1, backgroundColor: colors.border, marginHorizontal: 8 },
+  filterSheet: {
+    position: "absolute", top: 0, right: 0,
+    backgroundColor: colors.card, borderBottomLeftRadius: radius.lg,
+    paddingHorizontal: spacing.md, paddingBottom: spacing.md,
+    minWidth: 210, ...shadow.md, zIndex: 20,
+  },
+  filterTitle: {
+    fontSize: fontSize.sm, fontWeight: "700", color: colors.muted,
+    textTransform: "uppercase", letterSpacing: 0.6,
+    paddingTop: spacing.md, paddingBottom: spacing.sm,
+  },
+  filterRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    paddingVertical: 10,
+  },
+  filterDot: { width: 10, height: 10, borderRadius: 5 },
+  filterLabel: { flex: 1, fontSize: fontSize.base, color: colors.text, fontWeight: "500" },
+  filterToggle: {
+    width: 44, height: 26, borderRadius: 13,
+    backgroundColor: colors.border, padding: 3,
+    justifyContent: "center",
+  },
+  filterThumb: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: colors.card, ...shadow.sm,
+  },
 });
 
 const invStyles = StyleSheet.create({

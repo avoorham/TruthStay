@@ -2,16 +2,18 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Keyboard, Linking, Modal,
-  PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View,
+  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Keyboard, LayoutAnimation,
+  Linking, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity, Vibration, View,
 } from "react-native";
 import MapboxGL from "@rnmapbox/maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, reorderActivity, type AdventureRow, type AdventureDayRow } from "../../../lib/api";
+import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, updateTileOrder, getCollaborators, inviteCollaborator, updateCollaboratorPermission, removeCollaborator, updateDayCustomItems, createActivityPost, type AdventureRow, type AdventureDayRow, type CustomItem, type Collaborator as ApiCollaborator } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
+import { supabase } from "../../../lib/supabase";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
@@ -50,11 +52,10 @@ export interface TripMeta {
   bookings: Booking[];
 }
 
-export type Permission = "Editor" | "Suggest edits" | "Viewer";
-export interface MockUser { id: string; name: string; username: string }
-export interface Collaborator { user: MockUser; role: string }
+export type Permission = "editor" | "viewer";
+export type Collaborator = ApiCollaborator;
 
-function searchUsers(_query: string, _excludeIds: string[]): MockUser[] { return []; }
+type TileId = "route" | "accommodation" | `rest:${number}`;
 
 // Derive TripMeta from real AdventureRow data
 function deriveMetaMeta(adventure: AdventureRow): TripMeta {
@@ -215,7 +216,7 @@ function ReviewSection({
 
 // ─── Invite friends modal ─────────────────────────────────────────────────────
 
-const PERMISSIONS: Permission[] = ["Editor", "Suggest edits", "Viewer"];
+const PERMISSIONS: Permission[] = ["editor", "viewer"];
 
 function PermissionPicker({
   current, onSelect, onRemove, onClose,
@@ -262,38 +263,31 @@ function CollaboratorRow({
   onRemove: () => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
-  const isOwner = collab.role === "owner";
 
   return (
     <View style={invStyles.collabRow}>
       <Image
-        source={{ uri: `https://picsum.photos/seed/${collab.user.id}/80/80` }}
+        source={{ uri: collab.user.avatarUrl ?? `https://picsum.photos/seed/${collab.user.id}/80/80` }}
         style={invStyles.collabAvatar}
       />
       <View style={invStyles.collabInfo}>
-        <Text style={invStyles.collabName}>{collab.user.name}</Text>
+        <Text style={invStyles.collabName}>{collab.user.displayName}</Text>
         <Text style={invStyles.collabUsername}>@{collab.user.username}</Text>
       </View>
-      {isOwner ? (
-        <View style={invStyles.ownerBadge}>
-          <Text style={invStyles.ownerText}>Owner</Text>
-        </View>
-      ) : (
-        <>
-          <TouchableOpacity style={invStyles.permBtn} onPress={() => setShowPicker(true)}>
-            <Text style={invStyles.permBtnText}>{collab.role}</Text>
-            <Feather name="chevron-down" size={12} color={colors.muted} />
-          </TouchableOpacity>
-          {showPicker && (
-            <PermissionPicker
-              current={collab.role as Permission}
-              onSelect={onChangeRole}
-              onRemove={onRemove}
-              onClose={() => setShowPicker(false)}
-            />
-          )}
-        </>
-      )}
+      <>
+        <TouchableOpacity style={invStyles.permBtn} onPress={() => setShowPicker(true)}>
+          <Text style={invStyles.permBtnText}>{collab.permission}</Text>
+          <Feather name="chevron-down" size={12} color={colors.muted} />
+        </TouchableOpacity>
+        {showPicker && (
+          <PermissionPicker
+            current={collab.permission}
+            onSelect={onChangeRole}
+            onRemove={onRemove}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+      </>
     </View>
   );
 }
@@ -307,14 +301,19 @@ function InviteFriendsModal({
 }: { visible: boolean; onClose: () => void; adventure: AdventureRow }) {
   const [showQR, setShowQR] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [selected, setSelected] = useState<MockUser[]>([]);
-  const [collabs, setCollabs] = useState<Collaborator[]>(
-    [{ user: { id: "me", username: "you", name: "You" }, role: "owner" }],
-  );
+  const [collabs, setCollabs] = useState<Collaborator[]>([]);
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [toast, setToast] = useState("");
   const kbOffset = useRef(new Animated.Value(0)).current;
   const sheetY   = useRef(new Animated.Value(0)).current;
+
+  // Load collaborators when modal opens
+  useEffect(() => {
+    if (visible) {
+      getCollaborators(adventure.id).then(setCollabs).catch(() => {/* non-fatal */});
+    }
+  }, [visible, adventure.id]);
 
   // Swipe handle pan responder
   const panResponder = useRef(
@@ -367,12 +366,7 @@ function InviteFriendsModal({
     if (searchText.length > 0) setInviteSent(false);
   }, [searchText]);
 
-  const excludeIds = [
-    ...collabs.map(c => c.user.id),
-    ...selected.map(u => u.id),
-  ];
-  const suggestions = searchUsers(searchText, excludeIds);
-  const canInvite = selected.length > 0 || isValidEmail(searchText);
+  const canInvite = isValidEmail(searchText);
   const inviteCode = `TRIP-${adventure.id.toUpperCase()}`;
 
   function showToast(msg: string) {
@@ -380,20 +374,42 @@ function InviteFriendsModal({
     setTimeout(() => setToast(""), 2000);
   }
 
-  function handleInvite() {
-    if (!canInvite) return;
-    const newCollabs: Collaborator[] = selected.map(u => ({ user: u, role: "Viewer" as Permission }));
-    if (newCollabs.length > 0) setCollabs(prev => [...prev, ...newCollabs]);
-    setSelected([]);
-    setSearchText("");
-    setInviteSent(true);
+  async function handleInvite() {
+    if (!canInvite || inviting) return;
+    setInviting(true);
+    try {
+      await inviteCollaborator(adventure.id, searchText.trim());
+      setSearchText("");
+      setInviteSent(true);
+      const updated = await getCollaborators(adventure.id);
+      setCollabs(updated);
+    } catch (e: unknown) {
+      showToast((e as Error).message ?? "Invite failed");
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  async function handleChangeRole(index: number, p: Permission) {
+    const collab = collabs[index];
+    try {
+      await updateCollaboratorPermission(adventure.id, collab.user.id, p);
+      setCollabs(prev => prev.map((x, xi) => xi === index ? { ...x, permission: p } : x));
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleRemove(index: number) {
+    const collab = collabs[index];
+    try {
+      await removeCollaborator(adventure.id, collab.user.id);
+      setCollabs(prev => prev.filter((_, xi) => xi !== index));
+    } catch { /* non-fatal */ }
   }
 
   function handleClose() {
     Keyboard.dismiss();
     setShowQR(false);
     setSearchText("");
-    setSelected([]);
     setInviteSent(false);
     onClose();
   }
@@ -486,15 +502,19 @@ function InviteFriendsModal({
 
                     {/* Friends list */}
                     <View style={invStyles.friendsBox}>
-                      <Text style={invStyles.friendsLabel}>Friends</Text>
-                      {collabs.map((c, i) => (
+                      <Text style={invStyles.friendsLabel}>
+                        Collaborators ({collabs.length})
+                      </Text>
+                      {collabs.length === 0 ? (
+                        <Text style={[invStyles.friendsLabel, { color: colors.subtle, fontWeight: "400", fontSize: fontSize.xs }]}>
+                          No collaborators yet. Invite someone by email below.
+                        </Text>
+                      ) : collabs.map((c, i) => (
                         <CollaboratorRow
-                          key={c.user.id + i}
+                          key={c.id}
                           collab={c}
-                          onChangeRole={p => setCollabs(prev =>
-                            prev.map((x, xi) => xi === i ? { ...x, role: p } : x),
-                          )}
-                          onRemove={() => setCollabs(prev => prev.filter((_, xi) => xi !== i))}
+                          onChangeRole={p => handleChangeRole(i, p)}
+                          onRemove={() => handleRemove(i)}
                         />
                       ))}
                     </View>
@@ -509,65 +529,31 @@ function InviteFriendsModal({
                   <View style={invStyles.orLine} />
                 </View>
 
-                {/* Search field — outside ScrollView so it's always visible */}
+                {/* Email invite field */}
                 <View style={invStyles.searchWrap}>
-                  <Feather name="search" size={15} color={colors.muted} style={{ marginRight: 6 }} />
+                  <Feather name="mail" size={15} color={colors.muted} style={{ marginRight: 6 }} />
                   <TextInput
                     style={invStyles.searchInput}
                     value={searchText}
                     onChangeText={setSearchText}
-                    placeholder="Write username or email…"
+                    placeholder="Enter email to invite…"
                     placeholderTextColor={colors.subtle}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    keyboardType="email-address"
+                    onSubmitEditing={handleInvite}
                   />
                 </View>
 
-                {/* Suggestions — outside ScrollView so they're always visible above keyboard */}
-                {suggestions.length > 0 && (
-                  <View style={invStyles.suggestionList}>
-                    {suggestions.slice(0, 2).map(u => (
-                      <TouchableOpacity
-                        key={u.id}
-                        style={invStyles.suggestionRow}
-                        onPress={() => { setSelected(prev => [...prev, u]); setSearchText(""); }}
-                      >
-                        <Image
-                          source={{ uri: `https://picsum.photos/seed/${u.id}/80/80` }}
-                          style={invStyles.suggestionAvatar}
-                        />
-                        <View>
-                          <Text style={invStyles.suggestionName}>{u.name}</Text>
-                          <Text style={invStyles.suggestionUsername}>@{u.username}</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {/* Selected chips — outside ScrollView so they stay visible */}
-                {selected.length > 0 && (
-                  <View style={invStyles.chipRow}>
-                    {selected.map(u => (
-                      <TouchableOpacity
-                        key={u.id}
-                        style={invStyles.chip}
-                        onPress={() => setSelected(prev => prev.filter(x => x.id !== u.id))}
-                      >
-                        <Text style={invStyles.chipText}>{u.name}</Text>
-                        <Feather name="x" size={12} color={colors.muted} />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
                 {/* Pinned invite button */}
                 <TouchableOpacity
-                  style={[invStyles.inviteBtn, !canInvite && invStyles.inviteBtnDisabled]}
+                  style={[invStyles.inviteBtn, (!canInvite || inviting) && invStyles.inviteBtnDisabled]}
                   onPress={handleInvite}
-                  disabled={!canInvite}
+                  disabled={!canInvite || inviting}
                 >
-                  <Text style={invStyles.inviteBtnText}>{inviteSent ? "Invite sent" : "Invite"}</Text>
+                  <Text style={invStyles.inviteBtnText}>
+                    {inviting ? "Inviting…" : inviteSent ? "Invite sent ✓" : "Invite"}
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -626,6 +612,7 @@ function RouteConnectModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 function StopCard({
   day, adventureId, stopNumber, isLast, review, onRate, onComment, onConnectRoute, photos, onAddPhoto, onShare,
+  onMoveUp, onMoveDown, onDraggingChange,
 }: {
   day: AdventureDayRow;
   adventureId: string;
@@ -638,8 +625,68 @@ function StopCard({
   photos: string[];
   onAddPhoto: () => void;
   onShare: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onDraggingChange?: (v: boolean) => void;
 }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const cardPan = useRef(new Animated.ValueXY()).current;
   const photoUrl = `https://picsum.photos/seed/${adventureId}-${day.dayNumber}/800/500`;
+
+  const isDraggingRef  = useRef(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const THRESHOLD      = 60;
+  const LONG_PRESS_MS  = 400;
+
+  const cbStop = useRef({ onMoveUp, onMoveDown, onDraggingChange });
+  cbStop.current = { onMoveUp, onMoveDown, onDraggingChange };
+
+  const stopPan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder:  () => isDraggingRef.current,
+    onPanResponderTerminationRequest: () => !isDraggingRef.current,
+
+    onPanResponderGrant: () => {
+      longPressTimer.current = setTimeout(() => {
+        isDraggingRef.current = true;
+        Vibration.vibrate(30);
+        setIsDragging(true);
+        cbStop.current.onDraggingChange?.(true);
+      }, LONG_PRESS_MS);
+    },
+
+    onPanResponderMove: (_, g) => {
+      if (!isDraggingRef.current) {
+        if (Math.abs(g.dx) > 10 || Math.abs(g.dy) > 10) {
+          if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+        }
+        return;
+      }
+      // Route tile only moves vertically
+      cardPan.setValue({ x: 0, y: g.dy });
+    },
+
+    onPanResponderRelease: (_, g) => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbStop.current.onDraggingChange?.(false);
+      if (g.dy < -THRESHOLD) cbStop.current.onMoveUp?.();
+      else if (g.dy > THRESHOLD) cbStop.current.onMoveDown?.();
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+
+    onPanResponderTerminate: () => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      cbStop.current.onDraggingChange?.(false);
+      Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+    },
+  })).current;
+
   return (
     <View style={tileStyles.row}>
       <View style={tileStyles.timeline}>
@@ -649,7 +696,20 @@ function StopCard({
         {!isLast && <View style={tileStyles.line} />}
       </View>
 
-      <View style={tileStyles.card}>
+      {/* Outer: handles transform + zIndex + pan gesture */}
+      <Animated.View
+        {...stopPan.panHandlers}
+        style={[
+          { flex: 1, transform: cardPan.getTranslateTransform() },
+          isDragging && { zIndex: 100 },
+        ]}
+      >
+      {/* Inner: retains overflow:hidden for rounded photo corners */}
+      <Animated.View style={[
+        tileStyles.card,
+        isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
+      ]}>
+        <View style={[tileStyles.accentStripe, { backgroundColor: colors.sage }]} />
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
         <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
@@ -695,14 +755,15 @@ function StopCard({
 
         {/* Review section */}
         <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
-      </View>
+      </Animated.View>
+      </Animated.View>
     </View>
   );
 }
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay, onDraggingChange }: {
+function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, onAddPhoto, onPreviewDay, onMoveUp, onMoveDown, onDraggingChange }: {
   meta: TripMeta;
   adventureId: string;
   dayNumber: number;
@@ -710,6 +771,8 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
   onMoved: () => void;
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onDraggingChange?: (v: boolean) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -728,13 +791,13 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
   const cbAccom = useRef({
     onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
     onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined as (() => void) | undefined,
-    onDraggingChange, onPreviewDay,
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay,
     disabled: totalDays <= 1,
   });
   cbAccom.current = {
     onDragLeft:  dayNumber > 1         ? async () => { await moveActivity(adventureId, dayNumber, dayNumber - 1, "accommodation", 0); onMoved(); } : undefined,
     onDragRight: dayNumber < totalDays ? async () => { await moveActivity(adventureId, dayNumber, dayNumber + 1, "accommodation", 0); onMoved(); } : undefined,
-    onDraggingChange, onPreviewDay,
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay,
     disabled: totalDays <= 1,
   };
 
@@ -776,7 +839,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
       }
     },
 
-    onPanResponderRelease: (_) => {
+    onPanResponderRelease: (_, g) => {
       if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
       if (dayTimer.current) { clearTimeout(dayTimer.current); dayTimer.current = null; }
       if (!isDraggingRef.current) return;
@@ -787,6 +850,12 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
         if (lastDirRef.current === "left") cbAccom.current.onDragLeft?.();
         else if (lastDirRef.current === "right") cbAccom.current.onDragRight?.();
         daySwitchedRef.current = false;
+      } else {
+        const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
+        if (!isHoriz) {
+          if (g.dy < -THRESHOLD) cbAccom.current.onMoveUp?.();
+          else if (g.dy > THRESHOLD) cbAccom.current.onMoveDown?.();
+        }
       }
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
     },
@@ -822,6 +891,7 @@ function AccommodationCard({ meta, adventureId, dayNumber, totalDays, onMoved, o
         tileStyles.card,
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
+        <View style={[tileStyles.accentStripe, { backgroundColor: colors.coral }]} />
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
         {onAddPhoto && (
@@ -1004,6 +1074,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         tileStyles.card,
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
+        <View style={[tileStyles.accentStripe, { backgroundColor: colors.coral }]} />
         <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
         {/* Camera button */}
         {onAddPhoto && (
@@ -1852,6 +1923,333 @@ const editStyles = StyleSheet.create({
   deleteBtnText: { color: "#E53E3E", fontWeight: "600", fontSize: fontSize.sm },
 });
 
+// ─── Add Item Modal ───────────────────────────────────────────────────────────
+
+type ItemType = "stay" | "restaurant" | "activity";
+
+const ITEM_TYPES: { id: ItemType; label: string; icon: string }[] = [
+  { id: "stay",       label: "Stay",       icon: "🏨" },
+  { id: "restaurant", label: "Restaurant", icon: "🍽️" },
+  { id: "activity",   label: "Activity",   icon: "🏃" },
+];
+
+function AddItemModal({
+  dayNumber,
+  adventureId,
+  onSave,
+  onClose,
+}: {
+  dayNumber: number;
+  adventureId: string;
+  onSave: (item: import("../../../lib/api").CustomItem) => void;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [selectedType, setSelectedType] = useState<ItemType>("activity");
+  const [link, setLink]         = useState("");
+  const [scraping, setScraping] = useState(false);
+  const [name, setName]         = useState("");
+  const [location, setLocation] = useState("");
+  const [notes, setNotes]       = useState("");
+  const [rating, setRating]     = useState(0);
+  const [photos, setPhotos]     = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving]     = useState(false);
+
+  async function handleScrape() {
+    const url = link.trim();
+    if (!url) return;
+    setScraping(true);
+    try {
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+      const json = await res.json() as { contents?: string };
+      const html = json.contents ?? "";
+      const getOg = (prop: string) => {
+        const match = html.match(new RegExp(`<meta[^>]+property=["']og:${prop}["'][^>]+content=["']([^"']+)["']`, "i"))
+          ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${prop}["']`, "i"));
+        return match?.[1] ?? "";
+      };
+      const ogTitle = getOg("title");
+      const ogDesc  = getOg("description");
+      if (ogTitle && !name) setName(ogTitle);
+      if (ogDesc  && !notes) setNotes(ogDesc.slice(0, 200));
+    } catch {
+      /* graceful fallback — user can fill manually */
+    } finally {
+      setScraping(false);
+    }
+  }
+
+  async function handleAddPhoto() {
+    const uri = await pickImage([4, 3]);
+    if (!uri) return;
+    setUploading(true);
+    const url = await uploadReviewPhoto(`${adventureId}-custom-${Date.now()}`, uri);
+    setUploading(false);
+    if (url) setPhotos(prev => [...prev, url]);
+  }
+
+  async function handleSave() {
+    if (!name.trim()) { Alert.alert("Name required", "Please enter a name for this item."); return; }
+    setSaving(true);
+    try {
+      onSave({
+        id: `custom_${Date.now()}`,
+        name: name.trim(),
+        type: selectedType,
+        location: location.trim() || null,
+        photos,
+        notes: notes.trim() || null,
+        rating: rating > 0 ? rating : null,
+        sourceUrl: link.trim() || null,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      <View style={addItemStyles.overlay}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        <View style={[addItemStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={addItemStyles.handle} />
+          <View style={addItemStyles.headerRow}>
+            <Text style={addItemStyles.title}>Add to Day {dayNumber}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Feather name="x" size={20} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Type selector */}
+            <View style={addItemStyles.typeRow}>
+              {ITEM_TYPES.map(t => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[addItemStyles.typeBtn, selectedType === t.id && addItemStyles.typeBtnActive]}
+                  onPress={() => setSelectedType(t.id)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={addItemStyles.typeIcon}>{t.icon}</Text>
+                  <Text style={[addItemStyles.typeLabel, selectedType === t.id && addItemStyles.typeLabelActive]}>
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* URL scraper */}
+            <Text style={addItemStyles.label}>Link (optional)</Text>
+            <View style={addItemStyles.linkRow}>
+              <TextInput
+                style={[addItemStyles.input, { flex: 1 }]}
+                value={link}
+                onChangeText={setLink}
+                placeholder="Paste a URL to auto-fill…"
+                placeholderTextColor={colors.subtle}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+              <TouchableOpacity
+                style={[addItemStyles.fetchBtn, scraping && { opacity: 0.5 }]}
+                onPress={handleScrape}
+                disabled={scraping}
+              >
+                {scraping
+                  ? <ActivityIndicator size="small" color={colors.inverse} />
+                  : <Text style={addItemStyles.fetchText}>Fetch</Text>
+                }
+              </TouchableOpacity>
+            </View>
+
+            {/* Name */}
+            <Text style={addItemStyles.label}>Name *</Text>
+            <TextInput
+              style={addItemStyles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="e.g. Rifugio Auronzo"
+              placeholderTextColor={colors.subtle}
+            />
+
+            {/* Location */}
+            <Text style={addItemStyles.label}>Location</Text>
+            <TextInput
+              style={addItemStyles.input}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. Cortina d'Ampezzo"
+              placeholderTextColor={colors.subtle}
+            />
+
+            {/* Photo picker */}
+            <Text style={addItemStyles.label}>Photos</Text>
+            <View style={addItemStyles.photoRow}>
+              {photos.map((url, i) => (
+                <Image key={i} source={{ uri: url }} style={addItemStyles.photoThumb} />
+              ))}
+              <TouchableOpacity
+                style={[addItemStyles.addPhotoBtn, uploading && { opacity: 0.5 }]}
+                onPress={handleAddPhoto}
+                disabled={uploading}
+              >
+                {uploading
+                  ? <ActivityIndicator size="small" color={colors.muted} />
+                  : <Feather name="camera" size={20} color={colors.muted} />
+                }
+              </TouchableOpacity>
+            </View>
+
+            {/* Notes */}
+            <Text style={addItemStyles.label}>Notes</Text>
+            <TextInput
+              style={[addItemStyles.input, { minHeight: 70, textAlignVertical: "top" }]}
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Any notes or tips…"
+              placeholderTextColor={colors.subtle}
+              multiline
+            />
+
+            {/* Star rating */}
+            <Text style={addItemStyles.label}>Rating</Text>
+            <View style={addItemStyles.starRow}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <TouchableOpacity key={n} onPress={() => setRating(n)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <MaterialCommunityIcons
+                    name={n <= rating ? "star" : "star-outline"}
+                    size={28}
+                    color={n <= rating ? "#F59E0B" : colors.border}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Actions */}
+          <View style={addItemStyles.actionRow}>
+            <TouchableOpacity style={addItemStyles.cancelBtn} onPress={onClose}>
+              <Text style={addItemStyles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[addItemStyles.saveBtn, saving && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              {saving
+                ? <ActivityIndicator color={colors.inverse} size="small" />
+                : <Text style={addItemStyles.saveText}>Add to Day {dayNumber}</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const addItemStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: spacing.md, maxHeight: "90%",
+  },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: spacing.md },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
+  title: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  typeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  typeBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 5, paddingVertical: 10, borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.bg,
+  },
+  typeBtnActive: { backgroundColor: colors.text, borderColor: colors.text },
+  typeIcon: { fontSize: 16 },
+  typeLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
+  typeLabelActive: { color: colors.inverse },
+  label: { fontSize: fontSize.xs, fontWeight: "600", color: colors.muted, marginBottom: 4, marginTop: spacing.sm, textTransform: "uppercase", letterSpacing: 0.5 },
+  input: {
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.sm, paddingVertical: 10,
+    fontSize: fontSize.base, color: colors.text, marginBottom: 2,
+  },
+  linkRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  fetchBtn: {
+    backgroundColor: colors.text, borderRadius: radius.md,
+    paddingHorizontal: spacing.md, paddingVertical: 10,
+  },
+  fetchText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: 2 },
+  photoThumb: { width: 64, height: 64, borderRadius: radius.md },
+  addPhotoBtn: {
+    width: 64, height: 64, borderRadius: radius.md,
+    borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
+    alignItems: "center", justifyContent: "center",
+  },
+  starRow: { flexDirection: "row", gap: 4, marginBottom: spacing.sm },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  cancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border, alignItems: "center",
+  },
+  cancelText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  saveBtn: {
+    flex: 2, paddingVertical: 14, borderRadius: radius.full,
+    backgroundColor: colors.accent, alignItems: "center",
+  },
+  saveText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
+});
+
+// ─── Custom item card ─────────────────────────────────────────────────────────
+
+const CUSTOM_STRIPE: Record<ItemType, string> = {
+  stay: colors.coral,
+  restaurant: colors.coral,
+  activity: colors.sage,
+};
+
+function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem }) {
+  const stripeColor = CUSTOM_STRIPE[item.type] ?? colors.muted;
+  return (
+    <View style={tileStyles.row}>
+      <View style={tileStyles.timeline}>
+        <View style={[tileStyles.circle, { backgroundColor: stripeColor }]}>
+          <Text style={{ fontSize: 14 }}>
+            {item.type === "stay" ? "🏨" : item.type === "restaurant" ? "🍽️" : "🏃"}
+          </Text>
+        </View>
+      </View>
+      <View style={[tileStyles.card, { overflow: "hidden" }]}>
+        <View style={[tileStyles.accentStripe, { backgroundColor: stripeColor }]} />
+        {item.photos && item.photos.length > 0 && (
+          <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
+        )}
+        <View style={tileStyles.info}>
+          <Text style={tileStyles.title}>{item.name}</Text>
+          {item.location ? (
+            <View style={tileStyles.infoRow}>
+              <Feather name="map-pin" size={11} color={colors.muted} />
+              <Text style={tileStyles.infoText}>{item.location}</Text>
+            </View>
+          ) : null}
+          {item.rating ? (
+            <View style={tileStyles.infoRow}>
+              <MaterialCommunityIcons name="star" size={11} color="#F59E0B" />
+              <Text style={tileStyles.infoText}>{item.rating}/5</Text>
+            </View>
+          ) : null}
+          {item.notes ? (
+            <Text style={[tileStyles.infoText, { marginTop: 2 }]}>{item.notes}</Text>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen() {
@@ -1875,11 +2273,13 @@ export default function TripDetailScreen() {
   const [isPublicState, setIsPublicState] = useState(false);
   const [sharing, setSharing]             = useState(false);
   const [editVisible, setEditVisible]     = useState(false);
+  const [addItemDay, setAddItemDay]       = useState<number | null>(null);
   const [swipeEnabled, setSwipeEnabled]   = useState(true);
-  const [localRestaurantOrder, setLocalRestaurantOrder] = useState<Record<number, RestaurantStop[]>>({});
+  const [localTileOrder, setLocalTileOrder] = useState<Record<number, TileId[]>>({});
   const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
   const heroCarouselRef = useRef<FlatList<AdventureRow>>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipScrollRef   = useRef(false);
   const heroOffset      = useRef(new Animated.Value(0)).current;
 
   // Must be before any early return — Rules of Hooks
@@ -1890,6 +2290,7 @@ export default function TripDetailScreen() {
 
   // Sync FlatList position when selectedDay changes via chip tap
   useEffect(() => {
+    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
     const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
     if (idx >= 0) dayListRef.current?.scrollToIndex({ index: idx, animated: true });
   }, [selectedDay, sortedDays]);
@@ -1965,6 +2366,8 @@ export default function TripDetailScreen() {
   const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
   const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
   const isOwner     = isOwnAdventure;
+  const today       = new Date().toISOString().split("T")[0];
+  const isActive    = !!(adventure.startDate && adventure.endDate && today >= adventure.startDate && today <= adventure.endDate);
 
   async function handleShareToExplore() {
     if (!adventure) return;
@@ -2012,32 +2415,93 @@ export default function TripDetailScreen() {
 
   async function handleActivityMoved() {
     if (!adventure) return;
-    setLocalRestaurantOrder({});   // discard local overrides; server is now source of truth
+    setLocalTileOrder({});   // discard local overrides; server is now source of truth
     const adv = await getAdventureById(adventure.id);
     setAdventure(adv);
   }
 
-  function applyLocalReorder(dayNum: number, restaurants: RestaurantStop[], fromIdx: number, toIdx: number) {
-    const next = [...restaurants];
-    const [removed] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, removed);
-    setLocalRestaurantOrder(prev => ({ ...prev, [dayNum]: next }));
+  async function handleAddItem(dayNumber: number, item: CustomItem) {
+    if (!adventure) return;
+    const day = adventure.adventure_days.find(d => d.dayNumber === dayNumber);
+    if (!day) return;
+    const existing: CustomItem[] = (day.alternatives?.customItems ?? []) as CustomItem[];
+    const updated = [...existing, item];
+    await updateDayCustomItems(adventure.id, dayNumber, updated);
+    // Update local state so the new tile appears instantly
+    setAdventure(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        adventure_days: prev.adventure_days.map(d =>
+          d.dayNumber === dayNumber
+            ? { ...d, alternatives: { ...(d.alternatives ?? {}), customItems: updated } }
+            : d,
+        ),
+      };
+    });
+    setAddItemDay(null);
+  }
+
+  function defaultTileOrder(_dayNum: number, restaurants: RestaurantStop[]): TileId[] {
+    const order: TileId[] = [];
+    if (meta.accommodation) order.push("accommodation");
+    restaurants.forEach((_, i) => order.push(`rest:${i}` as TileId));
+    order.push("route");
+    return order;
+  }
+
+  function moveTile(dayNum: number, tileId: TileId, direction: "up" | "down") {
+    if (!adventure) return;
+    const restaurants = meta.restaurants.filter(r => r.night === dayNum);
+    const stored = (adventure.adventure_days.find(d => d.dayNumber === dayNum)
+      ?.alternatives as { tileOrder?: TileId[] } | null)?.tileOrder;
+    const current: TileId[] = localTileOrder[dayNum] ?? stored ?? defaultTileOrder(dayNum, restaurants);
+    const idx = current.indexOf(tileId);
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (idx < 0 || targetIdx < 0 || targetIdx >= current.length) return;
+    const next = [...current];
+    [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setLocalTileOrder(prev => ({ ...prev, [dayNum]: next }));
+    updateTileOrder(adventure.id, dayNum, next);
   }
 
   function handlePreviewDay(dir: "left" | "right") {
     const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
     const targetIdx = dir === "left" ? idx - 1 : idx + 1;
     if (targetIdx >= 0 && targetIdx < sortedDays.length) {
+      skipScrollRef.current = true;   // suppress useEffect double-scroll
       dayListRef.current?.scrollToIndex({ index: targetIdx, animated: true });
       setSelectedDay(sortedDays[targetIdx].dayNumber);
     }
   }
 
-  async function handleAddActivityPhoto(dayNum: number, key: string) {
+  async function handleAddActivityPhoto(
+    dayNum: number,
+    key: string,
+    itemType?: "route" | "accommodation" | "restaurant",
+    itemName?: string,
+  ) {
     const uri = await pickImage([4, 3]);
     if (!uri) return;
     const url = await uploadReviewPhoto(`${adventure!.id}-${key}-${Date.now()}`, uri);
-    if (url) setReviewPhotos(prev => ({ ...prev, [dayNum]: [...(prev[dayNum] ?? []), url] }));
+    if (!url) return;
+    setReviewPhotos(prev => ({ ...prev, [dayNum]: [...(prev[dayNum] ?? []), url] }));
+    // Vacation feed push: if trip is active and user is the owner, create an ActivityPost
+    if (isActive && isOwner && itemType && itemName) {
+      const { data: { session } } = await supabase.auth.getSession();
+      const email = session?.user?.email;
+      if (email) {
+        createActivityPost({
+          adventure_id: adventure!.id,
+          user_email: email,
+          item_name: itemName,
+          item_type: itemType,
+          day_number: dayNum,
+          photos: [url],
+        }).catch(() => {/* non-fatal */});
+      }
+    }
   }
 
   async function handleShareToFeed() {
@@ -2073,6 +2537,7 @@ export default function TripDetailScreen() {
   function handleDaySwipe(idx: number) {
     const day = sortedDays[idx];
     if (!day) return;
+    skipScrollRef.current = true;   // suppress useEffect double-scroll after user swipe
     setSelectedDay(day.dayNumber);
     setSwipeEnabled(false);
     if (swipeCooldown.current) clearTimeout(swipeCooldown.current);
@@ -2206,7 +2671,9 @@ export default function TripDetailScreen() {
         }}
         style={{ flex: 1 }}
         renderItem={({ item: day }) => {
-          const dayRestaurants = localRestaurantOrder[day.dayNumber] ?? meta.restaurants.filter(r => r.night === day.dayNumber);
+          const dayRestaurants = meta.restaurants.filter(r => r.night === day.dayNumber);
+          const stored = (day.alternatives as { tileOrder?: TileId[] } | null)?.tileOrder;
+          const tileOrder: TileId[] = localTileOrder[day.dayNumber] ?? stored ?? defaultTileOrder(day.dayNumber, dayRestaurants);
           const review = getReview(day.dayNumber);
           const isPast = adventure.startDate
             ? (() => { const d = new Date(adventure.startDate); d.setDate(d.getDate() + day.dayNumber - 1); return d < new Date(); })()
@@ -2233,57 +2700,92 @@ export default function TripDetailScreen() {
                 )}
               </View>
 
-              <StopCard
-                day={day}
-                adventureId={adventure.id}
-                stopNumber={day.dayNumber}
-                isLast={dayRestaurants.length === 0 && !meta.accommodation}
-                review={review}
-                onRate={r => setReview(day.dayNumber, { ...review, rating: r })}
-                onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
-                onConnectRoute={() => setRouteModal(true)}
-                photos={reviewPhotos[day.dayNumber] ?? []}
-                onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `route${day.dayNumber}`)}
-                onShare={() => setShareDay(day.dayNumber)}
-              />
+              {tileOrder.map((tileId, orderIdx) => {
+                const canUp   = orderIdx > 0;
+                const canDown = orderIdx < tileOrder.length - 1;
+                const isLast  = orderIdx === tileOrder.length - 1;
 
-              {dayRestaurants.map((r, i) => (
-                <RestaurantCard
-                  key={r.name + String(i)}
-                  restaurant={r}
-                  adventureId={adventure.id}
-                  idx={i}
-                  dayNumber={day.dayNumber}
-                  totalDays={sortedDays.length}
-                  isLast={i === dayRestaurants.length - 1 && !meta.accommodation}
-                  onMoved={handleActivityMoved}
-                  onPreviewDay={handlePreviewDay}
-                  onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${i}`)}
-                  onMoveUp={i > 0 ? async () => {
-                    applyLocalReorder(day.dayNumber, dayRestaurants, i, i - 1);
-                    await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i - 1);
-                    handleActivityMoved();
-                  } : undefined}
-                  onMoveDown={i < dayRestaurants.length - 1 ? async () => {
-                    applyLocalReorder(day.dayNumber, dayRestaurants, i, i + 1);
-                    await reorderActivity(adventure.id, day.dayNumber, "restaurant", i, i + 1);
-                    handleActivityMoved();
-                  } : undefined}
-                  onDraggingChange={(active) => setSwipeEnabled(!active)}
-                />
+                if (tileId === "route") {
+                  return (
+                    <StopCard
+                      key="route"
+                      day={day}
+                      adventureId={adventure.id}
+                      stopNumber={day.dayNumber}
+                      isLast={isLast}
+                      review={review}
+                      onRate={r => setReview(day.dayNumber, { ...review, rating: r })}
+                      onComment={c => setReview(day.dayNumber, { ...review, comment: c })}
+                      onConnectRoute={() => setRouteModal(true)}
+                      photos={reviewPhotos[day.dayNumber] ?? []}
+                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `route${day.dayNumber}`, "route", day.title)}
+                      onShare={() => setShareDay(day.dayNumber)}
+                      onMoveUp={canUp ? () => moveTile(day.dayNumber, "route", "up") : undefined}
+                      onMoveDown={canDown ? () => moveTile(day.dayNumber, "route", "down") : undefined}
+                      onDraggingChange={(active) => setSwipeEnabled(!active)}
+                    />
+                  );
+                }
+
+                if (tileId === "accommodation" && meta.accommodation) {
+                  return (
+                    <AccommodationCard
+                      key="accommodation"
+                      meta={meta}
+                      adventureId={adventure.id}
+                      dayNumber={day.dayNumber}
+                      totalDays={sortedDays.length}
+                      onMoved={handleActivityMoved}
+                      onPreviewDay={handlePreviewDay}
+                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom", "accommodation", meta.accommodation)}
+                      onMoveUp={canUp ? () => moveTile(day.dayNumber, "accommodation", "up") : undefined}
+                      onMoveDown={canDown ? () => moveTile(day.dayNumber, "accommodation", "down") : undefined}
+                      onDraggingChange={(active) => setSwipeEnabled(!active)}
+                    />
+                  );
+                }
+
+                if (tileId.startsWith("rest:")) {
+                  const restIdx = parseInt(tileId.slice(5), 10);
+                  const r = dayRestaurants[restIdx];
+                  if (!r) return null;
+                  return (
+                    <RestaurantCard
+                      key={tileId}
+                      restaurant={r}
+                      adventureId={adventure.id}
+                      idx={restIdx}
+                      dayNumber={day.dayNumber}
+                      totalDays={sortedDays.length}
+                      isLast={isLast}
+                      onMoved={handleActivityMoved}
+                      onPreviewDay={handlePreviewDay}
+                      onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, `rest${restIdx}`, "restaurant", r.name)}
+                      onMoveUp={canUp ? () => moveTile(day.dayNumber, tileId, "up") : undefined}
+                      onMoveDown={canDown ? () => moveTile(day.dayNumber, tileId, "down") : undefined}
+                      onDraggingChange={(active) => setSwipeEnabled(!active)}
+                    />
+                  );
+                }
+
+                return null;
+              })}
+
+              {/* Custom items added via the "+" button */}
+              {((day.alternatives?.customItems ?? []) as CustomItem[]).map(item => (
+                <CustomItemCard key={item.id} item={item} />
               ))}
 
-              {meta.accommodation && (
-                <AccommodationCard
-                  meta={meta}
-                  adventureId={adventure.id}
-                  dayNumber={day.dayNumber}
-                  totalDays={sortedDays.length}
-                  onMoved={handleActivityMoved}
-                  onPreviewDay={handlePreviewDay}
-                  onAddPhoto={() => handleAddActivityPhoto(day.dayNumber, "accom")}
-                  onDraggingChange={(active) => setSwipeEnabled(!active)}
-                />
+              {/* Add item button — owners only */}
+              {isOwner && (
+                <TouchableOpacity
+                  style={detailStyles.addItemBtn}
+                  onPress={() => setAddItemDay(day.dayNumber)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="plus" size={16} color={colors.muted} />
+                  <Text style={detailStyles.addItemBtnText}>Add activity</Text>
+                </TouchableOpacity>
               )}
 
               {meta.bookings.length > 0 && (
@@ -2337,6 +2839,15 @@ export default function TripDetailScreen() {
         onSave={handleSaveTrip}
         onDelete={handleDeleteTrip}
       />
+
+      {addItemDay !== null && (
+        <AddItemModal
+          dayNumber={addItemDay}
+          adventureId={adventure.id}
+          onSave={(item) => handleAddItem(addItemDay, item)}
+          onClose={() => setAddItemDay(null)}
+        />
+      )}
 
       {/* Floating Share to Feed button — only for owner with photos */}
       {isOwner && Object.values(reviewPhotos).flat().length > 0 && (
@@ -2414,6 +2925,13 @@ const detailStyles = StyleSheet.create({
     backgroundColor: colors.sheet,
   },
   publicBadgeText: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "600" },
+  addItemBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: spacing.xs, paddingVertical: 14,
+    borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
+    borderRadius: radius.lg, marginBottom: spacing.md,
+  },
+  addItemBtnText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
 });
 
 const tileStyles = StyleSheet.create({
@@ -2451,6 +2969,7 @@ const tileStyles = StyleSheet.create({
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
   cameraBtn: { position: "absolute", top: 8, right: 8, padding: 6, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16, zIndex: 2 },
+  accentStripe: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, zIndex: 3 },
 });
 
 const reviewStyles = StyleSheet.create({

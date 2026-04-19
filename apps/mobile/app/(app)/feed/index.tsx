@@ -8,7 +8,14 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, fontSize, radius, spacing, ACTIVITY_EMOJI } from "../../../lib/theme";
-import { getFeed, followUser, type FeedItem, type FeedAdventure, type PostRow, type FeedAuthor } from "../../../lib/api";
+import {
+  getFeed, followUser, getActivityPosts,
+  likeFeedItem, unlikeFeedItem,
+  bookmarkAdventure, unbookmarkAdventure,
+  type FeedItem, type FeedAdventure, type PostRow, type FeedAuthor, type ActivityPostRow,
+} from "../../../lib/api";
+import { supabase } from "../../../lib/supabase";
+import CommentsSheet from "../../../components/CommentsSheet";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -80,8 +87,10 @@ function ItineraryCard({
 }) {
   const router = useRouter();
   const { adventure, author } = item;
-  const [following, setFollowing] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [following,   setFollowing]   = useState(false);
+  const [bookmarked,  setBookmarked]  = useState(item.isBookmarked);
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(item.commentCount);
   const emoji = ACTIVITY_EMOJI[adventure.activityType] ?? "🏔️";
   const coverUri = adventure.coverImageUrl
     ?? `https://picsum.photos/seed/${adventure.id}/800/1200`;
@@ -89,6 +98,13 @@ function ItineraryCard({
   function handleFollow() {
     setFollowing(true);
     followUser(author.id).catch(() => setFollowing(false));
+  }
+
+  function handleBookmark() {
+    const next = !bookmarked;
+    setBookmarked(next);
+    const fn = next ? bookmarkAdventure : unbookmarkAdventure;
+    fn(adventure.id).catch(() => setBookmarked(!next));
   }
 
   function handlePlanSimilar() {
@@ -109,12 +125,12 @@ function ItineraryCard({
   return (
     <View style={{ width: W, height: H }}>
       {/* Background cover */}
-      <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+      <Image source={{ uri: coverUri }} style={{ ...StyleSheet.absoluteFillObject }} resizeMode="cover" />
 
       {/* Gradient overlay */}
       <LinearGradient
         colors={["transparent", "rgba(0,0,0,0.92)"]}
-        style={[StyleSheet.absoluteFillObject, { top: H * 0.3 }]}
+        style={[{ ...StyleSheet.absoluteFillObject }, { top: H * 0.3 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       />
@@ -123,11 +139,15 @@ function ItineraryCard({
       <View style={sharedStyles.rail}>
         <ActionBtn
           name="bookmark"
-          active={saved}
+          active={bookmarked}
           activeColor="#FFFFFF"
-          onPress={() => setSaved(s => !s)}
+          onPress={handleBookmark}
         />
-        <ActionBtn name="send" onPress={() => {}} />
+        <ActionBtn
+          name="message-circle"
+          count={commentCount}
+          onPress={() => setShowComments(true)}
+        />
       </View>
 
       {/* Bottom content */}
@@ -196,6 +216,14 @@ function ItineraryCard({
           </TouchableOpacity>
         </View>
       </View>
+
+      <CommentsSheet
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        type="adventure"
+        id={adventure.id}
+        onCountChange={setCommentCount}
+      />
     </View>
   );
 }
@@ -209,10 +237,12 @@ function PhotoCard({
 }) {
   const router = useRouter();
   const { post, author } = item;
-  const [following, setFollowing] = useState(false);
-  const [liked, setLiked]         = useState(false);
-  const [saved, setSaved]         = useState(false);
-  const [current, setCurrent]     = useState(0);
+  const [following,    setFollowing]    = useState(false);
+  const [liked,        setLiked]        = useState(item.isLiked);
+  const [likeCount,    setLikeCount]    = useState(item.likeCount);
+  const [current,      setCurrent]      = useState(0);
+  const [showComments, setShowComments] = useState(false);
+  const [commentCount, setCommentCount] = useState(item.commentCount);
 
   const photos = post.mediaUrls ?? [];
   const hasPhotos = photos.length > 0;
@@ -220,6 +250,17 @@ function PhotoCard({
   function handleFollow() {
     setFollowing(true);
     followUser(author.id).catch(() => setFollowing(false));
+  }
+
+  function handleLike() {
+    const next = !liked;
+    setLiked(next);
+    setLikeCount(c => c + (next ? 1 : -1));
+    const fn = next ? likeFeedItem : unlikeFeedItem;
+    fn("post", post.id).catch(() => {
+      setLiked(!next);
+      setLikeCount(c => c + (next ? -1 : 1));
+    });
   }
 
   return (
@@ -254,7 +295,7 @@ function PhotoCard({
       {/* Gradient overlay */}
       <LinearGradient
         colors={["transparent", "rgba(0,0,0,0.85)"]}
-        style={[StyleSheet.absoluteFillObject, { top: H * 0.4 }]}
+        style={[{ ...StyleSheet.absoluteFillObject }, { top: H * 0.4 }]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
       />
@@ -263,18 +304,15 @@ function PhotoCard({
       <View style={sharedStyles.rail}>
         <ActionBtn
           name="heart"
-          count={liked ? 1 : 0}
+          count={likeCount}
           active={liked}
           activeColor="#FF4D6A"
-          onPress={() => setLiked(l => !l)}
+          onPress={handleLike}
         />
-        <ActionBtn name="message-circle" onPress={() => {}} />
-        <ActionBtn name="send" onPress={() => {}} />
         <ActionBtn
-          name="bookmark"
-          active={saved}
-          activeColor="#FFFFFF"
-          onPress={() => setSaved(s => !s)}
+          name="message-circle"
+          count={commentCount}
+          onPress={() => setShowComments(true)}
         />
       </View>
 
@@ -291,6 +329,100 @@ function PhotoCard({
           >
             <Text style={photoStyles.adventureLink}>View full itinerary →</Text>
           </TouchableOpacity>
+        )}
+      </View>
+
+      <CommentsSheet
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        type="post"
+        id={post.id}
+        onCountChange={setCommentCount}
+      />
+    </View>
+  );
+}
+
+// ─── Activity post card ───────────────────────────────────────────────────────
+
+const TYPE_ICON: Record<string, string> = { route: "🏃", accommodation: "🏨", restaurant: "🍽️", custom: "📍", stay: "🏨", activity: "🏃" };
+const TYPE_LABEL: Record<string, string> = { route: "Activity", accommodation: "Stay", restaurant: "Food", custom: "Spot", stay: "Stay", activity: "Activity" };
+
+function relativeTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
+function ActivityPostCard({ post }: { post: ActivityPostRow }) {
+  const photos = Array.isArray(post.photos) ? post.photos : [];
+  const icon = TYPE_ICON[post.item_type] ?? "📍";
+  const label = TYPE_LABEL[post.item_type] ?? post.item_type;
+  const authorInitial = (post.user_email ?? "?")[0].toUpperCase();
+
+  return (
+    <View style={{ width: W, height: H, backgroundColor: colors.feedBg }}>
+      {photos.length > 0 ? (
+        <Image source={{ uri: photos[0] }} style={{ ...StyleSheet.absoluteFillObject }} resizeMode="cover" />
+      ) : (
+        <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#1A1F2E" }} />
+      )}
+
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.90)"]}
+        style={[{ ...StyleSheet.absoluteFillObject }, { top: H * 0.35 }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+
+      {/* Bottom content */}
+      <View style={[sharedStyles.info, { gap: spacing.sm }]}>
+        {/* Author row */}
+        <View style={sharedStyles.userRow}>
+          <View style={sharedStyles.avatar}>
+            <Text style={sharedStyles.avatarText}>{authorInitial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={sharedStyles.username}>{post.user_email}</Text>
+            <Text style={sharedStyles.subtext}>{label} · Day {post.day_number} · {relativeTime(post.created_date)}</Text>
+          </View>
+          <Text style={{ fontSize: 22 }}>{icon}</Text>
+        </View>
+
+        <Text style={{ color: "#FFFFFF", fontSize: fontSize.xl, fontWeight: "800" }} numberOfLines={2}>
+          {post.item_name}
+        </Text>
+
+        {post.location ? (
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: fontSize.sm }}>📍 {post.location}</Text>
+        ) : null}
+
+        {post.rating ? (
+          <Text style={{ color: "#F59E0B", fontSize: fontSize.sm }}>{"★".repeat(post.rating)}{"☆".repeat(5 - post.rating)}</Text>
+        ) : null}
+
+        {post.notes ? (
+          <Text style={sharedStyles.caption} numberOfLines={3}>{post.notes}</Text>
+        ) : null}
+
+        {/* Extra photos strip */}
+        {photos.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: spacing.xs }}>
+            {photos.slice(1).map((url, i) => (
+              <Image
+                key={i}
+                source={{ uri: url }}
+                style={{ width: 64, height: 64, borderRadius: 10, marginRight: spacing.xs }}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
         )}
       </View>
     </View>
@@ -322,8 +454,11 @@ function EmptyState() {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+type ActivityFeedItem = { type: "activity_post"; created_at: string; post: ActivityPostRow };
+type CombinedFeedItem = FeedItem | ActivityFeedItem;
+
 export default function FeedScreen() {
-  const [items, setItems]     = useState<FeedItem[]>([]);
+  const [items, setItems]     = useState<CombinedFeedItem[]>([]);
   const [empty, setEmpty]     = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -334,11 +469,37 @@ export default function FeedScreen() {
     if (!cur) setLoadError(false);
     try {
       const result = await getFeed(cur);
+
+      // Also load activity posts from followed users (only on first load, not pagination)
+      let activityItems: ActivityFeedItem[] = [];
+      if (!cur) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const myEmail = session?.user?.email ?? "";
+          // Query follows table directly — it stores emails, not UUIDs
+          const { data: followRows } = await supabase
+            .from("follows")
+            .select("following_email")
+            .eq("follower_email", myEmail);
+          const followedEmails = (followRows ?? []).map((r: { following_email: string }) => r.following_email);
+          const posts = await getActivityPosts(followedEmails, myEmail);
+          activityItems = posts.map(p => ({
+            type: "activity_post" as const,
+            created_at: p.created_date,
+            post: p,
+          }));
+        } catch { /* non-fatal — proceed without activity posts */ }
+      }
+
       if (cur) {
         setItems(prev => [...prev, ...result.items]);
       } else {
-        setItems(result.items);
-        setEmpty(result.empty);
+        const merged: CombinedFeedItem[] = [
+          ...result.items,
+          ...activityItems,
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setItems(merged);
+        setEmpty(result.empty && activityItems.length === 0);
       }
       if (result.items.length > 0) {
         setCursor(result.items[result.items.length - 1].created_at);
@@ -390,7 +551,11 @@ export default function FeedScreen() {
     <View style={{ flex: 1, backgroundColor: colors.feedBg }}>
       <FlatList
         data={items}
-        keyExtractor={item => (item.type === "adventure" ? `adv-${item.adventure.id}` : `post-${item.post.id}`)}
+        keyExtractor={item =>
+          item.type === "adventure" ? `adv-${item.adventure.id}`
+          : item.type === "activity_post" ? `act-${item.post.id}`
+          : `post-${item.post.id}`
+        }
         pagingEnabled
         showsVerticalScrollIndicator={false}
         snapToInterval={H}
@@ -399,9 +564,9 @@ export default function FeedScreen() {
         onEndReachedThreshold={0.5}
         getItemLayout={(_, index) => ({ length: H, offset: H * index, index })}
         renderItem={({ item }) =>
-          item.type === "adventure"
-            ? <ItineraryCard item={item} />
-            : <PhotoCard item={item} />
+          item.type === "adventure" ? <ItineraryCard item={item} />
+          : item.type === "activity_post" ? <ActivityPostCard post={item.post} />
+          : <PhotoCard item={item} />
         }
         ListFooterComponent={loadingMore ? (
           <View style={{ height: H, backgroundColor: colors.feedBg, alignItems: "center", justifyContent: "center" }}>

@@ -10,8 +10,22 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../../lib/auth-context";
 import { supabase } from "../../../lib/supabase";
 import { pickImage, uploadAvatar } from "../../../lib/storage";
-import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
-import { getProfileStats } from "../../../lib/api";
+import { colors, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../../../lib/theme";
+import { getProfileStats, getBookmarkedAdventures, type BookmarkedAdventure } from "../../../lib/api";
+
+const ACTIVITY_OPTIONS = [
+  "cycling", "hiking", "trail_running", "climbing", "skiing", "kayaking", "other",
+];
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  cycling: "Cycling",
+  hiking: "Hiking",
+  trail_running: "Trail Running",
+  climbing: "Climbing",
+  skiing: "Skiing",
+  kayaking: "Kayaking",
+  other: "Other",
+};
 
 // ─── Settings row ─────────────────────────────────────────────────────────────
 
@@ -79,15 +93,26 @@ export default function ProfileScreen() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(
     user?.user_metadata?.avatar_url ?? null,
   );
-  const [avatarError, setAvatarError] = useState(false);
-  const [editVisible, setEditVisible] = useState(false);
-  const [stats, setStats] = useState({ trips: 0, posts: 0, followers: 0, following: 0 });
+  const [avatarError, setAvatarError]   = useState(false);
+  const [editVisible, setEditVisible]   = useState(false);
+  const [stats, setStats]               = useState({ trips: 0, posts: 0, followers: 0, following: 0 });
+  const [bookmarks, setBookmarks]       = useState<BookmarkedAdventure[]>([]);
 
   useEffect(() => {
     getProfileStats().then(setStats).catch(() => {/* non-fatal */});
+    getBookmarkedAdventures().then(setBookmarks).catch(() => {/* non-fatal */});
   }, []);
-  const [editName, setEditName] = useState(displayName);
+
+  const [editName,       setEditName]       = useState(displayName);
+  const [editLocation,   setEditLocation]   = useState<string>(user?.user_metadata?.location ?? "");
+  const [editActivities, setEditActivities] = useState<string[]>(user?.user_metadata?.favorite_activities ?? []);
   const [uploading, setUploading] = useState(false);
+
+  function toggleActivity(act: string) {
+    setEditActivities(prev =>
+      prev.includes(act) ? prev.filter(a => a !== act) : [...prev, act],
+    );
+  }
 
   // Keyboard animation for edit modal
   const kbOffset = useRef(new Animated.Value(0)).current;
@@ -108,15 +133,14 @@ export default function ProfileScreen() {
   }, [kbOffset]);
   useEffect(() => { if (!editVisible) kbOffset.setValue(0); }, [editVisible, kbOffset]);
 
-  function openMenu() {
-    Alert.alert("", "", [
-      { text: "Edit Profile", onPress: () => setEditVisible(true) },
-      { text: "Cancel", style: "cancel" },
-    ]);
-  }
-
   async function handleSaveProfile() {
-    const { error } = await supabase.auth.updateUser({ data: { display_name: editName } });
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        display_name: editName,
+        location: editLocation,
+        favorite_activities: editActivities,
+      },
+    });
     if (error) { Alert.alert("Update failed", error.message); return; }
     setEditVisible(false);
   }
@@ -158,9 +182,6 @@ export default function ProfileScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Profile</Text>
-        <TouchableOpacity onPress={openMenu} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Feather name="more-horizontal" size={22} color={colors.text} />
-        </TouchableOpacity>
       </View>
 
       {/* Profile card */}
@@ -179,9 +200,17 @@ export default function ProfileScreen() {
           )}
         </View>
         <View style={styles.profileInfo}>
-          <Text style={styles.displayName}>{displayName}</Text>
+          <TouchableOpacity onPress={() => setEditVisible(true)} activeOpacity={0.7}>
+            <Text style={styles.displayName}>{displayName}</Text>
+          </TouchableOpacity>
           {username ? <Text style={styles.usernameText}>@{username}</Text> : null}
           <Text style={styles.emailText} numberOfLines={1}>{user?.email}</Text>
+          {user?.user_metadata?.location ? (
+            <View style={styles.locationRow}>
+              <Feather name="map-pin" size={11} color={colors.muted} />
+              <Text style={styles.locationText}>{user.user_metadata.location}</Text>
+            </View>
+          ) : null}
         </View>
         <TouchableOpacity style={styles.editBtn} onPress={() => setEditVisible(true)}>
           <Feather name="edit-2" size={16} color={colors.muted} />
@@ -219,6 +248,37 @@ export default function ProfileScreen() {
           onPress={() => supabase.auth.signOut()} />
       </SettingsSection>
 
+      {/* Saved Adventures */}
+      {bookmarks.length > 0 && (
+        <View style={styles.savedSection}>
+          <Text style={styles.savedTitle}>Saved Adventures</Text>
+          {bookmarks.map(adv => (
+            <TouchableOpacity
+              key={adv.id}
+              style={styles.savedCard}
+              onPress={() => router.push(`/(app)/trips/${adv.id}` as never)}
+              activeOpacity={0.75}
+            >
+              {adv.coverImageUrl ? (
+                <Image source={{ uri: adv.coverImageUrl }} style={styles.savedThumb} />
+              ) : (
+                <View style={[styles.savedThumb, styles.savedThumbPlaceholder]}>
+                  <Text style={{ fontSize: 22 }}>{ACTIVITY_EMOJI[adv.activityType] ?? "🏔️"}</Text>
+                </View>
+              )}
+              <View style={styles.savedInfo}>
+                <Text style={styles.savedName} numberOfLines={1}>{adv.title}</Text>
+                <Text style={styles.savedMeta}>{adv.region} · {adv.durationDays}d</Text>
+                {adv.level ? (
+                  <Text style={styles.savedLevel}>{adv.level}</Text>
+                ) : null}
+              </View>
+              <Feather name="chevron-right" size={16} color={colors.muted} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Edit Profile Modal */}
       <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
@@ -233,6 +293,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Avatar picker */}
               <TouchableOpacity style={styles.avatarPickerWrap} onPress={handleChangePhoto} activeOpacity={0.8} disabled={uploading}>
                 {!avatarError ? (
@@ -261,6 +322,36 @@ export default function ProfileScreen() {
                 placeholderTextColor={colors.subtle}
               />
 
+              {/* Home location — editable */}
+              <Text style={styles.editLabel}>Home Location</Text>
+              <TextInput
+                style={styles.editInput}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="e.g. Barcelona, Spain"
+                placeholderTextColor={colors.subtle}
+              />
+
+              {/* Favorite activities */}
+              <Text style={styles.editLabel}>Favorite Activities</Text>
+              <View style={styles.editActivitiesRow}>
+                {ACTIVITY_OPTIONS.map(act => {
+                  const selected = editActivities.includes(act);
+                  return (
+                    <TouchableOpacity
+                      key={act}
+                      style={[styles.activityChip, selected && styles.activityChipSelected]}
+                      onPress={() => toggleActivity(act)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.activityChipText, selected && styles.activityChipTextSelected]}>
+                        {ACTIVITY_EMOJI[act] ?? "🏔️"} {ACTIVITY_LABELS[act] ?? act}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               {/* Username — locked */}
               <Text style={styles.editLabel}>Username</Text>
               <View style={[styles.editInput, styles.editInputLocked]}>
@@ -284,6 +375,7 @@ export default function ProfileScreen() {
                 <Feather name="trash-2" size={14} color="#E03E3E" />
                 <Text style={styles.deleteBtnText}>Delete Account</Text>
               </TouchableOpacity>
+              </ScrollView>
             </View>
           </Animated.View>
         </View>
@@ -357,7 +449,7 @@ const styles = StyleSheet.create({
   // Edit modal
   editSheet: {
     backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: spacing.lg, paddingBottom: spacing.xl,
+    padding: spacing.lg, paddingBottom: spacing.xl, maxHeight: "85%",
   },
   editHandle: {
     width: 36, height: 4, borderRadius: 2,
@@ -391,12 +483,61 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.card,
   },
 
+  // Location row in profile card
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
+  locationText: { fontSize: fontSize.xs, color: colors.muted },
+
+  // Edit modal — activity selector
+  editActivitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.md },
+  activityChip: {
+    paddingHorizontal: spacing.sm, paddingVertical: 6,
+    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  activityChipSelected: { borderColor: colors.accent, backgroundColor: colors.accentLight ?? "#E8F2EC" },
+  activityChipText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "500" },
+  activityChipTextSelected: { color: colors.accent, fontWeight: "700" },
+
+  // Activity chips
+  chipsRow: {
+    flexDirection: "row", flexWrap: "wrap", gap: spacing.xs,
+    marginHorizontal: spacing.md, marginBottom: spacing.sm,
+  },
+  chip: {
+    backgroundColor: colors.card, borderRadius: radius.full,
+    paddingHorizontal: spacing.sm, paddingVertical: 5,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  chipText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "500" },
+
   // Locked fields
   editInputLocked: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: colors.bg, opacity: 0.6,
   },
   editInputLockedText: { fontSize: fontSize.base, color: colors.muted, flex: 1 },
+
+  // Saved adventures section
+  savedSection: {
+    marginHorizontal: spacing.md, marginTop: spacing.md,
+  },
+  savedTitle: {
+    fontSize: fontSize.base, fontWeight: "700", color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  savedCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.card, borderRadius: radius.lg,
+    padding: spacing.sm, marginBottom: spacing.sm, ...shadow.sm,
+  },
+  savedThumb: { width: 52, height: 52, borderRadius: radius.md },
+  savedThumbPlaceholder: {
+    backgroundColor: colors.border, alignItems: "center", justifyContent: "center",
+  },
+  savedInfo: { flex: 1 },
+  savedName: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
+  savedMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  savedLevel: { fontSize: fontSize.xs, color: colors.accent, marginTop: 1, fontWeight: "500" },
 
   // Delete account
   deleteBtn: {

@@ -94,6 +94,36 @@ export async function updateAdventure(
   return res.json();
 }
 
+export interface CreateAdventureInput {
+  title:       string;
+  region:      string;
+  activityType: string;
+  durationDays: number;
+  startDate?:  string | null;
+  description?: string;
+  isPublic?:   boolean;
+  days?: Array<{
+    dayNumber:      number;
+    title:          string;
+    description?:   string;
+    distanceKm?:    number | null;
+    elevationGainM?: number | null;
+  }>;
+}
+
+export async function createAdventure(input: CreateAdventureInput): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/api/adventures`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function deleteAdventure(id: string) {
   const res = await fetch(`${BASE}/api/adventures/${id}`, {
     method: "DELETE",
@@ -130,6 +160,20 @@ export async function reorderActivity(
     body: JSON.stringify({ dayNumber, activityType, fromIndex, toIndex }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function updateTileOrder(
+  adventureId: string,
+  dayNumber: number,
+  tileOrder: string[],
+): Promise<void> {
+  try {
+    await fetch(`${BASE}/api/adventures/${adventureId}/reorder-tiles`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ dayNumber, tileOrder }),
+    });
+  } catch { /* non-fatal */ }
 }
 
 export async function recordSelection(
@@ -210,8 +254,21 @@ export interface AdventureDayRow {
   alternatives: {
     restaurants?: Array<{ name: string; cuisine?: string; price_range?: string; notes?: string; location_note?: string; website_url?: string; thefork_url?: string; google_maps_url?: string }>;
     accommodationStop?: { options?: Array<{ name: string; type?: string; price_per_night_eur?: number; description?: string; booking_url?: string }> } | null;
+    tileOrder?: string[];
+    customItems?: CustomItem[];
     [key: string]: unknown;
   } | null;
+}
+
+export interface CustomItem {
+  id: string;
+  name: string;
+  type: "stay" | "restaurant" | "activity";
+  location?: string | null;
+  photos?: string[];
+  notes?: string | null;
+  rating?: number | null;
+  sourceUrl?: string | null;
 }
 
 export interface AdventureRow {
@@ -222,6 +279,7 @@ export interface AdventureRow {
   activityType: string;
   durationDays: number;
   startDate: string | null;
+  endDate?: string | null;
   isSaved: boolean;
   isPublic?: boolean; // only present for the owner
   createdAt: string;
@@ -281,9 +339,16 @@ export interface PostRow {
   createdAt:   string;
 }
 
+export interface FeedSocial {
+  likeCount:    number;
+  commentCount: number;
+  isLiked:      boolean;
+  isBookmarked: boolean;
+}
+
 export type FeedItem =
-  | { type: "adventure"; adventure: FeedAdventure; author: FeedAuthor; created_at: string }
-  | { type: "post";      post: PostRow;            author: FeedAuthor; created_at: string };
+  | ({ type: "adventure"; adventure: FeedAdventure; author: FeedAuthor; created_at: string } & FeedSocial)
+  | ({ type: "post";      post: PostRow;            author: FeedAuthor; created_at: string } & FeedSocial);
 
 // ─── Feed API ─────────────────────────────────────────────────────────────────
 
@@ -336,4 +401,245 @@ export async function searchUsers(q: string): Promise<FeedAuthor[]> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json() as { users: FeedAuthor[] };
   return data.users;
+}
+
+// ─── Social: likes ────────────────────────────────────────────────────────────
+
+export async function likeFeedItem(type: "adventure" | "post", id: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/like`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ type, id }),
+  });
+}
+
+export async function unlikeFeedItem(type: "adventure" | "post", id: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/like`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+    body: JSON.stringify({ type, id }),
+  });
+}
+
+// ─── Social: bookmarks ────────────────────────────────────────────────────────
+
+export async function bookmarkAdventure(adventureId: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/bookmark`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ adventureId }),
+  });
+}
+
+export async function unbookmarkAdventure(adventureId: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/bookmark`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+    body: JSON.stringify({ adventureId }),
+  });
+}
+
+export interface BookmarkedAdventure {
+  id:            string;
+  title:         string;
+  region:        string;
+  activityType:  string;
+  durationDays:  number;
+  coverImageUrl: string | null;
+  level:         string | null;
+  rating:        number;
+}
+
+export async function getBookmarkedAdventures(): Promise<BookmarkedAdventure[]> {
+  const res = await fetch(`${BASE}/api/feed/bookmark`, { headers: await authHeaders() });
+  if (!res.ok) return [];
+  const data = await res.json() as { bookmarks: BookmarkedAdventure[] };
+  return data.bookmarks;
+}
+
+// ─── Social: comments ─────────────────────────────────────────────────────────
+
+export interface FeedComment {
+  id:        string;
+  body:      string;
+  createdAt: string;
+  author: {
+    username:    string;
+    displayName: string;
+    avatarUrl:   string | null;
+  };
+}
+
+export async function getAdventureComments(adventureId: string): Promise<FeedComment[]> {
+  const res = await fetch(
+    `${BASE}/api/adventures/comments?adventureId=${encodeURIComponent(adventureId)}`,
+    { headers: await authHeaders() },
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json() as { comments: FeedComment[] };
+  return data.comments;
+}
+
+export async function createAdventureComment(adventureId: string, body: string): Promise<FeedComment> {
+  const res = await fetch(`${BASE}/api/adventures/comments`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ adventureId, body }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<FeedComment>;
+}
+
+export async function getPostComments(postId: string): Promise<FeedComment[]> {
+  const res = await fetch(`${BASE}/api/posts/${encodeURIComponent(postId)}/comments`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json() as { comments: FeedComment[] };
+  return data.comments;
+}
+
+export async function createPostComment(postId: string, body: string): Promise<FeedComment> {
+  const res = await fetch(`${BASE}/api/posts/${encodeURIComponent(postId)}/comments`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<FeedComment>;
+}
+
+// ─── Collaborators ────────────────────────────────────────────────────────────
+
+export interface Collaborator {
+  id:         string;
+  permission: "editor" | "viewer";
+  createdAt:  string;
+  user: {
+    id:          string;
+    username:    string;
+    displayName: string;
+    avatarUrl:   string | null;
+  };
+}
+
+export async function getCollaborators(adventureId: string): Promise<Collaborator[]> {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/collaborators`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json() as { collaborators: Collaborator[] };
+  return data.collaborators;
+}
+
+export async function inviteCollaborator(adventureId: string, email: string, permission: "editor" | "viewer" = "viewer"): Promise<void> {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/collaborators`, {
+    method: "POST",
+    headers: await authHeaders(),
+    body: JSON.stringify({ email, permission }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+}
+
+export async function updateCollaboratorPermission(adventureId: string, userId: string, permission: "editor" | "viewer"): Promise<void> {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/collaborators`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify({ userId, permission }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function removeCollaborator(adventureId: string, userId: string): Promise<void> {
+  const res = await fetch(`${BASE}/api/adventures/${adventureId}/collaborators`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+// ─── Custom day items ─────────────────────────────────────────────────────────
+
+export async function updateDayCustomItems(adventureId: string, dayNumber: number, customItems: CustomItem[]): Promise<void> {
+  // Get current alternatives for this day
+  const { data, error: fetchErr } = await supabase
+    .from("adventure_days")
+    .select("id, alternatives")
+    .eq("adventureId", adventureId)
+    .eq("dayNumber", dayNumber)
+    .single();
+  if (fetchErr || !data) throw new Error(fetchErr?.message ?? "Day not found");
+
+  const current = (data.alternatives as Record<string, unknown>) ?? {};
+  const { error } = await supabase
+    .from("adventure_days")
+    .update({ alternatives: { ...current, customItems } })
+    .eq("id", data.id);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Activity posts (vacation feed) ──────────────────────────────────────────
+
+export interface ActivityPostInput {
+  adventure_id: string;
+  user_email: string;
+  item_name: string;
+  item_type: "route" | "accommodation" | "restaurant" | "custom";
+  day_number: number;
+  photos: string[];
+  notes?: string | null;
+  rating?: number | null;
+  location?: string | null;
+}
+
+export interface ActivityPostRow {
+  id: string;
+  created_date: string;
+  trip_id: string;
+  user_email: string;
+  item_name: string;
+  item_type: string;
+  day_number: number;
+  photos: string[];
+  notes: string | null;
+  rating: number | null;
+  location: string | null;
+}
+
+export async function createActivityPost(input: ActivityPostInput): Promise<void> {
+  const { error } = await supabase.from("activity_posts").insert({
+    trip_id: input.adventure_id,
+    user_email: input.user_email,
+    item_name: input.item_name,
+    item_type: input.item_type,
+    day_number: input.day_number,
+    photos: input.photos,
+    notes: input.notes ?? null,
+    rating: input.rating ?? null,
+    location: input.location ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getActivityPosts(followedEmails: string[], myEmail: string): Promise<ActivityPostRow[]> {
+  const { data, error } = await supabase
+    .from("activity_posts")
+    .select("*")
+    .in("user_email", [...followedEmails, myEmail])
+    .order("created_date", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ActivityPostRow[];
+}
+
+export async function updateAdventureEndDate(adventureId: string, endDate: string | null): Promise<void> {
+  const { error } = await supabase
+    .from("adventures")
+    .update({ endDate })
+    .eq("id", adventureId);
+  if (error) throw new Error(error.message);
 }

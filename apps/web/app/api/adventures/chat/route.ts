@@ -518,11 +518,22 @@ export async function POST(request: NextRequest) {
       const accommodation_stops = parsed.accommodation_stops ?? [];
 
       // Resolve public.users.id from the auth UUID — they are different columns.
-      const { data: publicUser } = await db
+      let { data: publicUser } = await db
         .from("users")
         .select("id")
         .eq("authId", user.id)
         .maybeSingle();
+
+      // New OAuth sign-ups sometimes arrive before the DB trigger creates their
+      // public.users row. Upsert it now so the adventure can be saved immediately.
+      if (!publicUser) {
+        const { data: created } = await db
+          .from("users")
+          .upsert({ authId: user.id }, { onConflict: "authId" })
+          .select("id")
+          .single();
+        publicUser = created ?? null;
+      }
 
       let adventure_id: string | null = null;
       if (!publicUser) {

@@ -1,8 +1,9 @@
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { colors } from "../../lib/theme";
-import { Text, View, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function TabIcon({
   name, focused,
@@ -14,20 +15,27 @@ function TabIcon({
     <Feather
       name={name}
       size={24}
-      color={focused ? "#FFFFFF" : "rgba(255,255,255,0.4)"}
+      color={focused ? "#FFFFFF" : "rgba(255,255,255,0.55)"}
     />
   );
 }
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
+  const insets = useSafeAreaInsets();
   if (!loading && !session) return <Redirect href="/(auth)" />;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          backgroundColor: colors.coral,
+          borderTopWidth: 0,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom + 8,
+          paddingTop: 8,
+        },
         tabBarShowLabel: false,
       }}
     >
@@ -49,11 +57,7 @@ export default function AppLayout() {
         name="discover/index"
         options={{
           title: "Discover",
-          tabBarIcon: () => (
-            <View style={styles.discoverBtn}>
-              <Text style={styles.discoverSymbol}>✦</Text>
-            </View>
-          ),
+          tabBarIcon: ({ focused }) => <TabIcon name="zap" focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -79,25 +83,4 @@ export default function AppLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.feedBg,
-    borderTopWidth: 0,
-    height: 64,
-    paddingBottom: 8,
-    paddingTop: 8,
-  },
-  discoverBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  discoverSymbol: {
-    fontSize: 20,
-    color: "#FFFFFF",
-  },
-});
+const styles = StyleSheet.create({});

@@ -8,7 +8,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
-import { sendChatMessage, getMyAdventures, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
+import { sendChatMessage, getMyAdventures, saveAdventure, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
 import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import { QuickReplies, detectQuickReplies } from "../../../components/QuickReplies";
 import { AdventurePlanCard } from "../../../components/AdventurePlanCard";
@@ -18,8 +18,13 @@ import { loadSessions, upsertSession, removeSession, type StoredSession } from "
 import type {
   GeneratedAdventure, DayAlternativesMap, AccommodationStop,
   RichOption, RichOptionCategory, RichOptionsMsg,
+  PlaceSuggestion, PlaceSuggestionsMsg,
 } from "../../../lib/adventure-types";
 import { VacationWizard, type WizardResult } from "../../../components/VacationWizard";
+import { PlaceTile } from "../../../components/PlaceTile";
+import { ALL_LOCATIONS } from "../../../lib/locationData";
+import { fetchPlaceWeather } from "../../../lib/weather";
+import { getPublicAdventures } from "../../../lib/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,7 +92,7 @@ interface AdditionMsg {
   id: string; kind: "addition";
   description: string; adventureId: string;
 }
-type Msg = TextMsg | AdventureMsg | AdditionMsg | RichOptionsMsg;
+type Msg = TextMsg | AdventureMsg | AdditionMsg | RichOptionsMsg | PlaceSuggestionsMsg;
 type Mode = "new" | "update" | null;
 
 function uid() { return Math.random().toString(36).slice(2); }
@@ -102,6 +107,67 @@ function makeAiMsg(text: string): TextMsg {
 }
 function makeUserMsg(text: string): TextMsg {
   return { id: uid(), kind: "text", role: "user", text, display: text, options: null };
+}
+
+// ─── Place suggestion detection ───────────────────────────────────────────────
+
+const LOC_SET = new Set(ALL_LOCATIONS.map(l => l.toLowerCase()));
+
+function isPlaceSuggestion(options: string[]): boolean {
+  if (options.length < 2) return false;
+  const matches = options.filter(opt => {
+    const base = opt.split(",")[0].trim().toLowerCase();
+    return LOC_SET.has(base) || LOC_SET.has(opt.trim().toLowerCase());
+  });
+  return matches.length >= 2;
+}
+
+async function enrichPlaces(
+  names: string[],
+  startDate?: string | null,
+): Promise<PlaceSuggestion[]> {
+  return Promise.all(
+    names.map(async name => {
+      const [weatherResult, adventures] = await Promise.allSettled([
+        fetchPlaceWeather(name, startDate ?? undefined),
+        getPublicAdventures({ region: name }),
+      ]);
+
+      const geo = weatherResult.status === "fulfilled" ? weatherResult.value?.geo : null;
+      const weather = weatherResult.status === "fulfilled" ? weatherResult.value?.weather : null;
+      const advRows = adventures.status === "fulfilled" ? adventures.value : [];
+
+      let rating: number | undefined;
+      let ratingCount: number | undefined;
+      if (advRows.length > 0) {
+        const rated = advRows.filter(a => a.rating > 0);
+        if (rated.length > 0) {
+          rating = Math.round((rated.reduce((s, a) => s + a.rating, 0) / rated.length) * 10) / 10;
+          ratingCount = rated.length;
+        }
+      }
+
+      const slug = `${name}${geo?.country ? `-${geo.country}` : ""}`
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "-");
+
+      return {
+        name,
+        country: geo?.country,
+        summary: "",
+        highlights: [],
+        images: [
+          `https://picsum.photos/seed/${slug}-a/800/500`,
+          `https://picsum.photos/seed/${slug}-b/800/500`,
+          `https://picsum.photos/seed/${slug}-c/800/500`,
+        ],
+        coords: geo ? [geo.lat, geo.lon] : undefined,
+        weather: weather ?? undefined,
+        rating,
+        ratingCount,
+      } satisfies PlaceSuggestion;
+    }),
+  );
 }
 
 const INITIAL: TextMsg = {
@@ -142,7 +208,15 @@ export default function DiscoverScreen() {
   const [showWizard, setShowWizard] = useState(false);
   const [wizardResult, setWizardResult] = useState<WizardResult | null>(null);
   const [pendingUpdateTrip, setPendingUpdateTrip] = useState<AdventureRow | null>(null);
+  const [placeSelections, setPlaceSelections] = useState<Record<string, Set<string>>>({});
+  const [tripStartDate, setTripStartDate] = useState<string | null>(null);
+  const [savingItinerary, setSavingItinerary] = useState(false);
   const listRef = useRef<FlatList>(null);
+
+  // Most recent generated adventure in this session (null until AI produces one)
+  const latestAdventureId = useMemo(() =>
+    [...messages].reverse().find(m => m.kind === "adventure")?.adventureId ?? null,
+  [messages]);
 
   // ── Session refs (always hold latest state for effects/callbacks with no deps) ─
   const sessionIdRef      = useRef(uid());
@@ -228,6 +302,7 @@ export default function DiscoverScreen() {
     adults: number, children: number, rooms: number,
   ) {
     setShowDatePicker(false);
+    setTripStartDate(start.toISOString().slice(0, 10));
     const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
     const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
     const tripContext = `Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
@@ -520,8 +595,28 @@ export default function DiscoverScreen() {
       } else {
         const aiText: string = data.text ?? "Could you tell me a bit more?";
         const aiMsg = makeAiMsg(aiText);
-        setMessages(prev => [...prev, aiMsg]);
-        setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
+
+        if (aiMsg.options && isPlaceSuggestion(aiMsg.options)) {
+          const placesMsg: PlaceSuggestionsMsg = {
+            id: uid(),
+            kind: "place_suggestions",
+            intro: aiMsg.display,
+            places: aiMsg.options.map(name => ({
+              name: name.split(",")[0].trim(),
+              summary: "", highlights: [], images: [],
+            })),
+          };
+          setMessages(prev => [...prev, placesMsg]);
+          setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
+          enrichPlaces(placesMsg.places.map(p => p.name), tripStartDate).then(enriched => {
+            setMessages(prev => prev.map(m =>
+              m.id === placesMsg.id ? { ...placesMsg, places: enriched } : m,
+            ));
+          });
+        } else {
+          setMessages(prev => [...prev, aiMsg]);
+          setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
+        }
       }
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
@@ -530,7 +625,7 @@ export default function DiscoverScreen() {
       setLoading(false);
       scrollToBottom();
     }
-  }, [mode, selectedTrip, pendingUpdateTrip, myTrips, history, loading, scrollToBottom, sessionActivityType]);
+  }, [mode, selectedTrip, pendingUpdateTrip, myTrips, history, loading, scrollToBottom, sessionActivityType, tripStartDate]);
 
   // ── Filtered history sessions ────────────────────────────────────────────────
 
@@ -545,6 +640,21 @@ export default function DiscoverScreen() {
       });
     });
   }, [sessions, historySearch]);
+
+  // ── Save itinerary handler ───────────────────────────────────────────────────
+
+  const handleSaveItinerary = useCallback(async () => {
+    if (!latestAdventureId) return;
+    setSavingItinerary(true);
+    try {
+      await saveAdventure(latestAdventureId);
+      router.push(`/(app)/trips/${latestAdventureId}` as never);
+    } catch (err) {
+      Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
+    } finally {
+      setSavingItinerary(false);
+    }
+  }, [latestAdventureId, router]);
 
   // ── Render helpers ───────────────────────────────────────────────────────────
 
@@ -580,10 +690,20 @@ export default function DiscoverScreen() {
         </View>
       );
     }
-    const isUser = item.role === "user";
-    const bodyText = item.options
-      ? `${item.display}\n${item.options.map(o => `• ${o}`).join("\n")}`
-      : item.display;
+    if (item.kind === "place_suggestions") {
+      const names = item.places.map(p => p.name).join(", ");
+      return (
+        <View key={index} style={[styles.bubbleRow]}>
+          <View style={styles.bubbleAi}>
+            <Text style={styles.bubbleText}>{item.intro ? `${item.intro}\n` : ""}Suggested: {names}</Text>
+          </View>
+        </View>
+      );
+    }
+    const isUser = (item as TextMsg).role === "user";
+    const bodyText = (item as TextMsg).options
+      ? `${(item as TextMsg).display}\n${(item as TextMsg).options!.map((o: string) => `• ${o}`).join("\n")}`
+      : (item as TextMsg).display;
     return (
       <View key={index} style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
@@ -639,13 +759,50 @@ export default function DiscoverScreen() {
       );
     }
 
-    const isUser = item.role === "user";
-
-    if (!isUser && item.options && item.options.length > 0) {
+    if (item.kind === "place_suggestions") {
+      const selections = placeSelections[item.id] ?? new Set<string>();
+      const isLoading = item.places.some(p => !p.coords && !p.weather);
       return (
         <View style={styles.questionBlock}>
-          {item.display ? <Text style={styles.questionText}>{item.display}</Text> : null}
-          <QuickReplies options={item.options} disabled={loading} onSelect={send} />
+          {item.intro ? <Text style={styles.questionText}>{item.intro}</Text> : null}
+          {item.places.map(place => (
+            <PlaceTile
+              key={place.name}
+              place={place}
+              selected={selections.has(place.name)}
+              loading={isLoading}
+              onToggle={() => {
+                setPlaceSelections(prev => {
+                  const next = new Set(prev[item.id] ?? []);
+                  if (next.has(place.name)) { next.delete(place.name); } else { next.add(place.name); }
+                  return { ...prev, [item.id]: next };
+                });
+              }}
+            />
+          ))}
+          {selections.size > 0 && (
+            <TouchableOpacity
+              style={styles.placeContinueBtn}
+              onPress={() => send(`I want to visit ${[...selections].join(" and ")}`)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.placeContinueBtnText}>
+                Continue with {selections.size} selected →
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    const textItem = item as TextMsg;
+    const isUser = textItem.role === "user";
+
+    if (!isUser && textItem.options && textItem.options.length > 0) {
+      return (
+        <View style={styles.questionBlock}>
+          {textItem.display ? <Text style={styles.questionText}>{textItem.display}</Text> : null}
+          <QuickReplies options={textItem.options} disabled={loading} onSelect={send} />
         </View>
       );
     }
@@ -653,11 +810,11 @@ export default function DiscoverScreen() {
     return (
       <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.display}</Text>
+          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{textItem.display}</Text>
         </View>
       </View>
     );
-  }, [send, router, loading, sessionActivityType, selectedTrip]);
+  }, [send, router, loading, sessionActivityType, selectedTrip, placeSelections]);
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -706,6 +863,24 @@ export default function DiscoverScreen() {
           ) : null
         }
       />
+
+      {/* Persistent save CTA — visible once conversation has started */}
+      {messages.length >= 2 && (
+        <TouchableOpacity
+          style={[styles.saveCta, !latestAdventureId && styles.saveCtaDisabled]}
+          onPress={handleSaveItinerary}
+          disabled={!latestAdventureId || savingItinerary}
+          activeOpacity={0.85}
+        >
+          {savingItinerary
+            ? <ActivityIndicator color={colors.inverse} size="small" />
+            : <>
+                <Feather name="bookmark" size={15} color={colors.inverse} />
+                <Text style={styles.saveCtaText}>Save & view itinerary</Text>
+              </>
+          }
+        </TouchableOpacity>
+      )}
 
       {/* Input bar */}
       <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? insets.bottom + spacing.sm : spacing.sm }]}>
@@ -986,5 +1161,37 @@ const styles = StyleSheet.create({
   histEmptyText: {
     fontSize: fontSize.base, color: colors.muted,
     textAlign: "center", lineHeight: 22,
+  },
+
+  placeContinueBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  placeContinueBtnText: {
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: fontSize.base,
+    color: "#FFFFFF",
+  },
+  saveCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.accent,
+    paddingVertical: 12,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    borderRadius: radius.md,
+  },
+  saveCtaDisabled: {
+    backgroundColor: colors.subtle,
+  },
+  saveCtaText: {
+    color: colors.inverse,
+    fontWeight: "700",
+    fontSize: fontSize.sm,
   },
 });

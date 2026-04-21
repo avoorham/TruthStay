@@ -1,7 +1,6 @@
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 import { colors } from "../../lib/theme";
-import { StyleSheet } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -21,9 +20,10 @@ function TabIcon({
 }
 
 export default function AppLayout() {
-  const { session, loading } = useAuth();
+  const { session, loading, termsAccepted } = useAuth();
   const insets = useSafeAreaInsets();
   if (!loading && !session) return <Redirect href="/(auth)" />;
+  if (!loading && session && !termsAccepted) return <Redirect href="/(auth)/consent" />;
 
   return (
     <Tabs
@@ -36,7 +36,13 @@ export default function AppLayout() {
           paddingBottom: insets.bottom + 8,
           paddingTop: 8,
         },
-        tabBarShowLabel: false,
+        tabBarActiveTintColor: "#FFFFFF",
+        tabBarInactiveTintColor: "rgba(255,255,255,0.55)",
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: "600",
+          marginTop: 2,
+        },
       }}
     >
       <Tabs.Screen
@@ -63,7 +69,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="trips/index"
         options={{
-          title: "Trips",
+          title: "My Trips",
           tabBarIcon: ({ focused }) => <TabIcon name="map-pin" focused={focused} />,
         }}
       />
@@ -83,4 +89,3 @@ export default function AppLayout() {
   );
 }
 
-const styles = StyleSheet.create({});

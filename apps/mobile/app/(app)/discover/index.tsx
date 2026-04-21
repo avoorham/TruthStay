@@ -337,24 +337,6 @@ export default function DiscoverScreen() {
     setShowDatePicker(true);
   }
 
-  async function handleRefresh() {
-    if (messagesRef.current.length <= 1) return;
-    Alert.alert(
-      "Start new chat",
-      "Your current conversation will be saved to history.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "New chat", onPress: async () => {
-            await persistCurrentSession();
-            resetChat();
-            setSessions(await loadSessions());
-          },
-        },
-      ],
-    );
-  }
-
   async function openHistory() {
     setSessions(await loadSessions());
     setHistorySearch("");
@@ -827,19 +809,11 @@ export default function DiscoverScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <Text style={styles.headerTitle}>✦ Discover</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerBtn} onPress={openHistory} activeOpacity={0.7}>
-            <Feather name="clock" size={18} color={colors.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerBtn, messagesRef.current.length <= 1 && styles.headerBtnDim]}
-            onPress={handleRefresh}
-            activeOpacity={0.7}
-          >
-            <Feather name="rotate-ccw" size={18} color={messagesRef.current.length <= 1 ? colors.border : colors.muted} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.headerBtn} onPress={openHistory} activeOpacity={0.7}>
+          <Feather name="clock" size={18} color={colors.muted} />
+        </TouchableOpacity>
       </View>
 
       {/* Chat list */}
@@ -1067,10 +1041,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
     borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg,
   },
-  headerTitle:   { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  headerTitle:   { flex: 1, textAlign: "center", fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
   headerBtn:     { padding: 6 },
-  headerBtnDim:  { opacity: 0.3 },
 
   // Chat
   list: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.lg, flexGrow: 1 },

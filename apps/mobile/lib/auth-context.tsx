@@ -5,9 +5,10 @@ import { supabase } from "./supabase";
 interface AuthContextValue {
   session: Session | null;
   loading: boolean;
+  termsAccepted: boolean;
 }
 
-const AuthContext = createContext<AuthContextValue>({ session: null, loading: true });
+const AuthContext = createContext<AuthContextValue>({ session: null, loading: true, termsAccepted: false });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -25,8 +26,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const termsAccepted = !!(session?.user?.user_metadata?.terms_accepted_at);
+
   return (
-    <AuthContext.Provider value={{ session, loading }}>
+    <AuthContext.Provider value={{ session, loading, termsAccepted }}>
       {children}
     </AuthContext.Provider>
   );

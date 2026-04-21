@@ -447,69 +447,71 @@ function AdventureCard({
 
   return (
     <View style={cardStyles.card}>
-      {/* Photo carousel — receives horizontal swipes directly */}
-      <ScrollView
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScroll={(e) => {
-          const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_W);
-          setPhotoIndex(idx);
-        }}
-        scrollEventThrottle={16}
-        style={StyleSheet.absoluteFillObject}
-      >
-        {adventure.photos.map((uri, i) => (
-          <Image
-            key={i}
-            source={{ uri }}
-            style={{ width: CARD_W, height: CARD_H }}
-            resizeMode="cover"
-          />
-        ))}
-      </ScrollView>
+      <View style={cardStyles.photoInner}>
+        {/* Photo carousel — receives horizontal swipes directly */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onScroll={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_W - 16));
+            setPhotoIndex(idx);
+          }}
+          scrollEventThrottle={16}
+          style={StyleSheet.absoluteFillObject}
+        >
+          {adventure.photos.map((uri, i) => (
+            <Image
+              key={i}
+              source={{ uri }}
+              style={{ width: CARD_W - 16, height: CARD_H - 16 }}
+              resizeMode="cover"
+            />
+          ))}
+        </ScrollView>
 
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.72)"]}
-        style={cardStyles.gradient}
-        pointerEvents="none"
-      />
-
-      {/* Heart button */}
-      <TouchableOpacity
-        style={cardStyles.heartBtn}
-        onPress={onToggleSaved}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <MaterialCommunityIcons
-          name={isSaved ? "heart" : "heart-outline"}
-          size={20}
-          color={isSaved ? "#EF4444" : "#FFFFFF"}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.72)"]}
+          style={cardStyles.gradient}
+          pointerEvents="none"
         />
-      </TouchableOpacity>
 
-      {/* Text overlay — tap opens modal, swipe on photo still works above */}
-      <TouchableOpacity style={cardStyles.textOverlay} onPress={onPress} activeOpacity={0.85}>
-        <View style={cardStyles.titleRow}>
-          <Text style={cardStyles.cardTitle} numberOfLines={1}>{adventure.title}</Text>
-          <View style={cardStyles.dots}>
-            {adventure.photos.map((_, i) => (
-              <View key={i} style={[cardStyles.dot, photoIndex === i && cardStyles.dotActive]} />
-            ))}
+        {/* Heart button */}
+        <TouchableOpacity
+          style={cardStyles.heartBtn}
+          onPress={onToggleSaved}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialCommunityIcons
+            name={isSaved ? "heart" : "heart-outline"}
+            size={20}
+            color={isSaved ? "#EF4444" : "#FFFFFF"}
+          />
+        </TouchableOpacity>
+
+        {/* Text overlay — tap opens modal, swipe on photo still works above */}
+        <TouchableOpacity style={cardStyles.textOverlay} onPress={onPress} activeOpacity={0.85}>
+          <View style={cardStyles.titleRow}>
+            <Text style={cardStyles.cardTitle} numberOfLines={1}>{adventure.title}</Text>
+            <View style={cardStyles.dots}>
+              {adventure.photos.map((_, i) => (
+                <View key={i} style={[cardStyles.dot, photoIndex === i && cardStyles.dotActive]} />
+              ))}
+            </View>
           </View>
-        </View>
-        <View style={cardStyles.subtitleRow}>
-          {adventure.activityTypes.map(type => {
-            const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-            return (
-              <MaterialCommunityIcons key={type} name={iconName} size={14} color="rgba(255,255,255,0.85)" />
-            );
-          })}
-          <Text style={cardStyles.cardSubtitle}>
-            {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
-          </Text>
-        </View>
-      </TouchableOpacity>
+          <View style={cardStyles.subtitleRow}>
+            {adventure.activityTypes.map(type => {
+              const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+              return (
+                <MaterialCommunityIcons key={type} name={iconName} size={14} color="rgba(255,255,255,0.85)" />
+              );
+            })}
+            <Text style={cardStyles.cardSubtitle}>
+              {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -1173,18 +1175,23 @@ const cardStyles = StyleSheet.create({
     width: CARD_W,
     height: CARD_H,
     borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: colors.sheet,
+    backgroundColor: colors.card,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
   },
+  photoInner: {
+    margin: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    flex: 1,
+  },
   gradient: {
     position: "absolute",
     bottom: 0, left: 0, right: 0,
-    height: CARD_H * 0.45,
+    height: (CARD_H - 16) * 0.45,
   },
   heartBtn: {
     position: "absolute",

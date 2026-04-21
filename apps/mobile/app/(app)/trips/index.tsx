@@ -1,5 +1,5 @@
 import {
-  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, StyleSheet,
+  ActivityIndicator, Alert, Animated, FlatList, Image, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,8 +24,6 @@ const ACTIVITY_ICON: Record<string, string> = {
   bikepacking:   "bike",
   other:         "map-marker-outline",
 };
-
-const SCREEN_W = Dimensions.get("window").width;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -96,32 +94,34 @@ function TripPhotoCard({
           activeOpacity={0.9}
           delayLongPress={400}
         >
-          <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <View style={styles.photoInner}>
+            <Image source={{ uri: photoUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
 
-          {/* Gradient */}
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.75)"]}
-            style={styles.gradient}
-          />
+            {/* Gradient */}
+            <LinearGradient
+              colors={["transparent", "rgba(0,0,0,0.75)"]}
+              style={styles.gradient}
+            />
 
-          {/* Text overlay */}
-          <View style={styles.textOverlay}>
-            <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
-            <View style={styles.subtitleRow}>
-              <MaterialCommunityIcons name={iconName} size={14} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.subtitleText}>
-                {formatDateRange(adventure.startDate, adventure.durationDays)}
-              </Text>
-            </View>
-            <View style={styles.bottomRow}>
-              <View style={styles.regionRow}>
-                <Feather name="map-pin" size={11} color="rgba(255,255,255,0.65)" />
-                <Text style={styles.regionText} numberOfLines={1}>{adventure.region}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
-                <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
-                  {statusLabel}
+            {/* Text overlay */}
+            <View style={styles.textOverlay}>
+              <Text style={styles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
+              <View style={styles.subtitleRow}>
+                <MaterialCommunityIcons name={iconName} size={14} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.subtitleText}>
+                  {formatDateRange(adventure.startDate, adventure.durationDays)}
                 </Text>
+              </View>
+              <View style={styles.bottomRow}>
+                <View style={styles.regionRow}>
+                  <Feather name="map-pin" size={11} color="rgba(255,255,255,0.65)" />
+                  <Text style={styles.regionText} numberOfLines={1}>{adventure.region}</Text>
+                </View>
+                <View style={[styles.statusBadge, { backgroundColor: statusColor + "33", borderColor: statusColor + "55" }]}>
+                  <Text style={[styles.statusText, { color: status === "past" ? "rgba(255,255,255,0.7)" : statusColor }]}>
+                    {statusLabel}
+                  </Text>
+                </View>
               </View>
             </View>
           </View>
@@ -135,14 +135,18 @@ function TripPhotoCard({
 
 type TabKey = "current" | "upcoming" | "past";
 const TAB_LABELS: Record<TabKey, string> = { current: "Current", upcoming: "Upcoming", past: "Past" };
+const TAB_ICONS: Record<TabKey, React.ComponentProps<typeof Feather>["name"]> = {
+  current:  "zap",
+  upcoming: "send",
+  past:     "clock",
+};
 
 function TabStrip({
-  tabs, active, onChange, onAdd,
+  tabs, active, onChange,
 }: {
   tabs: TabKey[];
   active: TabKey;
   onChange: (t: TabKey) => void;
-  onAdd: () => void;
 }) {
   return (
     <View style={styles.tabStrip}>
@@ -152,12 +156,16 @@ function TabStrip({
           style={[styles.tabPill, active === t && styles.tabPillActive]}
           onPress={() => onChange(t)}
         >
-          <Text style={[styles.tabText, active === t && styles.tabTextActive]}>{TAB_LABELS[t]}</Text>
+          <View style={styles.tabPillInner}>
+            <Feather
+              name={TAB_ICONS[t]}
+              size={13}
+              color={active === t ? colors.inverse : colors.muted}
+            />
+            <Text style={[styles.tabText, active === t && styles.tabTextActive]}>{TAB_LABELS[t]}</Text>
+          </View>
         </TouchableOpacity>
       ))}
-      <TouchableOpacity style={styles.addPill} onPress={onAdd} activeOpacity={0.8}>
-        <Feather name="plus" size={17} color={colors.inverse} />
-      </TouchableOpacity>
     </View>
   );
 }
@@ -267,22 +275,24 @@ export default function TripsScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>My Trips</Text>
-          {isEditMode ? (
+          {isEditMode && (
             <TouchableOpacity onPress={exitEditMode}>
               <Text style={styles.editToggleText}>Done</Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setIsEditMode(true)}>
-              <Text style={styles.editToggleText}>Edit</Text>
+          )}
+        </View>
+        <View style={styles.tabRow}>
+          <TabStrip
+            tabs={availableTabs}
+            active={tab}
+            onChange={setTab}
+          />
+          {!isEditMode && (
+            <TouchableOpacity onPress={() => setIsEditMode(true)} style={styles.cogBtn}>
+              <Feather name="settings" size={18} color={colors.muted} />
             </TouchableOpacity>
           )}
         </View>
-        <TabStrip
-          tabs={availableTabs}
-          active={tab}
-          onChange={setTab}
-          onAdd={() => router.push("/(app)/discover")}
-        />
       </View>
 
       {/* Loading */}
@@ -369,6 +379,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
   editToggleText: { fontSize: fontSize.base, fontWeight: "600", color: colors.accent },
   tabStrip: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  tabRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cogBtn: { padding: 4 },
   tabPill: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
@@ -377,22 +389,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tabPillActive: { backgroundColor: colors.text, borderColor: colors.text },
+  tabPillInner: { flexDirection: "row", alignItems: "center", gap: 4 },
   tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
   tabTextActive: { color: colors.inverse },
-  addPill: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: colors.text,
-    alignItems: "center", justifyContent: "center",
-  },
   list: { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
   cardRow: { flexDirection: "row", alignItems: "center" },
   card: {
     flex: 1,
     height: 220,
     borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: colors.sheet,
+    backgroundColor: colors.card,
     ...shadow.md,
+  },
+  photoInner: {
+    margin: 8,
+    borderRadius: 10,
+    overflow: "hidden",
+    flex: 1,
   },
   checkbox: { width: 44, alignItems: "center", justifyContent: "center" },
   checkboxInner: {

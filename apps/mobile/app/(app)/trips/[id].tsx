@@ -733,12 +733,10 @@ function StopCard({
             <Feather name="navigation" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Directions</Text>
           </TouchableOpacity>
-          <View style={tileStyles.actionDivider} />
           <TouchableOpacity style={tileStyles.actionBtn} onPress={onConnectRoute}>
             <MaterialCommunityIcons name="routes" size={14} color={colors.text} />
             <Text style={tileStyles.actionText}>Route</Text>
           </TouchableOpacity>
-          <View style={tileStyles.actionDivider} />
           <TouchableOpacity style={tileStyles.actionBtn} onPress={onShare}>
             <Feather name="share-2" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>Share</Text>
@@ -924,7 +922,6 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
             <Feather name="info" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>View details</Text>
           </TouchableOpacity>
-          <View style={tileStyles.actionDivider} />
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
@@ -1115,7 +1112,6 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
             <Feather name="info" size={13} color={colors.text} />
             <Text style={tileStyles.actionText}>View menu</Text>
           </TouchableOpacity>
-          <View style={tileStyles.actionDivider} />
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
@@ -3125,13 +3121,23 @@ const tileStyles = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 3,
   },
   statText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "500" },
-  actionRow: { flexDirection: "row", borderTopWidth: 1, borderTopColor: colors.border },
+  actionRow: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+    paddingTop: spacing.xs,
+    gap: spacing.xs,
+  },
   actionBtn: {
     flex: 1, flexDirection: "row", alignItems: "center",
-    justifyContent: "center", gap: 5, paddingVertical: 12,
+    justifyContent: "center", gap: 5,
+    paddingVertical: 11,
+    backgroundColor: colors.sheet,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
-  actionDivider: { width: 1, backgroundColor: colors.border, marginVertical: 10 },
   cameraBtn: { position: "absolute", top: 8, right: 8, padding: 6, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16, zIndex: 2 },
   accentStripe: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, zIndex: 3 },
 });

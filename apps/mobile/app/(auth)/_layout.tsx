@@ -2,9 +2,8 @@ import { Redirect, Stack } from "expo-router";
 import { useAuth } from "../../lib/auth-context";
 
 export default function AuthLayout() {
-  const { session, loading, termsAccepted } = useAuth();
+  const { session, loading } = useAuth();
   if (!loading && session) {
-    if (!termsAccepted) return <Redirect href="/(auth)/consent" />;
     if (session.user.user_metadata?.needs_onboarding) {
       return <Redirect href="/(auth)/onboarding" />;
     }

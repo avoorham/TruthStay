@@ -22,8 +22,9 @@ function TabIcon({
 export default function AppLayout() {
   const { session, loading, termsAccepted } = useAuth();
   const insets = useSafeAreaInsets();
-  if (!loading && !session) return <Redirect href="/(auth)" />;
-  if (!loading && session && !termsAccepted) return <Redirect href="/(auth)/consent" />;
+  if (loading) return null;
+  if (!session) return <Redirect href="/(auth)" />;
+  if (!termsAccepted) return <Redirect href="/(auth)/consent" />;
 
   return (
     <Tabs

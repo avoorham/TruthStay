@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 import { sendChatMessage, getMyAdventures, saveAdventure, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
 import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import { QuickReplies, detectQuickReplies } from "../../../components/QuickReplies";
@@ -1143,7 +1143,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   placeContinueBtnText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.base,
     color: "#FFFFFF",
   },

@@ -31,7 +31,7 @@ export default function AppLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.coral,
+          backgroundColor: colors.navy,
           borderTopWidth: 0,
           height: 64 + insets.bottom,
           paddingBottom: insets.bottom + 8,

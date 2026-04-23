@@ -1,14 +1,19 @@
 import {
-  Alert, Image, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Animated,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Feather } from "@expo/vector-icons";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../lib/auth-context";
 import { pickImage, uploadAvatar } from "../../lib/storage";
-import { colors, fontSize, radius, spacing, shadow } from "../../lib/theme";
+import { colors, fonts, fontSize, radius, spacing } from "../../lib/theme";
 
 const ACTIVITIES = ["MTB", "Road Cycling", "Hiking", "Trail Running", "Gravel", "Skiing", "Kayaking", "Climbing"];
 
@@ -33,10 +38,7 @@ export default function OnboardingScreen() {
   }
 
   async function handleNameContinue() {
-    if (!displayName.trim()) {
-      Alert.alert("Name required", "Please enter a display name.");
-      return;
-    }
+    if (!displayName.trim()) return;
     await supabase.auth.updateUser({ data: { display_name: displayName.trim() } }).catch(() => {});
     setStep("photo");
   }
@@ -63,15 +65,15 @@ export default function OnboardingScreen() {
       },
     }).catch(() => {});
     setSaving(false);
-    // Auth layout will auto-redirect to /(app)/feed once needs_onboarding is cleared
+    // Auth layout auto-redirects to /(app)/feed once needs_onboarding is cleared
   }
 
-  // ── Step: Name ────────────────────────────────────────────────────────────
+  // ── Step: Name ─────────────────────────────────────────────────────────────
   if (step === "name") {
     return (
       <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
         <StepDots current={0} />
-        <Text style={styles.stepHeading}>What's your name?</Text>
+        <Text style={styles.stepHeading}>What&apos;s your name?</Text>
         <Text style={styles.stepSub}>This is how other adventurers will find you.</Text>
         <TextInput
           style={styles.input}
@@ -83,14 +85,19 @@ export default function OnboardingScreen() {
           returnKeyType="done"
           onSubmitEditing={handleNameContinue}
         />
-        <TouchableOpacity style={styles.btn} onPress={handleNameContinue} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.btn, !displayName.trim() && styles.btnDisabled]}
+          onPress={handleNameContinue}
+          activeOpacity={0.85}
+          disabled={!displayName.trim()}
+        >
           <Text style={styles.btnText}>Continue</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // ── Step: Photo ───────────────────────────────────────────────────────────
+  // ── Step: Photo ────────────────────────────────────────────────────────────
   if (step === "photo") {
     return (
       <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
@@ -118,7 +125,7 @@ export default function OnboardingScreen() {
     );
   }
 
-  // ── Step: Interests ───────────────────────────────────────────────────────
+  // ── Step: Interests ────────────────────────────────────────────────────────
   if (step === "interests") {
     return (
       <View style={[styles.root, { paddingTop: insets.top + spacing.lg }]}>
@@ -153,60 +160,123 @@ export default function OnboardingScreen() {
 }
 
 function StepDots({ current }: { current: number }) {
+  const anims = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    const animations = anims.map((anim, i) =>
+      Animated.timing(anim, {
+        toValue: i === current ? 1 : 0,
+        duration: 220,
+        useNativeDriver: false,
+      }),
+    );
+    Animated.parallel(animations).start();
+  }, [current]);
+
   return (
     <View style={styles.dots}>
-      {[0, 1, 2].map(i => (
-        <View key={i} style={[styles.dot, i === current && styles.dotActive]} />
-      ))}
+      {anims.map((anim, i) => {
+        const width = anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [8, 24],
+        });
+        const bgColor = anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [colors.border, colors.accent],
+        });
+        return (
+          <Animated.View
+            key={i}
+            style={[styles.dot, { width, backgroundColor: bgColor }]}
+          />
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1, backgroundColor: colors.bg,
-    paddingHorizontal: spacing.lg, paddingBottom: 40,
+    flex: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 52,
   },
   dots: { flexDirection: "row", gap: 6, marginBottom: spacing.xl },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
-  dotActive: { backgroundColor: colors.accent, width: 24 },
+  dot: { height: 8, borderRadius: 4 },
 
-  stepHeading: { fontSize: 28, fontWeight: "800", color: colors.text, marginBottom: spacing.xs },
-  stepSub: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 20, marginBottom: spacing.xl },
+  stepHeading: {
+    fontFamily: fonts.display,
+    fontSize: 34,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  stepSub: {
+    fontFamily: fonts.sans,
+    fontSize: fontSize.sm,
+    color: colors.muted,
+    lineHeight: 22,
+    marginBottom: spacing.xl,
+  },
 
   input: {
-    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.lg,
-    paddingHorizontal: spacing.md, paddingVertical: 14,
-    fontSize: fontSize.lg, color: colors.text, backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    fontFamily: fonts.sans,
+    fontSize: fontSize.lg,
+    color: colors.text,
+    backgroundColor: colors.card,
     marginBottom: spacing.xl,
   },
 
   avatarWrap: { alignSelf: "center", marginBottom: spacing.xl },
   avatar: { width: 120, height: 120, borderRadius: 60 },
   avatarPlaceholder: {
-    backgroundColor: colors.card, borderWidth: 1.5, borderColor: colors.border,
-    alignItems: "center", justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   cameraOverlay: {
-    position: "absolute", bottom: 4, right: 4,
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: colors.accent, alignItems: "center", justifyContent: "center",
-    borderWidth: 2, borderColor: colors.bg,
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: colors.bg,
   },
 
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.xl },
   chip: {
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
     backgroundColor: colors.card,
   },
   chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
-  chipText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
+  chipText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
   chipTextActive: { color: colors.inverse },
 
   btn: {
-    backgroundColor: colors.text, borderRadius: radius.full,
-    paddingVertical: 16, alignItems: "center",
+    backgroundColor: colors.accent,
+    borderRadius: radius.full,
+    paddingVertical: 17,
+    alignItems: "center",
+    marginTop: "auto",
   },
-  btnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+  btnDisabled: {
+    opacity: 0.45,
+  },
+  btnText: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.base },
 });

@@ -1,20 +1,20 @@
 import { Stack } from "expo-router";
-import { ActivityIndicator, Platform, StyleSheet, Text, UIManager, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, UIManager, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "../lib/auth-context";
-import { colors, fonts } from "../lib/theme";
+import { colors } from "../lib/theme";
 import { useFonts } from "expo-font";
 import {
-  DMSerifDisplay_400Regular,
-  DMSerifDisplay_400Regular_Italic,
-} from "@expo-google-fonts/dm-serif-display";
+  Outfit_400Regular,
+  Outfit_700Bold,
+} from "@expo-google-fonts/outfit";
 import {
-  PlusJakartaSans_400Regular,
-  PlusJakartaSans_500Medium,
-  PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold,
-  PlusJakartaSans_800ExtraBold,
-} from "@expo-google-fonts/plus-jakarta-sans";
+  Sora_400Regular,
+  Sora_500Medium,
+  Sora_600SemiBold,
+  Sora_700Bold,
+  Sora_800ExtraBold,
+} from "@expo-google-fonts/sora";
 
 // Enable LayoutAnimation on Android for smooth tile-reorder animations
 if (Platform.OS === "android") {
@@ -22,10 +22,31 @@ if (Platform.OS === "android") {
 }
 
 function SplashScreen() {
+  const size = 88;
+  const width = Math.round(size * (56 / 72));
+  const crossbarTop = Math.round(size * 0.25);
+  const crossbarHeight = Math.round(size * 0.19);
+  const stemWidth = Math.round(width * 0.29);
+  const stemLeft = Math.round(width * 0.36);
+
   return (
     <View style={splash.root}>
-      <View style={splash.tile}>
-        <Text style={splash.letter}>T</Text>
+      <View style={{ width, height: size }}>
+        <View style={{
+          position: "absolute", top: crossbarTop,
+          left: 0, right: 0, height: crossbarHeight,
+          backgroundColor: "#2ECDA7", borderRadius: crossbarHeight / 2,
+        }} />
+        <View style={{
+          position: "absolute", top: 0, bottom: 0,
+          left: stemLeft, width: stemWidth,
+          backgroundColor: "#0A7AFF", borderRadius: stemWidth / 2,
+        }} />
+        <View style={{
+          position: "absolute", top: crossbarTop,
+          left: stemLeft, width: stemWidth, height: crossbarHeight,
+          backgroundColor: "#5BC8D6", opacity: 0.65,
+        }} />
       </View>
       <ActivityIndicator size="small" color={colors.accent} style={{ marginTop: 24 }} />
     </View>
@@ -39,27 +60,6 @@ const splash = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: colors.bg,
   },
-  tile: {
-    width: 88,
-    height: 88,
-    borderRadius: Math.round(88 * 0.22),
-    backgroundColor: colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  letter: {
-    fontFamily: fonts.display,
-    fontSize: Math.round(88 * 0.58),
-    lineHeight: 88,
-    color: "#FFFFFF",
-    textAlign: "center",
-    includeFontPadding: false,
-  },
 });
 
 function RootNavigator() {
@@ -70,13 +70,13 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    DMSerifDisplay_400Regular,
-    DMSerifDisplay_400Regular_Italic,
-    PlusJakartaSans_400Regular,
-    PlusJakartaSans_500Medium,
-    PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold,
-    PlusJakartaSans_800ExtraBold,
+    Outfit_400Regular,
+    Outfit_700Bold,
+    Sora_400Regular,
+    Sora_500Medium,
+    Sora_600SemiBold,
+    Sora_700Bold,
+    Sora_800ExtraBold,
   });
 
   if (!fontsLoaded) return <SplashScreen />;

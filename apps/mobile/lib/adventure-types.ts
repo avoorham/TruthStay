@@ -84,3 +84,24 @@ export interface RichOptionsMsg {
   options: RichOption[];
   footer_options?: string[];
 }
+
+// ─── Place suggestion tiles ───────────────────────────────────────────────────
+
+export interface PlaceSuggestion {
+  name: string;
+  country?: string;
+  summary: string;
+  highlights: string[];
+  images: string[];
+  coords?: [number, number];
+  weather?: { tempC: number; description: string; icon: string; };
+  rating?: number;
+  ratingCount?: number;
+}
+
+export interface PlaceSuggestionsMsg {
+  id: string;
+  kind: "place_suggestions";
+  intro: string;
+  places: PlaceSuggestion[];
+}

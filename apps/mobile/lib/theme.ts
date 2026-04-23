@@ -1,39 +1,44 @@
-// TruthStay design system — warm adventure aesthetic
-// Coral primary · Ocean secondary · Sand neutrals · Dark feed mode
+// TruthStay design system — v2 brand guidelines
+// Blue primary · Green secondary · Navy · Grey 50 neutrals · Dark feed mode
 
 export const colors = {
   // Backgrounds
-  bg: "#FFFDF9",        // Cream
+  bg: "#F8F9FA",        // Grey 50
   card: "#FFFFFF",
-  sheet: "#F5E6D3",     // Sand
+  sheet: "#F1F3F4",     // Grey 100
 
   // Text
-  text: "#2D3142",      // Charcoal
-  muted: "#8E8D8A",     // Warm grey
-  subtle: "#B0AFA9",
+  text: "#1A1D23",      // Dark
+  muted: "#5F6368",     // Grey 700
+  subtle: "#9AA0A6",    // Grey 500
   inverse: "#FFFFFF",
 
-  // Primary — Coral
-  accent: "#E8694A",
-  accentLight: "#FDE8E2",
-  accentMid: "#C4522A",
+  // Primary — TruthStay Blue
+  accent: "#0A7AFF",
+  accentLight: "#E8F1FF",
+  accentMid: "#0059BF",
 
-  // Secondary — Ocean
-  ocean: "#1B6B7D",
-  oceanLight: "#E0F2F5",
-  oceanMid: "#0E4A57",
+  // Secondary — Green
+  ocean: "#2ECDA7",     // Green (name kept for compat)
+  oceanLight: "#E0FBF2",
+  oceanMid: "#00B87D",
 
   // Named brand palette
-  coral: "#E8694A",
-  sage: "#8BAF7C",
-  sky: "#6BB5D6",
-  gold: "#D4A853",
-  sand: "#F5E6D3",
-  midnight: "#1A1F2E",
+  coral: "#0A7AFF",     // alias → blue (kept for compat)
+  sage: "#2ECDA7",      // teal green
+  sky: "#5BC8D6",       // blend cyan
+  gold: "#D4A853",      // warm accent — used for difficulty/activity
+  sand: "#F5F0E8",      // brand sand
+  midnight: "#0F2A4A",  // navy
+
+  // v2 brand tokens
+  blend: "#5BC8D6",
+  navy: "#0F2A4A",
+  navyLight: "#1C3D5F",
 
   // UI
-  border: "#E8E6E1",
-  inputBg: "#F5E6D3",
+  border: "#DADCE0",    // Grey 300
+  inputBg: "#F1F3F4",   // Grey 100
   overlay: "rgba(0,0,0,0.45)",
 
   // Feed (full-screen dark mode)
@@ -42,22 +47,22 @@ export const colors = {
   feedMuted: "rgba(255,255,255,0.6)",
 
   // Difficulty
-  easy: "#8BAF7C",      // Sage
+  easy: "#2ECDA7",      // Green
   intermediate: "#D4A853", // Gold
-  hard: "#E8694A",      // Coral
+  hard: "#0059BF",      // Blue Dark
 
   // Chat bubbles
-  aiBubble: "#F5E6D3",
-  userBubble: "#2D3142",
+  aiBubble: "#F1F3F4",
+  userBubble: "#1A1D23",
 
   // Activity colours for pins/icons
-  cycling: "#1B6B7D",   // Ocean
-  hiking: "#8BAF7C",    // Sage
-  climbing: "#E8694A",  // Coral
-  trailRunning: "#D4A853", // Gold
-  skiing: "#1B6B7D",    // Ocean
-  mtb: "#8BAF7C",       // Sage
-  kayaking: "#1B6B7D",  // Ocean
+  cycling: "#0A7AFF",      // Blue
+  hiking: "#2ECDA7",       // Green
+  climbing: "#0059BF",     // Blue Dark
+  trailRunning: "#5BC8D6", // Blend
+  skiing: "#1C3D5F",       // Navy Light
+  mtb: "#00B87D",          // Green Dark
+  kayaking: "#2ECDA7",     // Green
 };
 
 export const spacing = {
@@ -113,13 +118,13 @@ export const shadow = {
 
 // Font families — loaded via expo-google-fonts in app/_layout.tsx
 export const fonts = {
-  display: "DMSerifDisplay_400Regular",
-  displayItalic: "DMSerifDisplay_400Regular_Italic",
-  sans: "PlusJakartaSans_400Regular",
-  sansMedium: "PlusJakartaSans_500Medium",
-  sansSemiBold: "PlusJakartaSans_600SemiBold",
-  sansBold: "PlusJakartaSans_700Bold",
-  sansExtraBold: "PlusJakartaSans_800ExtraBold",
+  display: "Outfit_700Bold",
+  displayItalic: "Outfit_400Regular",
+  sans: "Sora_400Regular",
+  sansMedium: "Sora_500Medium",
+  sansSemiBold: "Sora_600SemiBold",
+  sansBold: "Sora_700Bold",
+  sansExtraBold: "Sora_800ExtraBold",
 };
 
 // Activity icon map — emoji fallback until we add a vector icon library

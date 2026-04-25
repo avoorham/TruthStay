@@ -43,3 +43,4 @@ yarn-error.log*
 
 # UX review agent output
 apps/mobile/ux-review/
+*.p8

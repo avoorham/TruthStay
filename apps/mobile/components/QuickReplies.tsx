@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { colors, fontSize, radius, spacing } from "../lib/theme";
+import { colors, fonts, fontSize, radius, spacing } from "../lib/theme";
 
 interface Props {
   options: string[];
@@ -26,7 +26,7 @@ export function QuickReplies({ options, disabled, onSelect }: Props) {
 }
 
 // Detect which quick-reply buttons to show based on the AI message content
-export function detectQuickReplies(text: string): string[] | null {
+export function detectQuickReplies(text: string, nights = 0): string[] | null {
   const lower = text.toLowerCase();
 
   if (
@@ -63,7 +63,11 @@ export function detectQuickReplies(text: string): string[] | null {
     lower.includes("number of bases") ||
     lower.includes("how many bases")
   ) {
-    return ["1 base (stay put)", "2 stops", "3 stops", "4+ stops"];
+    // Scale options to trip length — no point offering stops > nights
+    if (nights === 1) return ["1 base (stay put)"];
+    const maxStops = nights <= 0 ? 4 : Math.min(nights, 5);
+    const labels = ["1 base (stay put)", "2 stops", "3 stops", "4 stops", "5 stops"];
+    return labels.slice(0, maxStops);
   }
 
   if (
@@ -110,8 +114,8 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   chipText: {
+    fontFamily: fonts.sansMedium,
     fontSize: fontSize.sm,
     color: colors.text,
-    fontWeight: "500",
   },
 });

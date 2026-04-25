@@ -2,7 +2,7 @@ import {
   Linking, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors, fontSize, radius, spacing, shadow } from "../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, shadow } from "../lib/theme";
 import type { AccommodationOption } from "../lib/adventure-types";
 
 const TYPE_CONFIG: Record<string, { icon: string; gradient: [string, string] }> = {
@@ -191,9 +191,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   ratingText: {
+    fontFamily: fonts.sansBold,
     fontSize: fontSize.xs,
     color: "#FFD700",
-    fontWeight: "700",
   },
   selectedOverlay: {
     position: "absolute",
@@ -209,9 +209,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkMark: {
+    fontFamily: fonts.sansBold,
     fontSize: 11,
     color: colors.inverse,
-    fontWeight: "800",
   },
 
   // ── Content ──────────────────────────────────────────────────────────────────
@@ -227,18 +227,21 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   name: {
+    fontFamily: fonts.display,
     fontSize: fontSize.sm,
-    fontWeight: "700",
     color: colors.text,
     flex: 1,
     lineHeight: 18,
+    letterSpacing: -0.2,
   },
   type: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     marginTop: 1,
   },
   desc: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     lineHeight: 16,
@@ -252,6 +255,7 @@ const styles = StyleSheet.create({
   },
   locationDot: { fontSize: 10 },
   locationText: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     flex: 1,
@@ -263,20 +267,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   fromLabel: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs - 1,
     color: colors.muted,
     lineHeight: 14,
   },
   price: {
+    fontFamily: fonts.display,
     fontSize: fontSize.base,
-    fontWeight: "800",
     color: colors.text,
     lineHeight: 20,
   },
   priceUnit: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
-    fontWeight: "400",
   },
   bookBtn: {
     backgroundColor: colors.accent,
@@ -285,8 +290,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs + 2,
   },
   bookText: {
+    fontFamily: fonts.sansBold,
     fontSize: fontSize.xs,
     color: colors.inverse,
-    fontWeight: "700",
   },
 });

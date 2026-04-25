@@ -3,7 +3,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { colors, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../lib/theme";
 import { saveAdventure, shareAdventurePublic } from "../lib/api";
 import type {
   GeneratedAdventure, DayAlternativesMap,
@@ -152,11 +152,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: spacing.xs,
   },
-  title: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
-  description: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 19 },
+  title: { fontFamily: fonts.display, fontSize: fontSize.base, color: colors.text, letterSpacing: -0.3 },
+  description: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
-  meta: { fontSize: fontSize.xs, color: colors.muted, textTransform: "capitalize" },
-  metaDot: { color: colors.subtle, fontSize: fontSize.xs },
+  meta: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textTransform: "capitalize" },
+  metaDot: { fontFamily: fonts.sans, color: colors.subtle, fontSize: fontSize.xs },
   dayRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -167,8 +167,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   dayLeft: { flex: 1, gap: 1 },
-  dayNum: { fontSize: fontSize.xs, fontWeight: "700", color: colors.muted },
-  dayTitle: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  dayNum: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted },
+  dayTitle: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
   dayStats: { flexDirection: "row", gap: spacing.xs, flexShrink: 0 },
   chip: {
     backgroundColor: colors.sheet,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
   },
-  chipText: { fontSize: fontSize.xs, color: colors.muted },
+  chipText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
   accomSection: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
@@ -185,8 +185,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   sectionLabel: {
+    fontFamily: fonts.sansBold,
     fontSize: fontSize.xs,
-    fontWeight: "700",
     color: colors.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 4,
   },
-  accomName: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text, flex: 1 },
-  accomNights: { fontSize: fontSize.xs, color: colors.muted, marginLeft: spacing.sm },
+  accomName: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  accomNights: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginLeft: spacing.sm },
   ctaBtn: {
     backgroundColor: colors.text,
     marginHorizontal: spacing.md,
@@ -219,6 +219,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   ctaBtnDisabled: { opacity: 0.5 },
-  ctaText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
-  ctaTextOutline: { color: colors.text, fontWeight: "700", fontSize: fontSize.sm },
+  ctaText: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.sm },
+  ctaTextOutline: { fontFamily: fonts.sansBold, color: colors.text, fontSize: fontSize.sm },
 });

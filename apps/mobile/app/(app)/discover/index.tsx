@@ -49,8 +49,8 @@ function stripMd(text: string) {
     .trim();
 }
 
-function parseAiMessage(text: string): { display: string; options: string[] | null } {
-  const keywordReplies = detectQuickReplies(text);
+function parseAiMessage(text: string, nights = 0): { display: string; options: string[] | null } {
+  const keywordReplies = detectQuickReplies(text, nights);
   if (keywordReplies) {
     // Strip bullet lines — they're redundant when buttons already show them
     const nonBullet = text.split("\n").filter(l => !/^[-•*]\s+/.test(l.trim())).join("\n").trim();
@@ -101,8 +101,8 @@ const LINE_HEIGHT = 22;
 const MIN_INPUT_HEIGHT = LINE_HEIGHT + 16;
 const MAX_INPUT_HEIGHT = LINE_HEIGHT * 8 + 16;
 
-function makeAiMsg(text: string): TextMsg {
-  const { display, options } = parseAiMessage(text);
+function makeAiMsg(text: string, nights = 0): TextMsg {
+  const { display, options } = parseAiMessage(text, nights);
   return { id: uid(), kind: "text", role: "ai", text, display, options };
 }
 function makeUserMsg(text: string): TextMsg {
@@ -210,6 +210,7 @@ export default function DiscoverScreen() {
   const [pendingUpdateTrip, setPendingUpdateTrip] = useState<AdventureRow | null>(null);
   const [placeSelections, setPlaceSelections] = useState<Record<string, Set<string>>>({});
   const [tripStartDate, setTripStartDate] = useState<string | null>(null);
+  const [tripNights, setTripNights] = useState<number>(0);
   const [savingItinerary, setSavingItinerary] = useState(false);
   const listRef = useRef<FlatList>(null);
 
@@ -304,6 +305,7 @@ export default function DiscoverScreen() {
     setShowDatePicker(false);
     setTripStartDate(start.toISOString().slice(0, 10));
     const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+    setTripNights(days);
     const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
     const tripContext = `Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
     if (pendingUpdateTrip) {
@@ -576,7 +578,7 @@ export default function DiscoverScreen() {
         setHistory([...updatedHistory, { role: "assistant", content: richSummary }]);
       } else {
         const aiText: string = data.text ?? "Could you tell me a bit more?";
-        const aiMsg = makeAiMsg(aiText);
+        const aiMsg = makeAiMsg(aiText, tripNights);
 
         if (aiMsg.options && isPlaceSuggestion(aiMsg.options)) {
           const placesMsg: PlaceSuggestionsMsg = {
@@ -626,7 +628,11 @@ export default function DiscoverScreen() {
   // ── Save itinerary handler ───────────────────────────────────────────────────
 
   const handleSaveItinerary = useCallback(async () => {
-    if (!latestAdventureId) return;
+    if (!latestAdventureId) {
+      // No adventure generated yet — ask the AI to finalise the plan now
+      send("Please generate the full adventure plan now based on everything we've discussed so far.");
+      return;
+    }
     setSavingItinerary(true);
     try {
       await saveAdventure(latestAdventureId);
@@ -636,22 +642,13 @@ export default function DiscoverScreen() {
     } finally {
       setSavingItinerary(false);
     }
-  }, [latestAdventureId, router]);
+  }, [latestAdventureId, router, send]);
 
   // ── Render helpers ───────────────────────────────────────────────────────────
 
   function renderHistoryMessage(item: Msg, index: number) {
     if (item.kind === "adventure") {
-      return (
-        <View key={index} style={styles.adventureWrapper}>
-          <AdventurePlanCard
-            adventure={item.adventure}
-            dayAlternatives={item.dayAlternatives}
-            accommodationStops={item.accommodationStops}
-            adventureId={item.adventureId}
-          />
-        </View>
-      );
+      return null;
     }
     if (item.kind === "addition") {
       return (
@@ -697,16 +694,7 @@ export default function DiscoverScreen() {
 
   const renderItem = useCallback(({ item }: { item: Msg }) => {
     if (item.kind === "adventure") {
-      return (
-        <View style={styles.adventureWrapper}>
-          <AdventurePlanCard
-            adventure={item.adventure}
-            dayAlternatives={item.dayAlternatives}
-            accommodationStops={item.accommodationStops}
-            adventureId={item.adventureId}
-          />
-        </View>
-      );
+      return null;
     }
 
     if (item.kind === "addition") {
@@ -841,16 +829,18 @@ export default function DiscoverScreen() {
       {/* Persistent save CTA — visible once conversation has started */}
       {messages.length >= 2 && (
         <TouchableOpacity
-          style={[styles.saveCta, !latestAdventureId && styles.saveCtaDisabled]}
+          style={[styles.saveCta, savingItinerary && styles.saveCtaDisabled]}
           onPress={handleSaveItinerary}
-          disabled={!latestAdventureId || savingItinerary}
+          disabled={savingItinerary}
           activeOpacity={0.85}
         >
           {savingItinerary
             ? <ActivityIndicator color={colors.inverse} size="small" />
             : <>
                 <Feather name="bookmark" size={15} color={colors.inverse} />
-                <Text style={styles.saveCtaText}>Save & view itinerary</Text>
+                <Text style={styles.saveCtaText}>
+                  {latestAdventureId ? "Save & view itinerary" : "Generate & save itinerary"}
+                </Text>
               </>
           }
         </TouchableOpacity>
@@ -1041,28 +1031,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
     borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg,
   },
-  headerTitle:   { flex: 1, textAlign: "center", fontSize: fontSize.xl, fontWeight: "700", color: colors.text },
+  headerTitle:   { fontFamily: fonts.display, flex: 1, textAlign: "center", fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
   headerBtn:     { padding: 6 },
 
   // Chat
   list: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.lg, flexGrow: 1 },
   adventureWrapper: { marginVertical: spacing.sm },
   questionBlock:    { marginTop: spacing.sm, marginBottom: spacing.xs },
-  questionText: { fontSize: fontSize.base, color: colors.muted, lineHeight: 22, marginBottom: spacing.sm },
+  questionText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, lineHeight: 22, marginBottom: spacing.sm },
   bubbleRow:     { flexDirection: "row", justifyContent: "flex-start", marginBottom: spacing.xs, marginTop: spacing.xs },
   bubbleRowUser: { justifyContent: "flex-end" },
   bubble:     { maxWidth: "82%", borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
   bubbleAi:   { backgroundColor: colors.aiBubble },
   bubbleUser: { backgroundColor: colors.userBubble },
-  bubbleText:     { fontSize: fontSize.base, color: colors.text, lineHeight: 22 },
-  bubbleTextUser: { color: colors.inverse },
+  bubbleText:     { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.text, lineHeight: 22 },
+  bubbleTextUser: { fontFamily: fonts.sans, color: colors.text },
   thinkingRow:    { flexDirection: "row", justifyContent: "flex-start", marginTop: spacing.xs, marginBottom: spacing.sm },
   thinkingBubble: {
     flexDirection: "row", alignItems: "center", gap: spacing.sm,
     backgroundColor: colors.aiBubble, borderRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
   },
-  thinkingText: { fontSize: fontSize.sm, color: colors.muted },
+  thinkingText: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted },
 
   // Input
   inputBar: {
@@ -1071,6 +1061,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg, gap: spacing.sm,
   },
   input: {
+    fontFamily: fonts.sans,
     flex: 1, backgroundColor: colors.inputBg, borderRadius: radius.xl,
     paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2, paddingBottom: spacing.sm + 2,
     fontSize: fontSize.base, color: colors.text, textAlignVertical: "top",
@@ -1086,9 +1077,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm, ...shadow.sm,
   },
   additionBody:  { flex: 1 },
-  additionTitle: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
-  additionDesc:  { fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  additionLink:  { fontSize: fontSize.sm, color: colors.accent, fontWeight: "700" },
+  additionTitle: { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.text },
+  additionDesc:  { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
+  additionLink:  { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.accent },
 
   // ── History modal ────────────────────────────────────────────────────────────
   histOverlay: { flex: 1, backgroundColor: colors.bg },
@@ -1098,7 +1089,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.sm,
   },
   histBackBtn:   { padding: 4 },
-  histTitle:     { flex: 1, fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  histTitle:     { fontFamily: fonts.display, flex: 1, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
   histActionBtn: { padding: 4 },
 
   histSearchRow: {
@@ -1123,14 +1114,15 @@ const styles = StyleSheet.create({
   },
   histSessionIconUpdate: { backgroundColor: colors.easy + "22" },
   histSessionBody:  { flex: 1 },
-  histSessionTitle: { fontSize: fontSize.base, fontWeight: "600", color: colors.text, lineHeight: 20 },
-  histSessionMeta:  { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  histSessionTitle: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, lineHeight: 20 },
+  histSessionMeta:  { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
 
   histEmpty: {
     alignItems: "center", paddingTop: spacing.xxl * 2, gap: spacing.md,
     paddingHorizontal: spacing.xl,
   },
   histEmptyText: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.base, color: colors.muted,
     textAlign: "center", lineHeight: 22,
   },
@@ -1162,8 +1154,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.subtle,
   },
   saveCtaText: {
+    fontFamily: fonts.sansBold,
     color: colors.inverse,
-    fontWeight: "700",
     fontSize: fontSize.sm,
   },
 });

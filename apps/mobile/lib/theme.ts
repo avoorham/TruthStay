@@ -53,7 +53,7 @@ export const colors = {
 
   // Chat bubbles
   aiBubble: "#F1F3F4",
-  userBubble: "#1A1D23",
+  userBubble: "#E8F1FF",
 
   // Activity colours for pins/icons
   cycling: "#0A7AFF",      // Blue

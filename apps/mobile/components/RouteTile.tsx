@@ -2,7 +2,7 @@ import {
   Linking, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { colors, fontSize, radius, spacing, DIFFICULTY_COLOR } from "../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, DIFFICULTY_COLOR } from "../lib/theme";
 import type { RouteAlternative } from "../lib/adventure-types";
 
 // ─── Activity config ──────────────────────────────────────────────────────────
@@ -223,8 +223,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   activityLabel: {
+    fontFamily: fonts.display,
     fontSize: fontSize.lg,
-    fontWeight: "800",
     color: "rgba(255,255,255,0.95)",
     letterSpacing: 0.5,
     textTransform: "uppercase",
@@ -247,8 +247,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   diffText: {
+    fontFamily: fonts.sansBold,
     fontSize: fontSize.xs - 1,
-    fontWeight: "700",
   },
   checkCircle: {
     position: "absolute",
@@ -262,9 +262,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   checkMark: {
+    fontFamily: fonts.sansBold,
     fontSize: 11,
     color: colors.inverse,
-    fontWeight: "800",
   },
 
   // ── Content ──────────────────────────────────────────────────────────────────
@@ -275,10 +275,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
   },
   title: {
+    fontFamily: fonts.display,
     fontSize: fontSize.sm,
-    fontWeight: "700",
     color: colors.text,
     lineHeight: 18,
+    letterSpacing: -0.2,
   },
   statsRow: {
     flexDirection: "row",
@@ -292,11 +293,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   statText: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.xs,
     color: colors.muted,
-    fontWeight: "600",
   },
   description: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     lineHeight: 16,
@@ -308,6 +310,7 @@ const styles = StyleSheet.create({
   },
   locationDot: { fontSize: 10 },
   locationText: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     flex: 1,
@@ -319,8 +322,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.accent,
   },
   komootText: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.xs,
     color: colors.accent,
-    fontWeight: "600",
   },
 });

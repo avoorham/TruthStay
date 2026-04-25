@@ -10,7 +10,7 @@ import { Feather } from "@expo/vector-icons";
 import { useAuth } from "../../../lib/auth-context";
 import { supabase } from "../../../lib/supabase";
 import { pickImage, uploadAvatar } from "../../../lib/storage";
-import { colors, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../../../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../../../lib/theme";
 import { getProfileStats, getBookmarkedAdventures, type BookmarkedAdventure } from "../../../lib/api";
 
 const ACTIVITY_OPTIONS = [
@@ -47,14 +47,12 @@ function SettingsRow({
   return (
     <>
       <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-        <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
-          <Feather name={icon} size={17} color={danger ? "#E03E3E" : colors.accent} />
-        </View>
+        <Feather name={icon} size={20} color={danger ? "#E03E3E" : colors.text} style={styles.rowIcon} />
         <View style={styles.rowText}>
           <Text style={[styles.rowLabel, danger && styles.rowLabelDanger]}>{label}</Text>
           {subtitle ? <Text style={styles.rowSub}>{subtitle}</Text> : null}
         </View>
-        <Feather name="chevron-right" size={16} color={colors.muted} />
+        <Feather name="chevron-right" size={16} color={colors.subtle} />
       </TouchableOpacity>
       {!isLast && <View style={styles.rowDivider} />}
     </>
@@ -179,17 +177,12 @@ export default function ProfileScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
-
-      {/* Profile card */}
-      <View style={styles.profileCard}>
-        <View style={styles.profileLeft}>
+      {/* Centered profile header */}
+      <View style={styles.profileCenter}>
+        <TouchableOpacity onPress={() => setEditVisible(true)} activeOpacity={0.85} style={styles.avatarWrap}>
           {!avatarError ? (
             <Image
-              source={{ uri: avatarUrl ?? `https://picsum.photos/seed/${user?.id ?? "me"}/80/80` }}
+              source={{ uri: avatarUrl ?? `https://picsum.photos/seed/${user?.id ?? "me"}/96/96` }}
               style={styles.avatar}
               onError={() => setAvatarError(true)}
             />
@@ -198,26 +191,20 @@ export default function ProfileScreen() {
               <Text style={styles.avatarText}>{initial}</Text>
             </View>
           )}
-        </View>
-        <View style={styles.profileInfo}>
-          <TouchableOpacity onPress={() => setEditVisible(true)} activeOpacity={0.7}>
-            <Text style={styles.displayName}>{displayName}</Text>
-          </TouchableOpacity>
-          {username ? <Text style={styles.usernameText}>@{username}</Text> : null}
-          <Text style={styles.emailText} numberOfLines={1}>{user?.email}</Text>
-          {user?.user_metadata?.location ? (
-            <View style={styles.locationRow}>
-              <Feather name="map-pin" size={11} color={colors.muted} />
-              <Text style={styles.locationText}>{user.user_metadata.location}</Text>
-            </View>
-          ) : null}
-        </View>
-        <TouchableOpacity style={styles.editBtn} onPress={() => setEditVisible(true)}>
-          <Feather name="edit-2" size={16} color={colors.muted} />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setEditVisible(true)} activeOpacity={0.7}>
+          <Text style={styles.displayName}>{displayName}</Text>
+        </TouchableOpacity>
+        {username ? <Text style={styles.usernameText}>@{username}</Text> : null}
+        {user?.user_metadata?.location ? (
+          <View style={styles.locationRow}>
+            <Feather name="map-pin" size={11} color={colors.muted} />
+            <Text style={styles.locationText}>{user.user_metadata.location}</Text>
+          </View>
+        ) : null}
       </View>
 
-      {/* Stats */}
+      {/* Stats — flat, no card */}
       <View style={styles.statsRow}>
         <StatBox label="Trips"     value={String(stats.trips)} />
         <StatBox label="Followers" value={String(stats.followers)} />
@@ -225,6 +212,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Section 1 */}
+      <Text style={styles.sectionHeader}>Account</Text>
       <SettingsSection>
         <SettingsRow icon="users"   label="Friends"       subtitle="Manage your friends"
           onPress={() => router.push("/(app)/profile/friends")} />
@@ -235,6 +223,7 @@ export default function ProfileScreen() {
       </SettingsSection>
 
       {/* Section 2 */}
+      <Text style={styles.sectionHeader}>Support</Text>
       <SettingsSection>
         <SettingsRow icon="phone"       label="Contact Us"
           onPress={() => router.push({ pathname: "/(app)/profile/info", params: { slug: "contact" } })} />
@@ -390,61 +379,59 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content:   { paddingBottom: 100 },
 
-  header: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
+  // Centered profile header
+  profileCenter: {
+    alignItems: "center",
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
-
-  // Profile card
-  profileCard: {
-    flexDirection: "row", alignItems: "center",
-    marginHorizontal: spacing.md, marginTop: spacing.sm, marginBottom: spacing.md,
-    backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.md,
-    ...shadow.sm,
-  },
-  profileLeft:   { marginRight: spacing.md },
-  avatar: { width: 64, height: 64, borderRadius: 32 },
+  avatarWrap: { marginBottom: spacing.md },
+  avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarFallback: { backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-  avatarText: { fontSize: fontSize.xl, color: colors.inverse, fontWeight: "700" },
-  profileInfo:   { flex: 1 },
-  displayName:   { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  usernameText:  { fontSize: fontSize.sm, color: colors.muted, marginTop: 1 },
-  emailText:     { fontSize: fontSize.xs, color: colors.subtle, marginTop: 1 },
-  editBtn: { padding: 6 },
+  avatarText: { fontFamily: fonts.display, fontSize: fontSize.xxl, color: colors.inverse },
+  displayName: { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, textAlign: "center", letterSpacing: -0.4 },
+  usernameText: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, marginTop: 2, textAlign: "center" },
 
-  // Stats
+  // Stats — flat
   statsRow: {
-    flexDirection: "row", marginHorizontal: spacing.md, marginBottom: spacing.sm,
-    borderRadius: radius.lg, overflow: "hidden", backgroundColor: colors.card, ...shadow.sm,
+    flexDirection: "row",
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
   },
   statBox: {
-    flex: 1, alignItems: "center", paddingVertical: spacing.md,
-    borderRightWidth: 1, borderRightColor: colors.border,
+    flex: 1, alignItems: "center", paddingVertical: spacing.sm,
   },
-  statValue: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
-  statLabel: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  statValue: { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
+  statLabel: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+
+  // Section header label
+  sectionHeader: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: fontSize.xs,
+    color: colors.muted,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+  },
 
   // Settings section
   section: {
-    marginHorizontal: spacing.md, marginTop: spacing.md,
-    backgroundColor: colors.card, borderRadius: radius.lg, overflow: "hidden", ...shadow.sm,
+    marginHorizontal: spacing.md,
+    backgroundColor: colors.card, borderRadius: radius.xl, overflow: "hidden", ...shadow.sm,
   },
   row: {
     flexDirection: "row", alignItems: "center",
-    paddingVertical: spacing.md, paddingHorizontal: spacing.md, gap: spacing.md,
+    paddingVertical: 14, paddingHorizontal: spacing.md, gap: spacing.md,
   },
-  rowIcon: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: colors.accentLight ?? "#E8F2EC",
-    alignItems: "center", justifyContent: "center",
-  },
-  rowIconDanger: { backgroundColor: "#FEECEC" },
+  rowIcon: { width: 24, textAlign: "center" },
   rowText: { flex: 1 },
-  rowLabel: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
+  rowLabel: { fontFamily: fonts.sansMedium, fontSize: fontSize.base, color: colors.text },
   rowLabelDanger: { color: "#E03E3E" },
-  rowSub: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  rowDivider: { height: 1, backgroundColor: colors.border, marginLeft: 52 + spacing.md },
+  rowSub: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  rowDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: spacing.md + 24 + spacing.md },
 
   // Edit modal
   editSheet: {
@@ -459,8 +446,8 @@ const styles = StyleSheet.create({
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     marginBottom: spacing.lg,
   },
-  editTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  editLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted, marginBottom: spacing.xs },
+  editTitle: { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
+  editLabel: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.xs },
   editInput: {
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingVertical: 12,
@@ -471,7 +458,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.text, borderRadius: radius.full,
     paddingVertical: 14, alignItems: "center", marginTop: spacing.sm,
   },
-  saveBtnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+  saveBtnText: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.base },
 
   // Avatar picker
   avatarPickerWrap: { alignSelf: "center", marginBottom: spacing.lg },
@@ -483,9 +470,9 @@ const styles = StyleSheet.create({
     borderWidth: 2, borderColor: colors.card,
   },
 
-  // Location row in profile card
-  locationRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
-  locationText: { fontSize: fontSize.xs, color: colors.muted },
+  // Location row
+  locationRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 4 },
+  locationText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
 
   // Edit modal — activity selector
   editActivitiesRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.md },
@@ -495,8 +482,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   activityChipSelected: { borderColor: colors.accent, backgroundColor: colors.accentLight ?? "#E8F2EC" },
-  activityChipText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "500" },
-  activityChipTextSelected: { color: colors.accent, fontWeight: "700" },
+  activityChipText: { fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: colors.muted },
+  activityChipTextSelected: { fontFamily: fonts.sansBold, color: colors.accent },
 
   // Activity chips
   chipsRow: {
@@ -508,22 +495,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 5,
     borderWidth: 1, borderColor: colors.border,
   },
-  chipText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "500" },
+  chipText: { fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: colors.text },
 
   // Locked fields
   editInputLocked: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: colors.bg, opacity: 0.6,
   },
-  editInputLockedText: { fontSize: fontSize.base, color: colors.muted, flex: 1 },
+  editInputLockedText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, flex: 1 },
 
   // Saved adventures section
   savedSection: {
     marginHorizontal: spacing.md, marginTop: spacing.md,
   },
   savedTitle: {
-    fontSize: fontSize.base, fontWeight: "700", color: colors.text,
-    marginBottom: spacing.sm,
+    fontFamily: fonts.display, fontSize: fontSize.base, color: colors.text,
+    letterSpacing: -0.2, marginBottom: spacing.sm,
   },
   savedCard: {
     flexDirection: "row", alignItems: "center", gap: spacing.md,
@@ -535,14 +522,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border, alignItems: "center", justifyContent: "center",
   },
   savedInfo: { flex: 1 },
-  savedName: { fontSize: fontSize.base, fontWeight: "600", color: colors.text },
-  savedMeta: { fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
-  savedLevel: { fontSize: fontSize.xs, color: colors.accent, marginTop: 1, fontWeight: "500" },
+  savedName: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text },
+  savedMeta: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginTop: 1 },
+  savedLevel: { fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: colors.accent, marginTop: 1 },
 
   // Delete account
   deleteBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: spacing.xs, marginTop: spacing.md, paddingVertical: spacing.sm,
   },
-  deleteBtnText: { fontSize: fontSize.sm, color: "#E03E3E", fontWeight: "600" },
+  deleteBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: "#E03E3E" },
 });

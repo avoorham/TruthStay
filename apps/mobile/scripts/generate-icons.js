@@ -2,12 +2,14 @@
 /**
  * Generates TruthStay brand icon PNGs for Expo / Android adaptive icon.
  *
+ * Brand logo: pill-bar T — blue vertical stem + teal horizontal crossbar.
+ *
  * Outputs to apps/mobile/assets/:
- *   icon.png                    1024×1024  Coral rounded rect + white T
- *   splash-icon.png             1024×1024  Same (shown centered on cream splash bg)
- *   android-icon-foreground.png  512×512   White T on transparent bg (adaptive fg)
- *   android-icon-background.png  512×512   Solid coral fill (adaptive bg)
- *   android-icon-monochrome.png  512×512   White T on black (dark-mode monochrome)
+ *   icon.png                     1024×1024  Navy bg + brand T
+ *   splash-icon.png              1024×1024  Transparent bg + brand T
+ *   android-icon-foreground.png  1024×1024  Brand T on transparent (adaptive fg)
+ *   android-icon-background.png  1024×1024  Solid navy fill (adaptive bg)
+ *   android-icon-monochrome.png  1024×1024  White T on transparent (themed icons)
  *
  * Requires: sharp (available at repo root node_modules/sharp)
  * Run: node apps/mobile/scripts/generate-icons.js
@@ -18,93 +20,95 @@ const sharp = require(path.resolve(__dirname, "../../../node_modules/sharp"));
 
 const ASSETS = path.resolve(__dirname, "../assets");
 
-const CORAL = "#E8694A";
-const WHITE = "#FFFFFF";
-const BLACK = "#000000";
-const TRANSPARENT = "none";
+const NAVY       = "#0F2A4A";
+const BLUE       = "#0A7AFF";
+const TEAL       = "#2ECDA7";
+const INTERSECT  = "#5BC8D6";
 
-// ── SVG helpers ──────────────────────────────────────────────────────────────
+// ── Brand logo SVG ────────────────────────────────────────────────────────────
+// Generates the pill-bar T shape matching BrandLogo.tsx proportions.
+// logoH: height of the T mark in px; cx/cy: canvas centre.
 
-function makeTileSvg(size, bgColor, letterColor) {
-  const r = Math.round(size * 0.22);
-  const fontSize = Math.round(size * 0.52);
+function brandLogoGroup(logoH, cx, cy) {
+  const logoW     = Math.round(logoH * (56 / 72));
+  const barTop    = Math.round(logoH * 0.25);
+  const barH      = Math.round(logoH * 0.19);
+  const stemW     = Math.round(logoW * 0.29);
+  const stemLeft  = Math.round(logoW * 0.36);
+
+  const x0 = cx - Math.round(logoW / 2);
+  const y0 = cy - Math.round(logoH / 2);
+
+  const barY    = y0 + barTop;
+  const stemX   = x0 + stemLeft;
+  const stemY   = y0;
+
+  return `
+  <!-- crossbar -->
+  <rect x="${x0}" y="${barY}" width="${logoW}" height="${barH}" rx="${Math.round(barH / 2)}" fill="${TEAL}"/>
+  <!-- stem -->
+  <rect x="${stemX}" y="${stemY}" width="${stemW}" height="${logoH}" rx="${Math.round(stemW / 2)}" fill="${BLUE}"/>
+  <!-- intersection blend -->
+  <rect x="${stemX}" y="${barY}" width="${stemW}" height="${barH}" fill="${INTERSECT}" opacity="0.65"/>`;
+}
+
+function iconSvg(size, bgColor, logoH) {
+  const bg = bgColor
+    ? `<rect width="${size}" height="${size}" fill="${bgColor}"/>`
+    : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+  ${bg}${brandLogoGroup(logoH, size / 2, size / 2)}
+</svg>`;
+}
+
+function monoSvg(size, logoH) {
+  const logoW     = Math.round(logoH * (56 / 72));
+  const barTop    = Math.round(logoH * 0.25);
+  const barH      = Math.round(logoH * 0.19);
+  const stemW     = Math.round(logoW * 0.29);
+  const stemLeft  = Math.round(logoW * 0.36);
   const cx = size / 2;
   const cy = size / 2;
-  // Slight vertical nudge for optical centering of serif T
-  const textY = Math.round(cy + fontSize * 0.36);
+  const x0 = cx - Math.round(logoW / 2);
+  const y0 = cy - Math.round(logoH / 2);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-  <rect width="${size}" height="${size}" rx="${r}" ry="${r}" fill="${bgColor}"/>
-  <text
-    x="${cx}"
-    y="${textY}"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="${fontSize}"
-    font-weight="400"
-    fill="${letterColor}"
-    text-anchor="middle"
-    dominant-baseline="auto"
-  >T</text>
+  <rect x="${x0}" y="${y0 + barTop}" width="${logoW}" height="${barH}" rx="${Math.round(barH / 2)}" fill="white"/>
+  <rect x="${x0 + stemLeft}" y="${y0}" width="${stemW}" height="${logoH}" rx="${Math.round(stemW / 2)}" fill="white"/>
 </svg>`;
 }
 
-function makeForegroundSvg(size, letterColor) {
-  // T on transparent background — sized to fill ~72% of the safe zone
-  const fontSize = Math.round(size * 0.52);
-  const cx = size / 2;
-  const cy = size / 2;
-  const textY = Math.round(cy + fontSize * 0.36);
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-  <text
-    x="${cx}"
-    y="${textY}"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="${fontSize}"
-    font-weight="400"
-    fill="${letterColor}"
-    text-anchor="middle"
-    dominant-baseline="auto"
-  >T</text>
-</svg>`;
-}
-
-function makeSolidSvg(size, color) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-  <rect width="${size}" height="${size}" fill="${color}"/>
-</svg>`;
-}
-
-// ── Generation ───────────────────────────────────────────────────────────────
+// ── Generation ────────────────────────────────────────────────────────────────
 
 async function generate() {
   const tasks = [
     {
       name: "icon.png",
-      svg: makeTileSvg(1024, CORAL, WHITE),
+      svg: iconSvg(1024, NAVY, 520),
       size: 1024,
     },
     {
       name: "splash-icon.png",
-      svg: makeTileSvg(1024, CORAL, WHITE),
+      svg: iconSvg(1024, null, 420),
       size: 1024,
+      transparent: true,
     },
     {
       name: "android-icon-foreground.png",
-      svg: makeForegroundSvg(512, WHITE),
-      size: 512,
-      background: TRANSPARENT,
+      svg: iconSvg(1024, null, 480),
+      size: 1024,
+      transparent: true,
     },
     {
       name: "android-icon-background.png",
-      svg: makeSolidSvg(512, CORAL),
-      size: 512,
+      svg: `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024"><rect width="1024" height="1024" fill="${NAVY}"/></svg>`,
+      size: 1024,
     },
     {
       name: "android-icon-monochrome.png",
-      svg: makeForegroundSvg(512, WHITE),
-      size: 512,
-      background: BLACK,
+      svg: monoSvg(1024, 480),
+      size: 1024,
+      transparent: true,
     },
   ];
 
@@ -113,23 +117,16 @@ async function generate() {
     const svgBuffer = Buffer.from(task.svg);
 
     let pipeline = sharp(svgBuffer);
-
-    if (task.background === TRANSPARENT) {
-      // Keep transparency — no flatten
-    } else if (task.background === BLACK) {
-      pipeline = pipeline.flatten({ background: { r: 0, g: 0, b: 0 } });
+    if (!task.transparent) {
+      pipeline = pipeline.flatten({ background: { r: 15, g: 42, b: 74 } });
     }
 
-    await pipeline
-      .resize(task.size, task.size)
-      .png()
-      .toFile(outPath);
-
+    await pipeline.resize(task.size, task.size).png().toFile(outPath);
     console.log(`✓  ${task.name}  (${task.size}×${task.size})`);
   }
 
   console.log("\nAll icons written to apps/mobile/assets/");
-  console.log("Run 'npx expo prebuild' to regenerate Android mipmap WebP files.");
+  console.log("Rebuild the dev client or run 'npx expo prebuild' to apply.");
 }
 
 generate().catch((err) => {

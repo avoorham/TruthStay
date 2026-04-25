@@ -14,7 +14,7 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, updateTileOrder, getCollaborators, inviteCollaborator, updateCollaboratorPermission, removeCollaborator, updateDayCustomItems, createActivityPost, type AdventureRow, type AdventureDayRow, type CustomItem, type Collaborator as ApiCollaborator } from "../../../lib/api";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { supabase } from "../../../lib/supabase";
-import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { colors, fontSize, fonts, radius, spacing, shadow } from "../../../lib/theme";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -699,14 +699,16 @@ function StopCard({
     >
       <Animated.View style={[
         tileStyles.card,
+        { borderColor: colors.sage, shadowColor: colors.sage, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
-        <View style={[tileStyles.accentStripe, { backgroundColor: colors.sage }]} />
-        <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
-        {/* Camera button */}
-        <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
-          <Feather name="camera" size={14} color={colors.muted} />
-        </TouchableOpacity>
+        <View style={tileStyles.photoWrap}>
+          <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+          {/* Camera button */}
+          <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+            <Feather name="camera" size={14} color={colors.muted} />
+          </TouchableOpacity>
+        </View>
         <View style={tileStyles.info}>
           <Text style={tileStyles.title} numberOfLines={2}>{day.title}</Text>
           {day.routeNotes ? (
@@ -887,16 +889,18 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
     >
       <Animated.View style={[
         tileStyles.card,
+        { borderColor: colors.accent, shadowColor: colors.accent, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
-        <View style={[tileStyles.accentStripe, { backgroundColor: colors.coral }]} />
-        <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
-        {/* Camera button */}
-        {onAddPhoto && (
-          <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
-            <Feather name="camera" size={14} color={colors.muted} />
-          </TouchableOpacity>
-        )}
+        <View style={tileStyles.photoWrap}>
+          <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+          {/* Camera button */}
+          {onAddPhoto && (
+            <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+              <Feather name="camera" size={14} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{accomOpt?.name ?? meta.accommodation}</Text>
           <View style={tileStyles.infoRow}>
@@ -1079,16 +1083,18 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
     >
       <Animated.View style={[
         tileStyles.card,
+        { borderColor: colors.blend, shadowColor: colors.blend, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
-        <View style={[tileStyles.accentStripe, { backgroundColor: colors.coral }]} />
-        <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
-        {/* Camera button */}
-        {onAddPhoto && (
-          <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
-            <Feather name="camera" size={14} color={colors.muted} />
-          </TouchableOpacity>
-        )}
+        <View style={tileStyles.photoWrap}>
+          <Image source={{ uri: photoUrl }} style={tileStyles.photo} resizeMode="cover" />
+          {/* Camera button */}
+          {onAddPhoto && (
+            <TouchableOpacity style={tileStyles.cameraBtn} onPress={onAddPhoto}>
+              <Feather name="camera" size={14} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={tileStyles.info}>
           <Text style={tileStyles.title}>{restaurant.name}</Text>
           <View style={tileStyles.infoRow}>
@@ -2244,9 +2250,10 @@ function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem 
   const stripeColor = CUSTOM_STRIPE[item.type] ?? colors.muted;
   return (
     <View style={[tileStyles.card, { overflow: "hidden" }]}>
-      <View style={[tileStyles.accentStripe, { backgroundColor: stripeColor }]} />
       {item.photos && item.photos.length > 0 && (
-        <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
+        <View style={tileStyles.photoWrap}>
+          <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
+        </View>
       )}
       <View style={tileStyles.info}>
         <Text style={tileStyles.title}>{item.name}</Text>
@@ -2701,46 +2708,51 @@ export default function TripDetailScreen() {
       <Animated.View style={{
         height: heroOffset.interpolate({ inputRange: [0, HERO_H], outputRange: [HERO_H, 0], extrapolate: "clamp" }),
         overflow: "hidden",
+        paddingHorizontal: spacing.md,
+        paddingBottom: spacing.sm,
+        backgroundColor: colors.bg,
       }}>
-        {/* Trip photo carousel — swipe left/right to switch trips */}
-        {allAdventures.length > 0 ? (
-          <FlatList
-            ref={heroCarouselRef}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            data={allAdventures}
-            initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
-            getItemLayout={(_, i) => ({ length: SCREEN_W, offset: SCREEN_W * i, index: i })}
-            keyExtractor={a => a.id}
-            renderItem={({ item }) => (
-              <Image
-                source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
-                style={{ width: SCREEN_W, height: HERO_H }}
-                resizeMode="cover"
-              />
-            )}
-            onMomentumScrollEnd={e => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-              const target = allAdventures[idx];
-              if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
-            }}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : (
-          <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        )}
-        <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
-        <View style={detailStyles.heroText}>
-          <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
-          <View style={detailStyles.heroMeta}>
-            <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
-            <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
-            <Text style={detailStyles.heroMetaDot}>·</Text>
-            <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
-            <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
-            <Text style={detailStyles.heroMetaDot}>·</Text>
-            <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
+        <View style={detailStyles.heroImageWrap}>
+          {/* Trip photo carousel — swipe left/right to switch trips */}
+          {allAdventures.length > 0 ? (
+            <FlatList
+              ref={heroCarouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              data={allAdventures}
+              initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
+              getItemLayout={(_, i) => ({ length: SCREEN_W - spacing.md * 2, offset: (SCREEN_W - spacing.md * 2) * i, index: i })}
+              keyExtractor={a => a.id}
+              renderItem={({ item }) => (
+                <Image
+                  source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
+                  style={{ width: SCREEN_W - spacing.md * 2, height: HERO_H - spacing.sm }}
+                  resizeMode="cover"
+                />
+              )}
+              onMomentumScrollEnd={e => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - spacing.md * 2));
+                const target = allAdventures[idx];
+                if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
+              }}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : (
+            <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          )}
+          <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
+          <View style={detailStyles.heroText}>
+            <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
+            <View style={detailStyles.heroMeta}>
+              <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
+              <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
+              <Text style={detailStyles.heroMetaDot}>·</Text>
+              <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
+              <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
+              <Text style={detailStyles.heroMetaDot}>·</Text>
+              <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
+            </View>
           </View>
         </View>
       </Animated.View>
@@ -3035,7 +3047,13 @@ const detailStyles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerRight: { flexDirection: "row", alignItems: "center" },
-  headerTitle: { fontSize: fontSize.base, fontWeight: "700", color: colors.text },
+  headerTitle: { fontSize: fontSize.xl, fontFamily: fonts.display, color: colors.text },
+  heroImageWrap: {
+    flex: 1,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    backgroundColor: colors.border,
+  },
   heroText: { position: "absolute", bottom: 0, left: 0, right: 0, padding: spacing.md, gap: 6 },
   heroTitle: { color: "#FFFFFF", fontSize: fontSize.xxl, fontWeight: "800", lineHeight: 30, letterSpacing: -0.3 },
   heroMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
@@ -3051,9 +3069,9 @@ const detailStyles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: 7,
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
   },
-  dayTabActive: { backgroundColor: colors.text, borderColor: colors.text },
+  dayTabActive: { backgroundColor: "#0A7AFF", borderColor: "#0A7AFF" },
   dayTabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
-  dayTabTextActive: { color: colors.inverse },
+  dayTabTextActive: { color: "#FFFFFF" },
   tabFadeLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   tabFadeRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   dotRow: { flexDirection: "row", justifyContent: "center", gap: 5, paddingVertical: 6, backgroundColor: colors.card },
@@ -3101,7 +3119,7 @@ const tileStyles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: colors.text, alignItems: "center", justifyContent: "center", zIndex: 1,
   },
-  circleNum: { color: colors.inverse, fontSize: fontSize.sm, fontWeight: "700" },
+  circleNum: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.sm },
   line: {
     flex: 1, width: 2, borderLeftWidth: 2, borderLeftColor: colors.border,
     borderStyle: "dashed", marginTop: 4, marginBottom: 4, minHeight: 40,
@@ -3109,18 +3127,20 @@ const tileStyles = StyleSheet.create({
   card: {
     flex: 1, backgroundColor: colors.card, borderRadius: radius.lg,
     overflow: "hidden", ...shadow.sm, marginBottom: spacing.md,
+    borderWidth: 2,
   },
+  photoWrap: { margin: 8, borderRadius: 12, overflow: "hidden", backgroundColor: colors.border },
   photo: { width: "100%", height: 160 },
   info: { padding: spacing.md, gap: 6 },
-  title: { fontSize: fontSize.base, fontWeight: "700", color: colors.text, lineHeight: 20 },
+  title: { fontFamily: fonts.display, fontSize: fontSize.base, color: colors.text, lineHeight: 20, letterSpacing: -0.2 },
   infoRow: { flexDirection: "row", alignItems: "flex-start", gap: 5 },
-  infoText: { fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 16 },
+  infoText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 16 },
   statsRow: { flexDirection: "row", gap: spacing.sm, marginTop: 2 },
   statChip: {
     backgroundColor: colors.sheet, borderRadius: radius.full,
     paddingHorizontal: spacing.sm, paddingVertical: 3,
   },
-  statText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "500" },
+  statText: { fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: colors.text },
   actionRow: {
     flexDirection: "row",
     paddingHorizontal: spacing.sm,
@@ -3137,9 +3157,8 @@ const tileStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  actionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
+  actionText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.text },
   cameraBtn: { position: "absolute", top: 8, right: 8, padding: 6, backgroundColor: "rgba(0,0,0,0.35)", borderRadius: 16, zIndex: 2 },
-  accentStripe: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, zIndex: 3 },
 });
 
 const reviewStyles = StyleSheet.create({
@@ -3242,9 +3261,9 @@ const mapStyles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: 7,
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
   },
-  dayPillActive: { backgroundColor: colors.text, borderColor: colors.text },
+  dayPillActive: { backgroundColor: "#0A7AFF", borderColor: "#0A7AFF" },
   dayPillText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
-  dayPillTextActive: { color: colors.inverse },
+  dayPillTextActive: { color: "#FFFFFF" },
   fadeLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 36 } as any,
   fadeRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 36 } as any,
   stopCard: {

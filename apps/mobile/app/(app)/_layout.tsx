@@ -14,7 +14,7 @@ function TabIcon({
     <Feather
       name={name}
       size={24}
-      color={focused ? "#FFFFFF" : "rgba(255,255,255,0.55)"}
+      color={focused ? colors.navy : "rgba(10,35,66,0.4)"}
     />
   );
 }
@@ -30,14 +30,14 @@ export default function AppLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colors.navy,
+          backgroundColor: "#F8F9FA",
           borderTopWidth: 0,
           height: 64 + insets.bottom,
           paddingBottom: insets.bottom + 8,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: "#FFFFFF",
-        tabBarInactiveTintColor: "rgba(255,255,255,0.55)",
+        tabBarActiveTintColor: colors.navy,
+        tabBarInactiveTintColor: "rgba(10,35,66,0.4)",
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: "600",

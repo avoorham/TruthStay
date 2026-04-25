@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { colors, fontSize, radius, spacing, ACTIVITY_EMOJI } from "../../../lib/theme";
+import { colors, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../../../lib/theme";
 import {
   getFeed, followUser, getActivityPosts,
   likeFeedItem, unlikeFeedItem,
@@ -395,16 +395,16 @@ function ActivityPostCard({ post }: { post: ActivityPostRow }) {
           <Text style={{ fontSize: 22 }}>{icon}</Text>
         </View>
 
-        <Text style={{ color: "#FFFFFF", fontSize: fontSize.xl, fontWeight: "800" }} numberOfLines={2}>
+        <Text style={{ fontFamily: fonts.display, color: "#FFFFFF", fontSize: fontSize.xl, letterSpacing: -0.4 }} numberOfLines={2}>
           {post.item_name}
         </Text>
 
         {post.location ? (
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: fontSize.sm }}>📍 {post.location}</Text>
+          <Text style={{ fontFamily: fonts.sans, color: "rgba(255,255,255,0.7)", fontSize: fontSize.sm }}>📍 {post.location}</Text>
         ) : null}
 
         {post.rating ? (
-          <Text style={{ color: "#F59E0B", fontSize: fontSize.sm }}>{"★".repeat(post.rating)}{"☆".repeat(5 - post.rating)}</Text>
+          <Text style={{ fontFamily: fonts.sans, color: "#F59E0B", fontSize: fontSize.sm }}>{"★".repeat(post.rating)}{"☆".repeat(5 - post.rating)}</Text>
         ) : null}
 
         {post.notes ? (
@@ -433,21 +433,30 @@ function ActivityPostCard({ post }: { post: ActivityPostRow }) {
 
 function EmptyState() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   return (
-    <View style={[emptyStyles.container, { paddingTop: insets.top + spacing.xl }]}>
-      <Text style={emptyStyles.emoji}>🏔️</Text>
-      <Text style={emptyStyles.title}>Your feed is empty</Text>
-      <Text style={emptyStyles.sub}>
-        Follow friends to see their adventures, photos, and itineraries here.
-      </Text>
-      <TouchableOpacity
-        style={emptyStyles.btn}
-        onPress={() => router.push("/(app)/profile/friends")}
-        activeOpacity={0.85}
-      >
-        <Text style={emptyStyles.btnText}>Find friends</Text>
-      </TouchableOpacity>
+    <View style={emptyStyles.container}>
+      <View style={emptyStyles.card}>
+        <View style={emptyStyles.imageWrap}>
+          <Image
+            source={require("../../../assets/feed-empty.png")}
+            style={emptyStyles.image}
+            resizeMode="cover"
+          />
+        </View>
+        <View style={emptyStyles.textArea}>
+          <Text style={emptyStyles.title}>Your feed is empty</Text>
+          <Text style={emptyStyles.sub}>
+            Follow friends to see their adventures, photos, and itineraries here.
+          </Text>
+          <TouchableOpacity
+            style={emptyStyles.btn}
+            onPress={() => router.push("/(app)/profile/friends")}
+            activeOpacity={0.85}
+          >
+            <Text style={emptyStyles.btnText}>Find friends</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -589,7 +598,7 @@ const sharedStyles = StyleSheet.create({
     gap: spacing.lg,
   },
   actionBtn:   { alignItems: "center", gap: 6 },
-  actionCount: { fontSize: fontSize.sm, color: "#FFFFFF", fontWeight: "600" },
+  actionCount: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: "#FFFFFF" },
   dots: {
     position: "absolute",
     top: spacing.lg,
@@ -627,9 +636,9 @@ const sharedStyles = StyleSheet.create({
     borderColor: "#FFFFFF",
     overflow: "hidden",
   },
-  avatarText:  { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.base },
-  username:    { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.base },
-  subtext:     { color: "rgba(255,255,255,0.75)", fontSize: fontSize.sm },
+  avatarText:  { fontFamily: fonts.sansBold, color: "#FFFFFF", fontSize: fontSize.base },
+  username:    { fontFamily: fonts.sansBold, color: "#FFFFFF", fontSize: fontSize.base },
+  subtext:     { fontFamily: fonts.sans, color: "rgba(255,255,255,0.75)", fontSize: fontSize.sm },
   followBtn: {
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
@@ -637,8 +646,8 @@ const sharedStyles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  followText:  { color: "#FFFFFF", fontWeight: "600", fontSize: fontSize.sm },
-  caption:     { color: "#FFFFFF", fontSize: fontSize.base, lineHeight: 22 },
+  followText:  { fontFamily: fonts.sansSemiBold, color: "#FFFFFF", fontSize: fontSize.sm },
+  caption:     { fontFamily: fonts.sans, color: "#FFFFFF", fontSize: fontSize.base, lineHeight: 22 },
 });
 
 const itinStyles = StyleSheet.create({
@@ -657,9 +666,9 @@ const itinStyles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
-  chipText:    { color: "#FFFFFF", fontSize: fontSize.xs, fontWeight: "600" },
-  title:       { color: "#FFFFFF", fontSize: 26, fontWeight: "800", lineHeight: 32 },
-  description: { color: "rgba(255,255,255,0.8)", fontSize: fontSize.sm, lineHeight: 20 },
+  chipText:    { fontFamily: fonts.sansSemiBold, color: "#FFFFFF", fontSize: fontSize.xs },
+  title:       { fontFamily: fonts.display, color: "#FFFFFF", fontSize: 26, lineHeight: 32, letterSpacing: -0.5 },
+  description: { fontFamily: fonts.sans, color: "rgba(255,255,255,0.8)", fontSize: fontSize.sm, lineHeight: 20 },
   dayScroll:   { marginVertical: spacing.xs },
   dayChip: {
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -668,7 +677,7 @@ const itinStyles = StyleSheet.create({
     paddingVertical: 5,
     maxWidth: 200,
   },
-  dayChipText: { color: "#FFFFFF", fontSize: fontSize.xs },
+  dayChipText: { fontFamily: fonts.sans, color: "#FFFFFF", fontSize: fontSize.xs },
   btns:        { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
   exploreBtn: {
     flex: 1,
@@ -677,7 +686,7 @@ const itinStyles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  exploreBtnText: { color: colors.feedBg, fontWeight: "700", fontSize: fontSize.base },
+  exploreBtnText: { fontFamily: fonts.sansBold, color: colors.feedBg, fontSize: fontSize.base },
   planBtn: {
     flex: 1,
     borderWidth: 1.5,
@@ -686,29 +695,59 @@ const itinStyles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  planBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.base },
+  planBtnText: { fontFamily: fonts.sansBold, color: "#FFFFFF", fontSize: fontSize.base },
 });
 
 const photoStyles = StyleSheet.create({
   adventureLink: {
+    fontFamily: fonts.sansSemiBold,
     color: "rgba(255,255,255,0.7)",
     fontSize: fontSize.sm,
-    fontWeight: "600",
     textDecorationLine: "underline",
   },
 });
 
 const emptyStyles = StyleSheet.create({
-  container:  { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl, gap: spacing.md },
-  emoji:      { fontSize: 48 },
-  title:      { fontSize: 22, fontWeight: "700", color: colors.text, textAlign: "center" },
-  sub:        { fontSize: fontSize.base, color: colors.muted, textAlign: "center", lineHeight: 22 },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.bg,
+  },
+  card: {
+    width: "100%",
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    overflow: "hidden",
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    ...shadow.md,
+  },
+  imageWrap: {
+    margin: 8,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: colors.border,
+  },
+  image: {
+    width: "100%",
+    height: 220,
+  },
+  textArea: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  title:   { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
+  sub:     { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, lineHeight: 22 },
   btn: {
     backgroundColor: colors.accent,
     borderRadius: radius.full,
-    paddingHorizontal: spacing.xl,
     paddingVertical: 14,
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
+    alignItems: "center",
   },
-  btnText:    { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.base },
+  btnText: { fontFamily: fonts.sansBold, color: "#FFFFFF", fontSize: fontSize.base },
 });

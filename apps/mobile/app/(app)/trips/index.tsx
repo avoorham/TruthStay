@@ -9,7 +9,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, deleteAdventure, type AdventureRow } from "../../../lib/api";
-import { colors, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
 
 const ACTIVITY_ICON: Record<string, string> = {
   cycling:       "bike",
@@ -376,8 +376,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
-  editToggleText: { fontSize: fontSize.base, fontWeight: "600", color: colors.accent },
+  headerTitle: { fontFamily: fonts.display, fontSize: fontSize.xxl, color: colors.text, letterSpacing: -0.5 },
+  editToggleText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.accent },
   tabStrip: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   tabRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   cogBtn: { padding: 4 },
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   },
   tabPillActive: { backgroundColor: colors.text, borderColor: colors.text },
   tabPillInner: { flexDirection: "row", alignItems: "center", gap: 4 },
-  tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
+  tabText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
   tabTextActive: { color: colors.inverse },
   list: { padding: spacing.md, gap: spacing.md, paddingBottom: 100 },
   cardRow: { flexDirection: "row", alignItems: "center" },
@@ -426,13 +426,14 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   cardTitle: {
+    fontFamily: fonts.display,
     color: "#FFFFFF",
     fontSize: fontSize.lg,
-    fontWeight: "700",
     lineHeight: 22,
+    letterSpacing: -0.3,
   },
   subtitleRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  subtitleText: { color: "rgba(255,255,255,0.85)", fontSize: fontSize.sm },
+  subtitleText: { fontFamily: fonts.sans, color: "rgba(255,255,255,0.85)", fontSize: fontSize.sm },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -440,32 +441,33 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   regionRow: { flexDirection: "row", alignItems: "center", gap: 3, flex: 1 },
-  regionText: { color: "rgba(255,255,255,0.7)", fontSize: fontSize.xs, flex: 1 },
+  regionText: { fontFamily: fonts.sans, color: "rgba(255,255,255,0.7)", fontSize: fontSize.xs, flex: 1 },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: radius.full,
     borderWidth: 1,
   },
-  statusText: { fontSize: fontSize.xs, fontWeight: "700" },
+  statusText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs },
   emptyBox: {
     alignItems: "center",
     paddingVertical: spacing.xxl * 2,
     gap: spacing.md,
   },
   emptyText: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.base,
     color: colors.muted,
     textAlign: "center",
     lineHeight: 24,
   },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md },
-  errorText: { fontSize: fontSize.base, color: colors.muted, textAlign: "center" },
+  errorText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, textAlign: "center" },
   retryBtn: {
     paddingHorizontal: spacing.lg, paddingVertical: spacing.sm,
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
   },
-  retryText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  retryText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
   editBar: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
@@ -479,11 +481,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sheet,
     borderWidth: 1, borderColor: colors.border,
   },
-  cancelEditText: { color: colors.muted, fontWeight: "600", fontSize: fontSize.base },
+  cancelEditText: { fontFamily: fonts.sansSemiBold, color: colors.muted, fontSize: fontSize.base },
   deleteBtn: {
     paddingHorizontal: 24, paddingVertical: 12,
     borderRadius: radius.full,
     backgroundColor: "#E53E3E",
   },
-  deleteBtnText: { color: "#fff", fontWeight: "700", fontSize: fontSize.base },
+  deleteBtnText: { fontFamily: fonts.sansBold, color: "#fff", fontSize: fontSize.base },
 });

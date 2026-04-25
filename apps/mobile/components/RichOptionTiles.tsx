@@ -3,7 +3,7 @@ import {
   Dimensions, Image, Linking, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
-import { colors, fontSize, radius, shadow, spacing } from "../lib/theme";
+import { colors, fonts, fontSize, radius, shadow, spacing } from "../lib/theme";
 import type { RichOption, RichOptionCategory } from "../lib/adventure-types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -127,20 +127,22 @@ function OptionTile({ option, category, activityType, disabled, onSelect }: Opti
 
   return (
     <View style={tileStyles.card}>
-      {/* Image carousel */}
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        style={{ width: CARD_WIDTH }}
-        onScroll={e => setPage(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH))}
-      >
-        {imageUris.map((uri, i) => (
-          <Image key={i} source={{ uri }} style={tileStyles.image} resizeMode="cover" />
-        ))}
-      </ScrollView>
+      {/* Image carousel — inset with rounded corners */}
+      <View style={tileStyles.imageWrap}>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          style={{ width: CARD_WIDTH - 16 }}
+          onScroll={e => setPage(Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH - 16)))}
+        >
+          {imageUris.map((uri, i) => (
+            <Image key={i} source={{ uri }} style={tileStyles.image} resizeMode="cover" />
+          ))}
+        </ScrollView>
+      </View>
       {/* Dots */}
       <View style={tileStyles.dots}>
         {imageUris.map((_, i) => (
@@ -329,9 +331,17 @@ const tileStyles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: spacing.md,
     ...shadow.sm,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  imageWrap: {
+    margin: 8,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: colors.border,
   },
   image: {
-    width: CARD_WIDTH,
+    width: CARD_WIDTH - 16,
     height: IMAGE_HEIGHT,
   },
   dots: {
@@ -348,19 +358,21 @@ const tileStyles = StyleSheet.create({
     backgroundColor: colors.border,
   },
   dotActive: {
-    backgroundColor: colors.text,
+    backgroundColor: "#0A7AFF",
   },
   info: {
     padding: spacing.md,
     gap: 6,
   },
   title: {
+    fontFamily: fonts.display,
     fontSize: fontSize.base,
-    fontWeight: "700",
     color: colors.text,
     lineHeight: 20,
+    letterSpacing: -0.3,
   },
   subtitle: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     marginTop: -2,
@@ -378,27 +390,28 @@ const tileStyles = StyleSheet.create({
     paddingVertical: 3,
   },
   chipText: {
+    fontFamily: fonts.sansMedium,
     fontSize: fontSize.xs,
     color: colors.text,
-    fontWeight: "500",
   },
   description: {
+    fontFamily: fonts.sans,
     fontSize: fontSize.xs,
     color: colors.muted,
     lineHeight: 16,
     marginTop: 2,
   },
   komootLink: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.xs,
     color: "#2E7D32",
-    fontWeight: "600",
     marginTop: 2,
   },
   btnDisabled: {
     opacity: 0.4,
   },
   selectBtn: {
-    backgroundColor: colors.text,
+    backgroundColor: "#0A7AFF",
     marginHorizontal: spacing.md,
     marginBottom: spacing.md,
     marginTop: 4,
@@ -407,9 +420,9 @@ const tileStyles = StyleSheet.create({
     alignItems: "center",
   },
   selectBtnText: {
+    fontFamily: fonts.sansBold,
     color: colors.inverse,
     fontSize: fontSize.base,
-    fontWeight: "700",
   },
   restaurantBtns: {
     flexDirection: "row",
@@ -427,21 +440,21 @@ const tileStyles = StyleSheet.create({
     alignItems: "center",
   },
   menuBtnText: {
+    fontFamily: fonts.sansBold,
     color: colors.text,
     fontSize: fontSize.base,
-    fontWeight: "700",
   },
   availBtn: {
     flex: 1,
-    backgroundColor: colors.text,
+    backgroundColor: "#0A7AFF",
     borderRadius: radius.full,
     paddingVertical: 12,
     alignItems: "center",
   },
   availBtnText: {
+    fontFamily: fonts.sansBold,
     color: colors.inverse,
     fontSize: fontSize.base,
-    fontWeight: "700",
   },
 });
 
@@ -459,8 +472,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   loadMoreText: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.base,
-    fontWeight: "600",
     color: colors.text,
   },
   footerRow: {
@@ -481,8 +494,8 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   footerChipText: {
+    fontFamily: fonts.sansMedium,
     fontSize: fontSize.sm,
     color: colors.muted,
-    fontWeight: "500",
   },
 });

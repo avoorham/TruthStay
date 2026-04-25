@@ -10,7 +10,7 @@ import Mapbox, {
   MapView, Camera, PointAnnotation,
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import { colors, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
+import { colors, fonts, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
 import {
   getPublicAdventures, bookmarkAdventure, unbookmarkAdventure,
   type PublicAdventureRow,
@@ -28,7 +28,8 @@ const SNAP_PEEK     = SCREEN_H - 90;
 const SNAP_HALF     = SCREEN_H * 0.45;
 const SNAP_EXPANDED = SCREEN_H * 0.12;
 const CARD_W        = SCREEN_W - 32;
-const CARD_H        = 260;
+const IMAGE_H       = 240;
+const CARD_H        = IMAGE_H + 96; // image + text area below
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -446,9 +447,9 @@ function AdventureCard({
   const [photoIndex, setPhotoIndex] = useState(0);
 
   return (
-    <View style={cardStyles.card}>
-      <View style={cardStyles.photoInner}>
-        {/* Photo carousel — receives horizontal swipes directly */}
+    <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.95}>
+      {/* Image section — rounded, inset from card edge */}
+      <View style={cardStyles.imageWrap}>
         <ScrollView
           horizontal
           pagingEnabled
@@ -464,17 +465,11 @@ function AdventureCard({
             <Image
               key={i}
               source={{ uri }}
-              style={{ width: CARD_W - 16, height: CARD_H - 16 }}
+              style={{ width: CARD_W - 16, height: IMAGE_H }}
               resizeMode="cover"
             />
           ))}
         </ScrollView>
-
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.72)"]}
-          style={cardStyles.gradient}
-          pointerEvents="none"
-        />
 
         {/* Heart button */}
         <TouchableOpacity
@@ -489,30 +484,32 @@ function AdventureCard({
           />
         </TouchableOpacity>
 
-        {/* Text overlay — tap opens modal, swipe on photo still works above */}
-        <TouchableOpacity style={cardStyles.textOverlay} onPress={onPress} activeOpacity={0.85}>
-          <View style={cardStyles.titleRow}>
-            <Text style={cardStyles.cardTitle} numberOfLines={1}>{adventure.title}</Text>
-            <View style={cardStyles.dots}>
-              {adventure.photos.map((_, i) => (
-                <View key={i} style={[cardStyles.dot, photoIndex === i && cardStyles.dotActive]} />
-              ))}
-            </View>
+        {/* Photo dots */}
+        {adventure.photos.length > 1 && (
+          <View style={cardStyles.dots}>
+            {adventure.photos.map((_, i) => (
+              <View key={i} style={[cardStyles.dot, photoIndex === i && cardStyles.dotActive]} />
+            ))}
           </View>
-          <View style={cardStyles.subtitleRow}>
-            {adventure.activityTypes.map(type => {
-              const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-              return (
-                <MaterialCommunityIcons key={type} name={iconName} size={14} color="rgba(255,255,255,0.85)" />
-              );
-            })}
-            <Text style={cardStyles.cardSubtitle}>
-              {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        )}
       </View>
-    </View>
+
+      {/* Text section — white area below image */}
+      <View style={cardStyles.textArea}>
+        <Text style={cardStyles.cardTitle} numberOfLines={2}>{adventure.title}</Text>
+        <View style={cardStyles.subtitleRow}>
+          {adventure.activityTypes.map(type => {
+            const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+            return (
+              <MaterialCommunityIcons key={type} name={iconName} size={13} color={colors.muted} />
+            );
+          })}
+          <Text style={cardStyles.cardSubtitle}>
+            {formatDuration(adventure.days)} · {adventure.level} · {formatBudget(adventure.budget)}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -530,95 +527,77 @@ function AdventureExpandedModal({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [photoIndex, setPhotoIndex] = useState(0);
-  const SCREEN_W = Dimensions.get("window").width;
-  const PHOTO_H  = SCREEN_H * 0.55;
+  const MODAL_W  = SCREEN_W - spacing.md * 2;
+  const PHOTO_H  = MODAL_W * 0.62;
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       {adventure && (
-        <View style={modalStyles.container}>
-          {/* Photo carousel */}
-          <View style={{ height: PHOTO_H }}>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={(e) => {
-                const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-                setPhotoIndex(idx);
-              }}
-              scrollEventThrottle={16}
-              style={StyleSheet.absoluteFillObject}
-            >
-              {adventure.photos.map((uri, i) => (
-                <Image
-                  key={i}
-                  source={{ uri }}
-                  style={{ width: SCREEN_W, height: PHOTO_H }}
-                  resizeMode="cover"
-                />
-              ))}
-            </ScrollView>
-
-            <LinearGradient
-              colors={["rgba(0,0,0,0.25)", "transparent", "rgba(0,0,0,0.55)"]}
-              style={StyleSheet.absoluteFillObject}
-              pointerEvents="none"
-            />
-
-            {/* Top bar */}
-            <View style={[modalStyles.topBar, { paddingTop: insets.top + 8 }]}>
-              <TouchableOpacity style={modalStyles.iconBtn} onPress={onClose}>
-                <Feather name="arrow-left" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity style={modalStyles.iconBtn} onPress={onToggleSaved}>
-                <MaterialCommunityIcons
-                  name={isSaved ? "heart" : "heart-outline"}
-                  size={20}
-                  color={isSaved ? "#EF4444" : "#FFFFFF"}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Title + location overlaid on photo bottom */}
-            <View style={modalStyles.photoBottom} pointerEvents="none">
-              <Text style={modalStyles.modalTitle} numberOfLines={2}>{adventure.title}</Text>
-              <View style={modalStyles.locationRow}>
-                <Feather name="map-pin" size={13} color="rgba(255,255,255,0.85)" />
-                <Text style={modalStyles.locationText}>{adventure.region}, {adventure.country}</Text>
-                <Text style={modalStyles.ratingBadge}>★ {adventure.rating}</Text>
-              </View>
-              <View style={modalStyles.modalDots}>
-                {adventure.photos.map((_, i) => (
-                  <View key={i} style={[modalStyles.modalDot, photoIndex === i && modalStyles.modalDotActive]} />
-                ))}
-              </View>
-            </View>
+        <View style={[modalStyles.container, { paddingTop: insets.top }]}>
+          {/* Top bar */}
+          <View style={modalStyles.topBar}>
+            <TouchableOpacity style={modalStyles.iconBtn} onPress={onClose}>
+              <Feather name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={modalStyles.iconBtn} onPress={onToggleSaved}>
+              <MaterialCommunityIcons
+                name={isSaved ? "heart" : "heart-outline"}
+                size={20}
+                color={isSaved ? "#EF4444" : colors.muted}
+              />
+            </TouchableOpacity>
           </View>
 
-          {/* White detail sheet */}
           <ScrollView
-            style={modalStyles.detailSheet}
-            contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
           >
-            {/* Activity icons */}
-            <View style={modalStyles.activityRow}>
-              {adventure.activityTypes.map(type => {
-                const iconName = (ACTIVITY_ICON[type] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-                return (
-                  <View key={type} style={modalStyles.activityItem}>
-                    <MaterialCommunityIcons name={iconName} size={26} color={colors.accent} />
-                    <Text style={modalStyles.activityLabel}>
-                      {type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-                    </Text>
+            {/* Photo card — same inset tile style */}
+            <View style={modalStyles.photoCard}>
+              <View style={[modalStyles.imageWrap, { height: PHOTO_H }]}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={(e) => {
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / (MODAL_W - 16));
+                    setPhotoIndex(idx);
+                  }}
+                  scrollEventThrottle={16}
+                  style={StyleSheet.absoluteFillObject}
+                >
+                  {adventure.photos.map((uri, i) => (
+                    <Image
+                      key={i}
+                      source={{ uri }}
+                      style={{ width: MODAL_W - 16, height: PHOTO_H }}
+                      resizeMode="cover"
+                    />
+                  ))}
+                </ScrollView>
+                {adventure.photos.length > 1 && (
+                  <View style={modalStyles.photoDots}>
+                    {adventure.photos.map((_, i) => (
+                      <View key={i} style={[modalStyles.photoDot, photoIndex === i && modalStyles.photoDotActive]} />
+                    ))}
                   </View>
-                );
-              })}
+                )}
+              </View>
+
+              {/* Text area inside card */}
+              <View style={modalStyles.cardText}>
+                <Text style={modalStyles.modalTitle} numberOfLines={2}>{adventure.title}</Text>
+                <View style={modalStyles.locationRow}>
+                  <Feather name="map-pin" size={12} color={colors.muted} />
+                  <Text style={modalStyles.locationText}>{adventure.region}, {adventure.country}</Text>
+                  {adventure.rating > 0 && (
+                    <Text style={modalStyles.ratingBadge}>★ {adventure.rating}</Text>
+                  )}
+                </View>
+              </View>
             </View>
 
-            <Text style={modalStyles.sectionHeader}>About this adventure</Text>
-            <Text style={modalStyles.description}>{adventure.description}</Text>
-
+            {/* Chips */}
             <View style={modalStyles.chipsRow}>
               <View style={modalStyles.detailChip}>
                 <Text style={modalStyles.detailChipText}>{formatDuration(adventure.days)}</Text>
@@ -629,7 +608,18 @@ function AdventureExpandedModal({
               <View style={modalStyles.detailChip}>
                 <Text style={modalStyles.detailChipText}>{formatBudget(adventure.budget)}</Text>
               </View>
+              {adventure.activityTypes.map(type => (
+                <View key={type} style={modalStyles.detailChip}>
+                  <Text style={modalStyles.detailChipText}>
+                    {type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                  </Text>
+                </View>
+              ))}
             </View>
+
+            {/* Description */}
+            <Text style={modalStyles.sectionHeader}>About this adventure</Text>
+            <Text style={modalStyles.description}>{adventure.description}</Text>
 
             <TouchableOpacity
               style={modalStyles.ctaBtn}
@@ -961,9 +951,9 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { justifyContent: "center", alignItems: "center", backgroundColor: colors.bg, gap: spacing.sm },
-  loadingText: { fontSize: fontSize.base, color: colors.muted, marginTop: spacing.xs },
+  loadingText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, marginTop: spacing.xs },
   retryBtn: { marginTop: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.full, backgroundColor: colors.accent },
-  retryText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.inverse },
+  retryText: { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.inverse },
 
   filterBtnWrap: { position: "absolute", right: spacing.md },
   filterBtn: {
@@ -982,17 +972,17 @@ const styles = StyleSheet.create({
   },
   filterBtnActive: { backgroundColor: colors.accent },
   filterCount: {
+    fontFamily: fonts.sansBold,
     fontSize: fontSize.sm,
-    fontWeight: "700",
     color: colors.inverse,
   },
 
   resultsWrap: { position: "absolute", left: spacing.md },
   resultsText: {
+    fontFamily: fonts.sansSemiBold,
     backgroundColor: "rgba(0,0,0,0.55)",
     color: "#FFFFFF",
     fontSize: fontSize.xs,
-    fontWeight: "600",
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.full,
@@ -1024,24 +1014,24 @@ const styles = StyleSheet.create({
   activityChip: {
     paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.full,
   },
-  activityChipText: { fontSize: fontSize.xs, fontWeight: "700", letterSpacing: 0.5 },
-  regionText: { flex: 1, fontSize: fontSize.sm, color: colors.muted },
-  ratingText: { fontSize: fontSize.sm, fontWeight: "700", color: "#F59E0B" },
+  activityChipText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, letterSpacing: 0.5 },
+  regionText: { fontFamily: fonts.sans, flex: 1, fontSize: fontSize.sm, color: colors.muted },
+  ratingText: { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: "#F59E0B" },
   sheetTitle: {
-    fontSize: fontSize.xl, fontWeight: "800", color: colors.text, letterSpacing: -0.3,
+    fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4,
   },
   statsRow: { flexDirection: "row", gap: spacing.xs, flexWrap: "wrap" },
   statChip: {
     backgroundColor: colors.sheet, borderRadius: radius.full,
     paddingHorizontal: spacing.sm, paddingVertical: 3,
   },
-  statText: { fontSize: fontSize.xs, color: colors.muted, fontWeight: "600" },
-  sheetDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 20 },
+  statText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.muted },
+  sheetDesc: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 20 },
   ctaBtn: {
     backgroundColor: colors.accent, borderRadius: radius.full,
     paddingVertical: 14, alignItems: "center", marginTop: spacing.xs,
   },
-  ctaText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.base },
+  ctaText: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.base },
 });
 
 const pillStyles = StyleSheet.create({
@@ -1066,8 +1056,8 @@ const pillStyles = StyleSheet.create({
     borderRadius: 2,
   },
   label: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: 12,
-    fontWeight: "600",
     color: "#000000",
     flexShrink: 1,
   },
@@ -1085,8 +1075,8 @@ const pillStyles = StyleSheet.create({
     elevation: 4,
   },
   tPinText: {
+    fontFamily: fonts.display,
     fontSize: 16,
-    fontWeight: "800",
     color: "#FFFFFF",
     lineHeight: 20,
   },
@@ -1115,9 +1105,9 @@ const filterStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  headerTitle: { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  resetText: { fontSize: fontSize.sm, color: colors.accent, fontWeight: "600" },
+  resetText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.accent },
   closeBtn: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: colors.sheet,
@@ -1126,7 +1116,8 @@ const filterStyles = StyleSheet.create({
   body: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   section: { gap: spacing.sm },
   sectionTitle: {
-    fontSize: fontSize.sm, fontWeight: "700",
+    fontFamily: fonts.sansBold,
+    fontSize: fontSize.sm,
     color: colors.text, textTransform: "uppercase", letterSpacing: 0.5,
   },
   optionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -1137,13 +1128,13 @@ const filterStyles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   chipActive: { backgroundColor: colors.text, borderColor: colors.text },
-  chipText: { fontSize: fontSize.sm, color: colors.text, fontWeight: "500" },
+  chipText: { fontFamily: fonts.sansMedium, fontSize: fontSize.sm, color: colors.text },
   chipTextActive: { color: colors.inverse },
 });
 
 const rangeStyles = StyleSheet.create({
   wrapper: { paddingVertical: 8 },
-  priceLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text, marginBottom: 4 },
+  priceLabel: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text, marginBottom: 4 },
   trackContainer: { height: 30, marginHorizontal: 4 },
   track: {
     position: "absolute",
@@ -1173,74 +1164,67 @@ const rangeStyles = StyleSheet.create({
 const cardStyles = StyleSheet.create({
   card: {
     width: CARD_W,
-    height: CARD_H,
-    borderRadius: 16,
+    borderRadius: 20,
     backgroundColor: colors.card,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  photoInner: {
-    margin: 8,
-    borderRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 4,
     overflow: "hidden",
-    flex: 1,
   },
-  gradient: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    height: (CARD_H - 16) * 0.45,
+  imageWrap: {
+    margin: 8,
+    height: IMAGE_H,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: colors.border,
   },
   heartBtn: {
     position: "absolute",
-    top: 12, right: 12,
+    top: 10, right: 10,
     width: 34, height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "rgba(0,0,0,0.30)",
     alignItems: "center",
     justifyContent: "center",
   },
-  textOverlay: {
-    position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    padding: 12,
-  },
-  subtitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginTop: 3,
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  cardTitle: {
-    flex: 1,
-    color: "#FFFFFF",
-    fontSize: fontSize.lg,
-    fontWeight: "700",
-  },
   dots: {
+    position: "absolute",
+    bottom: 10,
+    alignSelf: "center",
     flexDirection: "row",
     gap: 4,
-    marginLeft: 8,
+    left: 0, right: 0,
+    justifyContent: "center",
   },
   dot: {
     width: 5, height: 5,
     borderRadius: 2.5,
     backgroundColor: "rgba(255,255,255,0.5)",
   },
-  dotActive: {
-    backgroundColor: "#FFFFFF",
+  dotActive: { backgroundColor: "#FFFFFF" },
+  textArea: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 18,
+    gap: 6,
+  },
+  cardTitle: {
+    fontFamily: fonts.display,
+    fontSize: fontSize.lg,
+    color: colors.text,
+    letterSpacing: -0.3,
+  },
+  subtitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   cardSubtitle: {
-    color: "rgba(255,255,255,0.8)",
+    fontFamily: fonts.sans,
     fontSize: fontSize.sm,
+    color: colors.muted,
   },
 });
 
@@ -1249,7 +1233,7 @@ const impStyles = StyleSheet.create({
     position: "absolute",
     bottom: 0, left: 0, right: 0,
     height: SCREEN_H,
-    backgroundColor: colors.card,
+    backgroundColor: colors.bg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     shadowColor: "#000",
@@ -1269,8 +1253,8 @@ const impStyles = StyleSheet.create({
     marginBottom: 10,
   },
   countLabel: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.sm,
-    fontWeight: "600",
     color: colors.muted,
   },
   listContent: {
@@ -1283,131 +1267,139 @@ const impStyles = StyleSheet.create({
 const modalStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: colors.bg,
   },
   topBar: {
-    position: "absolute",
-    top: 0, left: 0, right: 0,
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    zIndex: 10,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   iconBtn: {
     width: 40, height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  photoBottom: {
+
+  // Photo card — same inset tile style
+  photoCard: {
+    marginHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  imageWrap: {
+    margin: 8,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: colors.border,
+  },
+  photoDots: {
     position: "absolute",
-    bottom: 0, left: 0, right: 0,
-    padding: 16,
+    bottom: 10,
+    left: 0, right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 4,
+  },
+  photoDot: {
+    width: 5, height: 5, borderRadius: 2.5,
+    backgroundColor: "rgba(255,255,255,0.5)",
+  },
+  photoDotActive: { backgroundColor: "#FFFFFF" },
+  cardText: {
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 14,
+    gap: 4,
   },
   modalTitle: {
-    color: "#FFFFFF",
-    fontSize: fontSize.xl,
-    fontWeight: "800",
-    marginBottom: 6,
+    fontFamily: fonts.display,
+    fontSize: fontSize.lg,
+    color: colors.text,
     letterSpacing: -0.3,
   },
   locationRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 8,
   },
   locationText: {
+    fontFamily: fonts.sans,
     flex: 1,
-    color: "rgba(255,255,255,0.85)",
     fontSize: fontSize.sm,
+    color: colors.muted,
   },
   ratingBadge: {
+    fontFamily: fonts.sansBold,
     color: "#F59E0B",
-    fontWeight: "700",
     fontSize: fontSize.sm,
   },
-  modalDots: {
-    flexDirection: "row",
-    gap: 5,
-  },
-  modalDot: {
-    width: 6, height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.5)",
-  },
-  modalDotActive: {
-    backgroundColor: "#FFFFFF",
-    width: 16,
-  },
-  detailSheet: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: -24,
-  },
-  activityRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 20,
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  activityItem: {
-    alignItems: "center",
-    gap: 4,
-  },
-  activityLabel: {
-    fontSize: fontSize.xs,
-    color: colors.muted,
-    fontWeight: "500",
-  },
-  sectionHeader: {
-    fontSize: fontSize.base,
-    fontWeight: "700",
-    color: colors.text,
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 8,
-  },
-  description: {
-    fontSize: fontSize.sm,
-    color: colors.muted,
-    lineHeight: 22,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
+
+  // Below card
   chipsRow: {
     flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
   },
   detailChip: {
-    backgroundColor: colors.sheet,
+    backgroundColor: colors.card,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   detailChipText: {
+    fontFamily: fonts.sansSemiBold,
     fontSize: fontSize.sm,
     color: colors.text,
-    fontWeight: "600",
     textTransform: "capitalize",
+  },
+  sectionHeader: {
+    fontFamily: fonts.sansBold,
+    fontSize: fontSize.base,
+    color: colors.text,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xs,
+  },
+  description: {
+    fontFamily: fonts.sans,
+    fontSize: fontSize.sm,
+    color: colors.muted,
+    lineHeight: 22,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.lg,
   },
   ctaBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.full,
     paddingVertical: 16,
-    marginHorizontal: 20,
+    marginHorizontal: spacing.md,
     alignItems: "center",
   },
   ctaText: {
+    fontFamily: fonts.sansBold,
     color: colors.inverse,
-    fontWeight: "700",
     fontSize: fontSize.base,
   },
 });

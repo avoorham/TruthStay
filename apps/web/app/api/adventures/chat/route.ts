@@ -168,6 +168,11 @@ Remaining questions to ask (adapt based on focus):
 
 2. How many accommodation stops/bases?
    (1 base = stay in one place; 2+ = move between locations)
+   - If trip is 1 night: SKIP this question — assume 1 base automatically
+   - If trip is 2 nights: offer only "1 base" or "2 stops"
+   - If trip is 3 nights: offer "1 base", "2 stops", or "3 stops"
+   - If trip is 4 nights: offer "1 base", "2 stops", "3 stops", or "4 stops"
+   - If trip is 5+ nights: offer up to 5 stops maximum (never more than number of nights)
 
 3. How to split the days across stops?
    (Only if stops > 1. Suggest a logical split, e.g. "3 nights in X, 4 nights in Y?")

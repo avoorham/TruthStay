@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   // ── Options ──
   optionsRoot: {
     flex: 1,
-    backgroundColor: colors.accent,
+    backgroundColor: "#F8F9FA",
   },
   hero: {
     height: SCREEN_HEIGHT * 0.42,
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   },
   heroWordmark: {
     fontFamily: fonts.display,
-    color: "#FFFFFF",
+    color: colors.text,
     fontSize: fontSize.xl,
     letterSpacing: 0.2,
   },

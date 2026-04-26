@@ -1,6 +1,6 @@
 # TruthStay
 
-AI-powered outdoor adventure planner. Users describe a trip via a chat interface; the AI generates a multi-day adventure plan with route alternatives and accommodation options.
+Community-driven holiday planning platform built on truthful, real-world recommendations from friends, family, and fellow travellers. Users discover and plan all types of vacations — city breaks, beach holidays, active trips, and more — based on authentic peer reviews rather than sponsored content. An AI chat interface takes the user's preferences and generates personalised multi-day itineraries with accommodation options, restaurant picks, and activity suggestions, all shaped by genuine community feedback.
 
 ## Stack
 

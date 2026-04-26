@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  /* TruthStay brand palette */
+  --color-blue: #0A7AFF;
+  --color-blue-dark: #0059BF;
+  --color-blue-light: #E8F1FF;
+  --color-green: #2ECDA7;
+  --color-green-dark: #00B87D;
+  --color-green-light: #E0FBF2;
+  --color-blend: #5BC8D6;
+  --color-navy: #0F2A4A;
+  --color-navy-light: #1C3D5F;
+  --color-dark: #1A1D23;
+  --color-charcoal: #3A3D42;
+  --color-grey-700: #5F6368;
+  --color-grey-500: #9AA0A6;
+  --color-grey-300: #DADCE0;
+  --color-grey-100: #F1F3F4;
+  --color-grey-50: #F8F9FA;
+  --color-lavender: #E8E0F0;
+  --color-sand: #F5F0E8;
+  --color-danger: #D93025;
+  --color-danger-light: #FDECEA;
+  --color-warning: #F9AB00;
+  --color-warning-light: #FEF8E1;
+  --color-success: #1E8E3E;
+  --color-success-light: #E6F4EA;
+
+  /* Fonts */
+  --font-display: var(--font-outfit), system-ui, sans-serif;
+  --font-body: var(--font-sora), system-ui, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+  background: #F8F9FA;
+  color: #1A1D23;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #DADCE0; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9AA0A6; }

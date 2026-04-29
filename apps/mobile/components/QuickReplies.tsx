@@ -4,21 +4,22 @@ import { colors, fonts, fontSize, radius, spacing } from "../lib/theme";
 interface Props {
   options: string[];
   disabled?: boolean;
+  compact?: boolean;
   onSelect: (option: string) => void;
 }
 
-export function QuickReplies({ options, disabled, onSelect }: Props) {
+export function QuickReplies({ options, disabled, compact, onSelect }: Props) {
   return (
     <View style={styles.stack}>
       {options.map((opt) => (
         <TouchableOpacity
           key={opt}
-          style={[styles.chip, disabled && styles.chipDisabled]}
+          style={[styles.chip, compact && styles.chipCompact, disabled && styles.chipDisabled]}
           onPress={() => !disabled && onSelect(opt)}
           activeOpacity={0.7}
           disabled={disabled}
         >
-          <Text style={styles.chipText}>{opt}</Text>
+          <Text style={[styles.chipText, compact && styles.chipTextCompact]}>{opt}</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -110,6 +111,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
   },
+  chipCompact: {
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 7,
+  },
   chipDisabled: {
     opacity: 0.4,
   },
@@ -117,5 +122,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMedium,
     fontSize: fontSize.sm,
     color: colors.text,
+  },
+  chipTextCompact: {
+    fontSize: fontSize.xs,
   },
 });

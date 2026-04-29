@@ -830,7 +830,7 @@ export default function DiscoverScreen() {
       return (
         <View style={styles.questionBlock}>
           {textItem.display ? <Text style={styles.questionText}>{textItem.display}</Text> : null}
-          <QuickReplies options={textItem.options} disabled={loading} onSelect={send} />
+          <QuickReplies options={textItem.options} disabled={loading} onSelect={send} compact={textItem.options.includes("Plan a new adventure")} />
         </View>
       );
     }

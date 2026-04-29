@@ -943,9 +943,9 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              const url = accomOpt?.booking_url ?? meta.accommodationUrl;
-              if (url) Linking.openURL(url);
-              else Alert.alert("Not available", "No booking details found.");
+              const url = accomOpt?.booking_url ?? meta.accommodationUrl
+              ?? `https://www.booking.com/search.html?ss=${encodeURIComponent(accomOpt?.name ?? meta.accommodation)}`;
+              Linking.openURL(url);
             }}
           >
             <Feather name="info" size={13} color={colors.text} />
@@ -954,9 +954,9 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              const url = accomOpt?.booking_url ?? meta.accommodationUrl;
-              if (url) Linking.openURL(url);
-              else Alert.alert("Not available", "No booking link for this accommodation.");
+              const url = accomOpt?.booking_url ?? meta.accommodationUrl
+              ?? `https://www.booking.com/search.html?ss=${encodeURIComponent(accomOpt?.name ?? meta.accommodation)}`;
+              Linking.openURL(url);
             }}
           >
             <Feather name="external-link" size={13} color={colors.text} />
@@ -1135,9 +1135,9 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              const url = restaurant.websiteUrl ?? restaurant.googleMapsUrl;
-              if (url) Linking.openURL(url);
-              else Alert.alert("Not available", "No menu link for this restaurant.");
+              const url = restaurant.websiteUrl ?? restaurant.googleMapsUrl
+              ?? `https://www.google.com/search?q=${encodeURIComponent(restaurant.name + " menu")}`;
+              Linking.openURL(url);
             }}
           >
             <Feather name="info" size={13} color={colors.text} />
@@ -1146,9 +1146,9 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
           <TouchableOpacity
             style={tileStyles.actionBtn}
             onPress={() => {
-              const url = restaurant.theforkUrl ?? restaurant.websiteUrl ?? restaurant.googleMapsUrl;
-              if (url) Linking.openURL(url);
-              else Alert.alert("Not available", "No reservation link for this restaurant.");
+              const url = restaurant.theforkUrl ?? restaurant.websiteUrl ?? restaurant.googleMapsUrl
+              ?? `https://www.google.com/search?q=${encodeURIComponent(restaurant.name + " reservation")}`;
+              Linking.openURL(url);
             }}
           >
             <Feather name="external-link" size={13} color={colors.text} />
@@ -3151,6 +3151,7 @@ const detailStyles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
     backgroundColor: colors.card,
     position: "relative",
+    overflow: "hidden",
   },
   dayTabScroll: { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, gap: spacing.sm },
   dayTab: {

@@ -1444,7 +1444,7 @@ function AdventureSheet({
 function AdventurePin() {
   return (
     <View style={pillStyles.adventurePin}>
-      <MaterialCommunityIcons name="bag-suitcase" size={18} color="#FFFFFF" />
+      <MaterialCommunityIcons name="bag-suitcase" size={12} color="#FFFFFF" />
     </View>
   );
 }
@@ -1782,7 +1782,7 @@ function ImpressionsSheet({
   const cat       = poiPins[0] ? ACTIVITY_CATEGORIES.find(c => c.key === poiPins[0].category) : null;
   const countLabel = isPOIMode
     ? `${poiPins.length} ${cat?.label.toLowerCase() ?? "results"}`
-    : `${adventures.length} public ${adventures.length === 1 ? "adventure" : "adventures"}`;
+    : `${adventures.length} public ${adventures.length === 1 ? "itinerary" : "itineraries"}`;
 
   return (
     <Animated.View style={[impStyles.sheet, { transform: [{ translateY: impressionsY }] }]}>
@@ -1808,7 +1808,7 @@ function ImpressionsSheet({
           showsVerticalScrollIndicator={false}
           snapToInterval={CARD_H + 16}
           decelerationRate="fast"
-          contentContainerStyle={[impStyles.listContent, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[impStyles.listContent, { paddingBottom: insets.bottom + CARD_H * 0.5 }]}
           renderItem={({ item }) => (
             <AdventureCard
               adventure={item}
@@ -2577,9 +2577,9 @@ const pillStyles = StyleSheet.create({
     flexShrink: 1,
   },
   adventurePin: {
-    width:           40,
-    height:          40,
-    borderRadius:    20,
+    width:           26,
+    height:          26,
+    borderRadius:    13,
     backgroundColor: colors.accent,
     alignItems:      "center",
     justifyContent:  "center",

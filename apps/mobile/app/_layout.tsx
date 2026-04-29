@@ -1,9 +1,12 @@
 import { Stack } from "expo-router";
 import { ActivityIndicator, Platform, StyleSheet, UIManager, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import * as NavigationBar from "expo-navigation-bar";
 import { AuthProvider, useAuth } from "../lib/auth-context";
 import { colors } from "../lib/theme";
 import { useFonts } from "expo-font";
+import { useEffect } from "react";
 import {
   Outfit_400Regular,
   Outfit_700Bold,
@@ -19,6 +22,14 @@ import {
 // Enable LayoutAnimation on Android for smooth tile-reorder animations
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
+}
+
+function useAndroidNavBar() {
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    NavigationBar.setBackgroundColorAsync("#FFFFFF");
+    NavigationBar.setButtonStyleAsync("dark");
+  }, []);
 }
 
 function SplashScreen() {
@@ -69,6 +80,8 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useAndroidNavBar();
+
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
     Outfit_700Bold,
@@ -83,6 +96,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <StatusBar style="dark" backgroundColor="#FFFFFF" translucent={false} />
       <AuthProvider>
         <RootNavigator />
       </AuthProvider>

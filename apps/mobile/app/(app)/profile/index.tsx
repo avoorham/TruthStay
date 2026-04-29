@@ -104,7 +104,8 @@ export default function ProfileScreen() {
   const [editName,       setEditName]       = useState(displayName);
   const [editLocation,   setEditLocation]   = useState<string>(user?.user_metadata?.location ?? "");
   const [editActivities, setEditActivities] = useState<string[]>(user?.user_metadata?.favorite_activities ?? []);
-  const [uploading, setUploading] = useState(false);
+  const [uploading,    setUploading]    = useState(false);
+  const [uploadError,  setUploadError]  = useState<string | null>(null);
 
   function toggleActivity(act: string) {
     setEditActivities(prev =>
@@ -159,14 +160,15 @@ export default function ProfileScreen() {
   }
 
   async function handleChangePhoto() {
+    setUploadError(null);
     const uri = await pickImage([1, 1]);
     if (!uri || !user?.id) return;
     setUploading(true);
     const url = await uploadAvatar(user.id, uri);
     setUploading(false);
-    if (!url) { Alert.alert("Upload failed", "Please try again."); return; }
+    if (!url) { setUploadError("Couldn't upload photo. Please try again."); return; }
     const { error: updateError } = await supabase.auth.updateUser({ data: { avatar_url: url } });
-    if (updateError) { Alert.alert("Profile update failed", updateError.message); return; }
+    if (updateError) { setUploadError(updateError.message); return; }
     setAvatarUrl(url);
     setAvatarError(false);
   }
@@ -269,7 +271,7 @@ export default function ProfileScreen() {
       )}
 
       {/* Edit Profile Modal */}
-      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => setEditVisible(false)}>
+      <Modal visible={editVisible} transparent animationType="slide" onRequestClose={() => { setEditVisible(false); setUploadError(null); }}>
         <View style={{ flex: 1, justifyContent: "flex-end" }}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setEditVisible(false)} />
           <Animated.View style={{ marginBottom: kbOffset }}>
@@ -277,12 +279,19 @@ export default function ProfileScreen() {
               <View style={styles.editHandle} />
               <View style={styles.editHeader}>
                 <Text style={styles.editTitle}>Edit Profile</Text>
-                <TouchableOpacity onPress={() => setEditVisible(false)}>
+                <TouchableOpacity onPress={() => { setEditVisible(false); setUploadError(null); }}>
                   <Feather name="x" size={20} color={colors.muted} />
                 </TouchableOpacity>
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {/* Upload error banner */}
+              {uploadError ? (
+                <View style={styles.uploadErrorBanner}>
+                  <Feather name="alert-circle" size={15} color="#EF4444" />
+                  <Text style={styles.uploadErrorText}>{uploadError}</Text>
+                </View>
+              ) : null}
               {/* Avatar picker */}
               <TouchableOpacity style={styles.avatarPickerWrap} onPress={handleChangePhoto} activeOpacity={0.8} disabled={uploading}>
                 {!avatarError ? (
@@ -532,4 +541,15 @@ const styles = StyleSheet.create({
     gap: spacing.xs, marginTop: spacing.md, paddingVertical: spacing.sm,
   },
   deleteBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: "#E03E3E" },
+
+  // Upload error banner
+  uploadErrorBanner: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.md,
+  },
+  uploadErrorText: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: "#EF4444", flex: 1 },
 });

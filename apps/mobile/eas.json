@@ -21,6 +21,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "distribution": "store"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://www.truth-stay.com",
         "EXPO_PUBLIC_SUPABASE_URL": "https://hplczwepdpmtdfkijpnh.supabase.co",

@@ -370,6 +370,37 @@ When the user sends a message starting with "Confirmed restaurant:", record it a
 - Distances and metrics must be realistic and internally consistent day-to-day
 - activity_type in the final JSON: use the closest match from the enum — set "other" for non-sport or mixed vacations`;
 
+// ─── Session context helpers ─────────────────────────────────────────────────
+
+interface SessionContext {
+  region:       string | null;
+  activityType: string | null;
+  vacationType: string | null;
+}
+
+function extractSessionContext(messages: ChatMessage[]): SessionContext {
+  const firstUser = messages.find(m => m.role === "user")?.content ?? "";
+
+  const locMatch  = firstUser.match(/- Location:\s*([^\n]+)/);
+  const region    = locMatch?.[1]?.split(",")[0]?.trim() ?? null;
+
+  const actMatch  = firstUser.match(/- Activities:\s*([^\n]+)/i);
+  const actText   = actMatch?.[1]?.toLowerCase() ?? "";
+  let activityType: string | null = null;
+  if      (actText.includes("cycling") || actText.includes("biking")) activityType = "cycling";
+  else if (actText.includes("trail running"))                         activityType = "trail_running";
+  else if (actText.includes("hiking") || actText.includes("trekking")) activityType = "hiking";
+  else if (actText.includes("skiing"))                                activityType = "skiing";
+  else if (actText.includes("snowboarding"))                          activityType = "snowboarding";
+  else if (actText.includes("kayaking"))                              activityType = "kayaking";
+  else if (actText.includes("climbing"))                              activityType = "climbing";
+
+  const focusMatch  = firstUser.match(/- Focus:\s*([^\n]+)/i);
+  const vacationType = focusMatch?.[1]?.split(",")[0]?.trim() ?? null;
+
+  return { region, activityType, vacationType };
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -438,7 +469,7 @@ export async function POST(request: NextRequest) {
     } catch { /* fall through to default system prompt */ }
   }
 
-  // ─── RAG: inject user-verified content as context ────────────────────────────
+  // ─── RAG: inject community content as context ────────────────────────────────
 
   /** Strip newlines and truncate a RAG field to prevent prompt injection. */
   function sanitiseRag(s: string, maxLen = 200): string {
@@ -446,28 +477,64 @@ export async function POST(request: NextRequest) {
   }
 
   let finalSystemPrompt = systemPrompt;
+  // IDs of content_entries injected into this prompt — recorded in adventure_content_links on save
+  let injectedContentIds: string[] = [];
+
   try {
+    const sessionCtx = extractSessionContext(body.messages);
+    let promptAddition = "";
+
+    // ── Bridge 1: trust-score-sorted regional lookup (PRIMARY source) ──────────
+    if (sessionCtx.region) {
+      type RegionalEntry = { id: string; type: string; name: string; region: string; description: string | null; trust_score: number; data: Record<string, unknown> };
+      const { data: regional } = await db
+        .from("content_entries")
+        .select("id, type, name, region, description, trust_score, data")
+        .ilike("region", `%${sessionCtx.region}%`)
+        .eq("verified", true)
+        .order("trust_score", { ascending: false })
+        .limit(30) as { data: RegionalEntry[] | null };
+
+      if (regional && regional.length > 0) {
+        injectedContentIds = regional.map(e => e.id);
+        const lines = regional.map(e => {
+          const extras: string[] = [];
+          if (e.description)        extras.push(sanitiseRag(e.description));
+          if (e.data?.cuisine)      extras.push(`Cuisine: ${sanitiseRag(String(e.data.cuisine))}`);
+          if (e.data?.price_range)  extras.push(`Price: ${sanitiseRag(String(e.data.price_range))}`);
+          const suffix = extras.length ? ` — ${extras.join(", ")}` : "";
+          const score  = e.trust_score != null ? ` [trust:${e.trust_score.toFixed(2)}]` : "";
+          return `- [ID:${e.id}] ${sanitiseRag(e.type, 20)}: ${sanitiseRag(e.name, 80)} (${sanitiseRag(e.region, 60)})${score}${suffix}`;
+        }).join("\n");
+        promptAddition += `\n\n## VERIFIED COMMUNITY CONTENT — PRIMARY source for ${sanitiseRag(sessionCtx.region, 60)}\nThese entries are verified and sorted by community trust score. USE THESE FIRST before generating from general knowledge. Reference entries by name when building the itinerary:\n${lines}`;
+      }
+    }
+
+    // ── Supplementary vector search (semantic similarity) ──────────────────────
     const userQuery = body.messages.filter(m => m.role === "user").map(m => m.content).join(" ");
     const embedding = await generateEmbedding(userQuery);
-    const { data: entries } = await db.rpc("match_content", {
+    const { data: vectorEntries } = await db.rpc("match_content", {
       query_embedding: `[${embedding.join(",")}]`,
       match_count:     8,
       min_upvotes:     2,
     }) as { data: Array<{ type: string; name: string; region: string; activity_type: string | null; description: string | null; data: Record<string, unknown>; upvotes: number; verified: boolean }> | null };
 
-    if (entries && entries.length > 0) {
-      const lines = entries.map(e => {
+    if (vectorEntries && vectorEntries.length > 0) {
+      const lines = vectorEntries.map(e => {
         const details: string[] = [];
-        if (e.description) details.push(sanitiseRag(e.description));
-        if (e.data?.cuisine) details.push(`Cuisine: ${sanitiseRag(String(e.data.cuisine))}`);
+        if (e.description)       details.push(sanitiseRag(e.description));
+        if (e.data?.cuisine)     details.push(`Cuisine: ${sanitiseRag(String(e.data.cuisine))}`);
         if (e.data?.price_range) details.push(`Price: ${sanitiseRag(String(e.data.price_range))}`);
-        if (e.data?.notes) details.push(sanitiseRag(String(e.data.notes)));
+        if (e.data?.notes)       details.push(sanitiseRag(String(e.data.notes)));
         const suffix = details.length ? ` — ${details.join(", ")}` : "";
-        const badge = e.verified ? " ✓" : "";
+        const badge  = e.verified ? " ✓" : "";
         return `- ${sanitiseRag(e.type, 20)}: ${sanitiseRag(e.name, 80)} (${sanitiseRag(e.region, 60)})${badge}${suffix}`;
       }).join("\n");
+      promptAddition += `\n\n## Additional community-verified spots\n${lines}\n\nMention these by name where relevant.`;
+    }
 
-      finalSystemPrompt = `${systemPrompt}\n\n## User-verified spots relevant to this trip\n${lines}\n\nPrioritise these verified options when making accommodation and restaurant suggestions. Mention them by name.`;
+    if (promptAddition) {
+      finalSystemPrompt = `${systemPrompt}${promptAddition}`;
     }
   } catch { /* RAG is non-critical — fall through */ }
 
@@ -550,7 +617,8 @@ export async function POST(request: NextRequest) {
             publicUser.id,
             adventure,
             day_alternatives,
-            accommodation_stops
+            accommodation_stops,
+            injectedContentIds,
           );
         } catch (err) {
           console.error("[chat] Adventure save failed:", err instanceof Error ? err.message : String(err));
@@ -621,7 +689,8 @@ async function saveAdventureWithAlternatives(
   userId: string,
   adventure: GeneratedAdventure,
   dayAlternatives: DayAlternativesMap,
-  accommodationStops: AccommodationStop[]
+  accommodationStops: AccommodationStop[],
+  injectedContentIds: string[] = [],
 ): Promise<string> {
   const requestPrompt = `${adventure.duration_days}-day ${adventure.activity_type} in ${adventure.region}`;
 
@@ -663,6 +732,19 @@ async function saveAdventureWithAlternatives(
       };
     })
   );
+
+  // Record which content_entries were injected into the prompt for this adventure
+  if (injectedContentIds.length > 0) {
+    try {
+      await db.from("adventure_content_links").insert(
+        injectedContentIds.map(contentEntryId => ({
+          adventure_id:     adventureId,
+          content_entry_id: contentEntryId,
+          role:             "highlight",
+        }))
+      );
+    } catch { /* non-critical — don't fail the adventure save */ }
+  }
 
   return adventureId;
 }

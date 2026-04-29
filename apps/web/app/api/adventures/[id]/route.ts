@@ -112,6 +112,22 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // When saving an adventure, extract places into content_entries (best-effort)
+  if (body.isSaved === true) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (supabaseUrl && serviceRoleKey) {
+      fetch(`${supabaseUrl}/functions/v1/extract-adventure-content`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({ adventureId }),
+      }).catch(() => {}); // fire and forget — must not block the response
+    }
+  }
+
   // When making an adventure public, auto-index content to RAG (best-effort)
   if (body.isPublic) {
     try {

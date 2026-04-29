@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontFamily: fonts.display, fontSize: fontSize.xxl, color: colors.text, letterSpacing: -0.5 },
+  headerTitle: { fontFamily: fonts.display, fontSize: fontSize.xxl, color: colors.text, letterSpacing: -0.5, flex: 1, textAlign: "center" },
   editToggleText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.accent },
   tabStrip: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
   tabRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

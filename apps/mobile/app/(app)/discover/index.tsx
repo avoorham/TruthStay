@@ -8,7 +8,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
-import { sendChatMessage, getMyAdventures, saveAdventure, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
+import { sendChatMessage, getMyAdventures, saveAdventure, logInteraction, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
 import { MOCK_TRIPS } from "../../../lib/mock-trips";
 import { QuickReplies, detectQuickReplies } from "../../../components/QuickReplies";
 import { AdventurePlanCard } from "../../../components/AdventurePlanCard";
@@ -204,6 +204,8 @@ export default function DiscoverScreen() {
   const [selectedTrip, setSelectedTrip] = useState<AdventureRow | null>(null);
   const [myTrips, setMyTrips]           = useState<AdventureRow[]>([]);
   const [sessionActivityType, setSessionActivityType] = useState<string | undefined>(undefined);
+  const [sessionRegion,       setSessionRegion]       = useState<string | undefined>(undefined);
+  const [sessionVacationType, setSessionVacationType] = useState<string | undefined>(undefined);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [wizardResult, setWizardResult] = useState<WizardResult | null>(null);
@@ -337,6 +339,19 @@ export default function DiscoverScreen() {
     setWizardResult(result);
     setShowWizard(false);
     setShowDatePicker(true);
+    // Capture session context for interaction tracking
+    if (result.locations?.length)  setSessionRegion(result.locations[0]);
+    if (result.focuses?.length)    setSessionVacationType(result.focuses[0]);
+    if (result.activities?.length) {
+      const act = result.activities[0].toLowerCase();
+      if      (act.includes("cycling") || act.includes("biking")) setSessionActivityType("cycling");
+      else if (act.includes("trail running"))                      setSessionActivityType("trail_running");
+      else if (act.includes("hiking") || act.includes("trekking")) setSessionActivityType("hiking");
+      else if (act.includes("skiing"))                             setSessionActivityType("skiing");
+      else if (act.includes("kayaking"))                           setSessionActivityType("kayaking");
+      else if (act.includes("climbing"))                           setSessionActivityType("climbing");
+      else                                                         setSessionActivityType("other");
+    }
   }
 
   async function openHistory() {
@@ -514,6 +529,20 @@ export default function DiscoverScreen() {
     setMessages(prev => [...prev, makeUserMsg(trimmed)]);
     scrollToBottom();
 
+    // If the user is responding to rich_options, log a "selected" interaction
+    const prevMsg = messagesRef.current[messagesRef.current.length - 1];
+    if (prevMsg?.kind === "rich_options") {
+      logInteraction({
+        interaction_type:      "selected",
+        adventure_id:          latestAdventureId ?? null,
+        session_id:            sessionIdRef.current,
+        session_query:         history[0]?.content?.slice(0, 500) ?? null,
+        session_region:        sessionRegion ?? null,
+        session_activity_type: sessionActivityType ?? null,
+        session_vacation_type: sessionVacationType ?? null,
+      });
+    }
+
     const updatedHistory: ChatMessage[] = [...history, { role: "user", content: trimmed }];
     setLoading(true);
 
@@ -550,6 +579,16 @@ export default function DiscoverScreen() {
         };
         setMessages(prev => [...prev, adventureMsg]);
         setHistory(updatedHistory);
+        // Track: user viewed the generated adventure
+        logInteraction({
+          interaction_type:      "viewed",
+          adventure_id:          data.adventure_id ?? null,
+          session_id:            sessionIdRef.current,
+          session_query:         updatedHistory[0]?.content?.slice(0, 500) ?? null,
+          session_region:        data.adventure?.region ?? sessionRegion ?? null,
+          session_activity_type: data.adventure?.activity_type ?? sessionActivityType ?? null,
+          session_vacation_type: sessionVacationType ?? null,
+        });
       } else if (data.type === "addition") {
         const addMsg: AdditionMsg = {
           id: uid(), kind: "addition",
@@ -576,6 +615,16 @@ export default function DiscoverScreen() {
           footer_options: data.footer_options ?? [],
         });
         setHistory([...updatedHistory, { role: "assistant", content: richSummary }]);
+        // Track: user saw suggestions (one event per option batch)
+        logInteraction({
+          interaction_type:      "viewed",
+          adventure_id:          latestAdventureId ?? null,
+          session_id:            sessionIdRef.current,
+          session_query:         updatedHistory[0]?.content?.slice(0, 500) ?? null,
+          session_region:        sessionRegion ?? null,
+          session_activity_type: sessionActivityType ?? null,
+          session_vacation_type: sessionVacationType ?? null,
+        });
       } else {
         const aiText: string = data.text ?? "Could you tell me a bit more?";
         const aiMsg = makeAiMsg(aiText, tripNights);
@@ -636,6 +685,15 @@ export default function DiscoverScreen() {
     setSavingItinerary(true);
     try {
       await saveAdventure(latestAdventureId);
+      logInteraction({
+        interaction_type:      "saved",
+        adventure_id:          latestAdventureId,
+        session_id:            sessionIdRef.current,
+        session_query:         history[0]?.content?.slice(0, 500) ?? null,
+        session_region:        sessionRegion ?? null,
+        session_activity_type: sessionActivityType ?? null,
+        session_vacation_type: sessionVacationType ?? null,
+      });
       router.push(`/(app)/trips/${latestAdventureId}` as never);
     } catch (err) {
       Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
@@ -1031,7 +1089,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
     borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg,
   },
-  headerTitle:   { fontFamily: fonts.display, flex: 1, textAlign: "center", fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
+  headerTitle:   { fontFamily: fonts.display, flex: 1, textAlign: "center", fontSize: fontSize.xxl, color: colors.text, letterSpacing: -0.5 },
   headerBtn:     { padding: 6 },
 
   // Chat
@@ -1056,7 +1114,7 @@ const styles = StyleSheet.create({
 
   // Input
   inputBar: {
-    flexDirection: "row", alignItems: "flex-end",
+    flexDirection: "row", alignItems: "center",
     paddingHorizontal: spacing.md, paddingTop: spacing.sm,
     borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg, gap: spacing.sm,
   },

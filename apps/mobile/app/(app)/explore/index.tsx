@@ -1,20 +1,21 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import {
-  Animated, Dimensions, FlatList, Image, Modal, PanResponder,
+  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Modal, PanResponder,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Mapbox, {
-  MapView, Camera, PointAnnotation, FillLayer, SymbolLayer,
+  MapView, Camera, PointAnnotation, FillLayer, SymbolLayer, Images, ShapeSource,
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
 import {
   getPublicAdventures, getPublicRestaurants, getPublicActivities,
-  bookmarkAdventure, unbookmarkAdventure,
+  bookmarkAdventure, unbookmarkAdventure, forkAdventure,
   type PublicAdventureRow,
 } from "../../../lib/api";
+import { ALL_LOCATIONS } from "../../../lib/locationData";
 
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -99,6 +100,7 @@ interface FilterState {
   focusSubActivities:  string[];
   durationMin:         number;
   durationMax:         number;
+  minBudget:           number;
   maxBudget:           number;
   level:               string | null;
   rating:              number | null;
@@ -155,7 +157,7 @@ type ActivityCategory =
 const DEFAULT_FILTERS: FilterState = {
   filterCategory: "vacations",
   activities: [], subActivities: [], focuses: [], focusSubActivities: [],
-  durationMin: DURATION_MIN, durationMax: DURATION_MAX, maxBudget: PRICE_MAX, level: null, rating: null, region: null,
+  durationMin: DURATION_MIN, durationMax: DURATION_MAX, minBudget: PRICE_MIN, maxBudget: PRICE_MAX, level: null, rating: null, region: null,
   propertyTypes: [], bedrooms: 0, bathrooms: 0, facilities: [], roomFacilities: [],
   stayMeals: [], propertyRating: null, reviewScore: null, bedPreference: null,
   maxPricePerNight: ACCOMMODATION_PRICE_MAX, reservationPolicy: [], travelGroup: [],
@@ -501,9 +503,9 @@ function applyFilters(adventures: Adventure[], filters: FilterState): Adventure[
       if (!a.activityTypes.some(t => focusTypes!.includes(t))) return false;
     }
     if (!matchesDuration(a.days, filters.durationMin, filters.durationMax)) return false;
-    if (filters.maxBudget < PRICE_MAX) {
+    if (filters.minBudget > PRICE_MIN || filters.maxBudget < PRICE_MAX) {
       const price = BUDGET_PRICE[a.budget] ?? 250;
-      if (price > filters.maxBudget) return false;
+      if (price < filters.minBudget || price > filters.maxBudget) return false;
     }
     if (filters.level && a.level !== filters.level) return false;
     if (filters.rating !== null && a.rating < filters.rating) return false;
@@ -519,7 +521,7 @@ function countActiveFilters(filters: FilterState): number {
     n = filters.activities.length + filters.subActivities.length
       + filters.focuses.length + filters.focusSubActivities.length;
     if (filters.durationMin > DURATION_MIN || filters.durationMax < DURATION_MAX) n++;
-    if (filters.maxBudget < PRICE_MAX) n++;
+    if (filters.minBudget > PRICE_MIN || filters.maxBudget < PRICE_MAX) n++;
     if (filters.level) n++;
     if (filters.rating !== null) n++;
     if (filters.region) n++;
@@ -739,6 +741,70 @@ function DualRangeSlider({
   );
 }
 
+// ─── Location text input with autocomplete ────────────────────────────────────
+
+function LocationInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [query, setQuery]   = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => { setQuery(value); }, [value]);
+
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return ALL_LOCATIONS.filter(l => l.toLowerCase().includes(q)).slice(0, 6);
+  }, [query]);
+
+  const showSuggestions = focused && suggestions.length > 0;
+
+  function commit(text: string) {
+    setQuery(text);
+    onChange(text.trim());
+    setFocused(false);
+  }
+
+  return (
+    <View>
+      <View style={filterStyles.locationInputRow}>
+        <Feather name="map-pin" size={15} color={colors.muted} style={{ marginRight: 6 }} />
+        <TextInput
+          style={filterStyles.locationInput}
+          placeholder="Country, region, city or town…"
+          placeholderTextColor={colors.muted}
+          value={query}
+          onChangeText={t => { setQuery(t); onChange(t.trim()); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
+          autoCapitalize="words"
+          autoCorrect={false}
+          returnKeyType="search"
+          onSubmitEditing={() => commit(query)}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => commit("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="x" size={15} color={colors.muted} />
+          </TouchableOpacity>
+        )}
+      </View>
+      {showSuggestions && (
+        <View style={filterStyles.locationSuggestions}>
+          {suggestions.map((s, i) => (
+            <TouchableOpacity
+              key={s}
+              style={[filterStyles.locationSuggestionRow, i === suggestions.length - 1 && { borderBottomWidth: 0 }]}
+              onPress={() => commit(s)}
+              activeOpacity={0.7}
+            >
+              <Feather name="map-pin" size={13} color={colors.muted} />
+              <Text style={filterStyles.locationSuggestionText}>{s}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Filter sheet ─────────────────────────────────────────────────────────────
 
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -765,7 +831,7 @@ function FilterChip({
 }
 
 function FilterSheet({
-  visible, filters, onChange, onClose, onReset, regions,
+  visible, filters, onChange, onClose, onReset,
   neighbourhoodOptions, landmarkOptions, loadingGeoData,
 }: {
   visible: boolean;
@@ -773,7 +839,6 @@ function FilterSheet({
   onChange: (f: FilterState) => void;
   onClose: () => void;
   onReset: () => void;
-  regions: string[];
   neighbourhoodOptions: string[];
   landmarkOptions: string[];
   loadingGeoData: boolean;
@@ -849,28 +914,29 @@ function FilterSheet({
         </View>
 
         {/* Category tabs */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={filterStyles.catScroll}
-          contentContainerStyle={filterStyles.catScrollContent}
-        >
-          {FILTER_CATEGORIES.map(c => (
-            <TouchableOpacity
-              key={c.key}
-              style={[filterStyles.catTab, cat === c.key && filterStyles.catTabActive]}
-              onPress={() => onChange({ ...filters, filterCategory: c.key })}
-              activeOpacity={0.8}
-            >
-              <Text
-                numberOfLines={1}
-                style={[filterStyles.catTabText, cat === c.key && filterStyles.catTabTextActive]}
+        <View style={filterStyles.catScrollWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={filterStyles.catScrollContent}
+          >
+            {FILTER_CATEGORIES.map(c => (
+              <TouchableOpacity
+                key={c.key}
+                style={[filterStyles.catTab, cat === c.key && filterStyles.catTabActive]}
+                onPress={() => onChange({ ...filters, filterCategory: c.key })}
+                activeOpacity={0.8}
               >
-                {c.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+                <Text
+                  numberOfLines={1}
+                  style={[filterStyles.catTabText, cat === c.key && filterStyles.catTabTextActive]}
+                >
+                  {c.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={filterStyles.body}>
 
@@ -888,10 +954,11 @@ function FilterSheet({
 
             <View style={filterStyles.section}>
               <Text style={filterStyles.sectionTitle}>Budget</Text>
-              <RangeSlider
-                high={filters.maxBudget} max={PRICE_MAX} step={100}
-                labelFn={(v, isMax) => isMax ? "Any budget" : `Up to €${v.toLocaleString()}`}
-                onChange={hi => onChange({ ...filters, maxBudget: hi })}
+              <DualRangeSlider
+                low={filters.minBudget}
+                high={filters.maxBudget}
+                min={PRICE_MIN} max={PRICE_MAX} step={100} unit="€"
+                onChange={(lo, hi) => onChange({ ...filters, minBudget: lo, maxBudget: hi })}
               />
             </View>
 
@@ -904,14 +971,13 @@ function FilterSheet({
               ))}
             </FilterSection>
 
-            <FilterSection title="Region">
-              {regions.map(r => (
-                <FilterChip key={r} label={r}
-                  active={filters.region === r}
-                  onPress={() => onChange({ ...filters, region: filters.region === r ? null : r })}
-                />
-              ))}
-            </FilterSection>
+            <View style={filterStyles.section}>
+              <Text style={filterStyles.sectionTitle}>Location</Text>
+              <LocationInput
+                value={filters.region ?? ""}
+                onChange={v => onChange({ ...filters, region: v || null })}
+              />
+            </View>
 
             <FilterSection title="Vacation type">
               {FOCUS_OPTIONS.map(f => (
@@ -1377,11 +1443,13 @@ function AdventureSheet({
 
 function TPin() {
   return (
-    <Image
-      source={require("../../../assets/android-icon-foreground.png")}
-      style={pillStyles.tPin}
-      resizeMode="contain"
-    />
+    <View style={pillStyles.tPin}>
+      <Image
+        source={require("../../../assets/icon.png")}
+        style={pillStyles.tPinImage}
+        resizeMode="cover"
+      />
+    </View>
   );
 }
 
@@ -1489,6 +1557,21 @@ function AdventureExpandedModal({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [forking, setForking] = useState(false);
+
+  async function handleAddToMyTrips() {
+    if (!adventure || forking) return;
+    setForking(true);
+    try {
+      const { id } = await forkAdventure(adventure.id);
+      onClose();
+      router.push(`/(app)/trips/${id}` as any);
+    } catch (e) {
+      Alert.alert("Couldn't copy itinerary", e instanceof Error ? e.message : "Please try again.");
+    } finally {
+      setForking(false);
+    }
+  }
   const MODAL_W  = SCREEN_W - spacing.md * 2;
   const PHOTO_H  = MODAL_W * 0.62;
 
@@ -1591,7 +1674,19 @@ function AdventureExpandedModal({
               }}
               activeOpacity={0.85}
             >
-              <Text style={modalStyles.ctaText}>See full adventure</Text>
+              <Text style={modalStyles.ctaText}>See full itinerary</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[modalStyles.ctaBtn, modalStyles.ctaBtnSecondary, forking && { opacity: 0.6 }]}
+              onPress={handleAddToMyTrips}
+              activeOpacity={0.85}
+              disabled={forking}
+            >
+              {forking
+                ? <ActivityIndicator size="small" color={colors.inverse} />
+                : <Text style={modalStyles.ctaTextSecondary}>Add itinerary to My Trips</Text>
+              }
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -2033,6 +2128,8 @@ export default function ExploreScreen() {
           defaultSettings={{ centerCoordinate: [13.0, 46.5], zoomLevel: 3.8 }}
         />
 
+        <Images images={{ "ts-pin": require("../../../assets/android-icon-foreground.png") }} />
+
         {/* Ocean/water color override */}
         <FillLayer id="water" existing style={{ fillColor: "#E8F1FF" }} />
 
@@ -2058,24 +2155,42 @@ export default function ExploreScreen() {
         />
 
         {/* Adventure pins */}
-        {mapMode === "adventures" && filtered.map(adv => (
-          <PointAnnotation
-            key={adv.id}
-            id={adv.id}
-            coordinate={adv.coords}
-            anchor={{ x: 0.5, y: 0.5 }}
-            onSelected={() => {
-              cameraRef.current?.setCamera({
-                centerCoordinate: adv.coords,
-                zoomLevel: Math.max(zoom, 8),
-                animationDuration: 400,
-              });
-              showSheet(adv);
+        {mapMode === "adventures" && filtered.length > 0 && (
+          <ShapeSource
+            id="adventures-source"
+            shape={{
+              type: "FeatureCollection",
+              features: filtered.map(adv => ({
+                type: "Feature" as const,
+                id: adv.id,
+                geometry: { type: "Point" as const, coordinates: adv.coords },
+                properties: { id: adv.id },
+              })),
+            }}
+            onPress={e => {
+              const id = e.features[0]?.properties?.id as string | undefined;
+              const adv = id ? filtered.find(a => a.id === id) : undefined;
+              if (adv) {
+                cameraRef.current?.setCamera({
+                  centerCoordinate: adv.coords,
+                  zoomLevel: Math.max(zoom, 8),
+                  animationDuration: 400,
+                });
+                showSheet(adv);
+              }
             }}
           >
-            <TPin />
-          </PointAnnotation>
-        ))}
+            <SymbolLayer
+              id="adventures-layer"
+              style={{
+                iconImage: "ts-pin",
+                iconSize: 0.043,
+                iconAllowOverlap: true,
+                iconAnchor: "center",
+              }}
+            />
+          </ShapeSource>
+        )}
 
         {/* Activity / restaurant / bar / café POI pins */}
         {mapMode === "pois" && poiPins.map(pin => (
@@ -2218,7 +2333,6 @@ export default function ExploreScreen() {
           }
         }}
         onReset={() => setFilters(DEFAULT_FILTERS)}
-        regions={regions}
       />
 
       <AdventureSheet
@@ -2448,10 +2562,15 @@ const styles = StyleSheet.create({
   statText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.muted },
   sheetDesc: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 20 },
   ctaBtn: {
-    backgroundColor: colors.accent, borderRadius: radius.full,
+    backgroundColor: colors.inputBg, borderRadius: radius.full,
     paddingVertical: 14, alignItems: "center", marginTop: spacing.xs,
   },
-  ctaText: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.base },
+  ctaText: { fontFamily: fonts.sansBold, color: colors.muted, fontSize: fontSize.base },
+  ctaBtnSecondary: {
+    backgroundColor: colors.accent, borderWidth: 0,
+    marginTop: spacing.sm,
+  },
+  ctaTextSecondary: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.base },
 });
 
 const pillStyles = StyleSheet.create({
@@ -2482,8 +2601,21 @@ const pillStyles = StyleSheet.create({
     flexShrink: 1,
   },
   tPin: {
-    width: 44,
-    height: 44,
+    width:         44,
+    height:        44,
+    borderRadius:  22,
+    overflow:      "hidden",
+    borderWidth:   2,
+    borderColor:   "#FFFFFF",
+    shadowColor:   "#000",
+    shadowOffset:  { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius:  5,
+    elevation:     6,
+  },
+  tPinImage: {
+    width:  "100%" as never,
+    height: "100%" as never,
   },
   activityPin: {
     width: 34,
@@ -2549,10 +2681,13 @@ const filterStyles = StyleSheet.create({
   chipTextActive: { color: colors.inverse },
 
   // Category tabs
-  catScroll: {
+  catScrollWrapper: {
+    height: 56,
+    flexShrink: 0,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  catScroll: {},
   catScrollContent: {
     flexDirection: "row",
     alignItems: "center",
@@ -2692,6 +2827,47 @@ const filterStyles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   toggleThumbOn: { alignSelf: "flex-end" },
+
+  // Location input
+  locationInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.inputBg,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  locationInput: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: fontSize.base,
+    color: colors.text,
+    paddingVertical: 0,
+  },
+  locationSuggestions: {
+    marginTop: spacing.xs,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  locationSuggestionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  locationSuggestionText: {
+    fontFamily: fonts.sans,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
 });
 
 const dualRangeStyles = StyleSheet.create({
@@ -3001,13 +3177,26 @@ const modalStyles = StyleSheet.create({
     paddingBottom: spacing.lg,
   },
   ctaBtn: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.inputBg,
     borderRadius: radius.full,
     paddingVertical: 16,
     marginHorizontal: spacing.md,
     alignItems: "center",
+    marginTop: spacing.xs,
+    borderWidth: 1.5,
+    borderColor: colors.muted,
   },
   ctaText: {
+    fontFamily: fonts.sansBold,
+    color: colors.muted,
+    fontSize: fontSize.base,
+  },
+  ctaBtnSecondary: {
+    backgroundColor: colors.accent,
+    marginTop: spacing.sm,
+    borderColor: "#FFFFFF",
+  },
+  ctaTextSecondary: {
     fontFamily: fonts.sansBold,
     color: colors.inverse,
     fontSize: fontSize.base,

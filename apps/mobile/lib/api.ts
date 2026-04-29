@@ -124,6 +124,18 @@ export async function createAdventure(input: CreateAdventureInput): Promise<{ id
   return res.json();
 }
 
+export async function forkAdventure(sourceId: string): Promise<{ id: string }> {
+  const res = await fetch(`${BASE}/api/adventures/${sourceId}/fork`, {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function deleteAdventure(id: string) {
   const res = await fetch(`${BASE}/api/adventures/${id}`, {
     method: "DELETE",

@@ -106,9 +106,11 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
   };
 }
 
-const SCREEN_W = Dimensions.get("window").width;
-const SCREEN_H = Dimensions.get("window").height;
-const HERO_H   = Math.round(SCREEN_H * 0.3);
+const SCREEN_W    = Dimensions.get("window").width;
+const SCREEN_H    = Dimensions.get("window").height;
+const HERO_IMG_H  = Math.round(SCREEN_H * 0.26);
+const HERO_TEXT_H = 72;
+const HERO_H      = HERO_IMG_H + HERO_TEXT_H;
 
 // ─── Activity icon map ────────────────────────────────────────────────────────
 
@@ -119,8 +121,29 @@ const ACTIVITY_ICON: Record<string, string> = {
   bikepacking: "bike", other: "map-marker-outline",
 };
 
-// ─── Pin colours ──────────────────────────────────────────────────────────────
+// ─── Map pin emoji helpers ────────────────────────────────────────────────────
 
+const ACTIVITY_MAP_EMOJI: Record<string, string> = {
+  hiking: "🥾", trail_running: "🏃", cycling: "🚴", road_cycling: "🚴",
+  mtb: "🚵", gravel: "🚴", bikepacking: "🚴", climbing: "🧗",
+  skiing: "⛷️", snowboarding: "🏂", kayaking: "🛶", swimming: "🏊",
+  yoga: "🧘", other: "⭐",
+};
+
+function activityMapEmoji(activityType: string): string {
+  return ACTIVITY_MAP_EMOJI[activityType] ?? "⭐";
+}
+
+const RESTAURANT_ICONS = ["🍽", "🔪", "🍴"];
+const BAR_ICONS        = ["🍸", "☕", "🍷"];
+const BAR_CUISINE_KEYS = ["bar", "cocktail", "pub", "wine", "brewery", "cafe", "coffee"];
+
+function restaurantMapEmoji(cuisine: string, index: number): string {
+  const lc = cuisine.toLowerCase();
+  const isBar = BAR_CUISINE_KEYS.some(k => lc.includes(k));
+  const arr = isBar ? BAR_ICONS : RESTAURANT_ICONS;
+  return arr[index % arr.length];
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -167,7 +190,7 @@ function ReviewSection({
   onRate: (r: number) => void;
   onComment: (c: string) => void;
   photos: string[];
-  onAddPhoto: () => void;
+  onAddPhoto?: () => void;
 }) {
   return (
     <View style={reviewStyles.container}>
@@ -206,10 +229,12 @@ function ReviewSection({
         </ScrollView>
       )}
       {/* Add photo CTA */}
-      <TouchableOpacity style={reviewStyles.photoBtn} onPress={onAddPhoto}>
-        <Feather name="camera" size={14} color={colors.accent} />
-        <Text style={reviewStyles.photoBtnText}>Add photo</Text>
-      </TouchableOpacity>
+      {onAddPhoto && (
+        <TouchableOpacity style={reviewStyles.photoBtn} onPress={onAddPhoto}>
+          <Feather name="camera" size={14} color={colors.accent} />
+          <Text style={reviewStyles.photoBtnText}>Add photo</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -699,7 +724,7 @@ function StopCard({
     >
       <Animated.View style={[
         tileStyles.card,
-        { borderColor: colors.sage, shadowColor: colors.sage, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
+        { borderColor: colors.sage, shadowColor: colors.sage, shadowOffset: { width: 0, height: 0 }, shadowRadius: 14, shadowOpacity: 0.55 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
         <View style={tileStyles.photoWrap}>
@@ -746,7 +771,7 @@ function StopCard({
         </View>
 
         {/* Review section */}
-        <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} onAddPhoto={onAddPhoto} />
+        <ReviewSection review={review} onRate={onRate} onComment={onComment} photos={photos} />
       </Animated.View>
     </Animated.View>
   );
@@ -889,7 +914,7 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
     >
       <Animated.View style={[
         tileStyles.card,
-        { borderColor: colors.accent, shadowColor: colors.accent, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
+        { borderColor: colors.accent, shadowColor: colors.accent, shadowOffset: { width: 0, height: 0 }, shadowRadius: 14, shadowOpacity: 0.55 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
         <View style={tileStyles.photoWrap}>
@@ -1083,7 +1108,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
     >
       <Animated.View style={[
         tileStyles.card,
-        { borderColor: colors.blend, shadowColor: colors.blend, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
+        { borderColor: colors.gold, shadowColor: colors.gold, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.45 },
         isDragging && { elevation: 24, shadowOpacity: 0.4, shadowRadius: 16, shadowOffset: { width: 0, height: 10 } },
       ]}>
         <View style={tileStyles.photoWrap}>
@@ -1188,11 +1213,11 @@ function AccommodationPin() {
 // ─── Day selector with fading edges ──────────────────────────────────────────
 
 function DaySelector({
-  stops, activeIdx, onSelect,
+  stops, selectedDay, onSelect,
 }: {
   stops: { dayNumber: number }[];
-  activeIdx: number;
-  onSelect: (i: number) => void;
+  selectedDay: number | null;
+  onSelect: (day: number | null) => void;
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const pillX = useRef<number[]>([]);
@@ -1207,11 +1232,13 @@ function DaySelector({
   }
 
   useEffect(() => {
-    const x = pillX.current[activeIdx];
+    if (selectedDay === null) return;
+    const idx = stops.findIndex(s => s.dayNumber === selectedDay);
+    const x = pillX.current[idx];
     if (x != null && scrollRef.current) {
       scrollRef.current.scrollTo({ x: Math.max(0, x - 24), animated: true });
     }
-  }, [activeIdx]);
+  }, [selectedDay, stops]);
 
   return (
     <View style={mapStyles.selectorWrap}>
@@ -1231,18 +1258,21 @@ function DaySelector({
         }}
         onScroll={e => updateFades(e.nativeEvent.contentOffset.x)}
       >
-        {stops.map((s, i) => (
-          <TouchableOpacity
-            key={i}
-            style={[mapStyles.dayPill, i === activeIdx && mapStyles.dayPillActive]}
-            onLayout={e => { pillX.current[i] = e.nativeEvent.layout.x; }}
-            onPress={() => onSelect(i)}
-          >
-            <Text style={[mapStyles.dayPillText, i === activeIdx && mapStyles.dayPillTextActive]}>
-              Day {s.dayNumber}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {stops.map((s, i) => {
+          const isActive = s.dayNumber === selectedDay;
+          return (
+            <TouchableOpacity
+              key={s.dayNumber}
+              style={[mapStyles.dayPill, isActive && mapStyles.dayPillActive]}
+              onLayout={e => { pillX.current[i] = e.nativeEvent.layout.x; }}
+              onPress={() => onSelect(isActive ? null : s.dayNumber)}
+            >
+              <Text style={[mapStyles.dayPillText, isActive && mapStyles.dayPillTextActive]}>
+                Day {s.dayNumber}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
       {showLeft && <LinearGradient colors={[colors.card, "transparent"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={mapStyles.fadeLeft} pointerEvents="none" />}
       {showRight && <LinearGradient colors={["transparent", colors.card]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={mapStyles.fadeRight} pointerEvents="none" />}
@@ -1262,11 +1292,11 @@ function TripMapModal({
   meta: TripMeta;
 }) {
   const insets = useSafeAreaInsets();
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [showRoutes, setShowRoutes]             = useState(true);
+  const [showActivities, setShowActivities]       = useState(true);
   const [showAccommodation, setShowAccommodation] = useState(true);
-  const [showRestaurants, setShowRestaurants]   = useState(true);
+  const [showRestaurants, setShowRestaurants]     = useState(true);
 
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const mapRef    = useRef<MapboxGL.MapView>(null);
@@ -1277,7 +1307,9 @@ function TripMapModal({
     index: i,
   }));
 
-  const active = activityStops[activeIdx];
+  const activeStop = selectedDay !== null
+    ? activityStops.find(s => s.day.dayNumber === selectedDay) ?? activityStops[0]
+    : activityStops[0];
 
   const allCoords: [number, number][] = [
     ...activityStops.map(s => s.coords),
@@ -1286,34 +1318,55 @@ function TripMapModal({
   ];
   const bounds = computeBounds(allCoords);
 
-  // GeoJSON sources for canvas-rendered pins (always below PointAnnotation layer)
+  const visibleActivityStops = selectedDay !== null
+    ? activityStops.filter(s => s.day.dayNumber === selectedDay)
+    : activityStops;
+
+  const visibleRestaurants = selectedDay !== null
+    ? (meta?.restaurants.filter(r => r.night === selectedDay) ?? [])
+    : (meta?.restaurants ?? []);
+
   const activityGeoJSON = {
     type: "FeatureCollection" as const,
-    features: activityStops.map((stop, i) => ({
+    features: visibleActivityStops.map(stop => ({
       type: "Feature" as const,
-      id: String(i),
+      id: String(stop.index),
       geometry: { type: "Point" as const, coordinates: stop.coords },
-      properties: { dayNumber: stop.day.dayNumber, active: i === activeIdx ? 1 : 0 },
+      properties: {
+        dayNumber: stop.day.dayNumber,
+        active: stop.day.dayNumber === selectedDay ? 1 : 0,
+        icon: activityMapEmoji(adventure.activityType),
+      },
     })),
   };
 
-  const restaurantGeoJSON = meta?.restaurants && meta.restaurants.length > 0 ? {
+  const accommodationGeoJSON = meta?.accommodationCoords ? {
     type: "FeatureCollection" as const,
-    features: meta.restaurants.map((r, i) => ({
+    features: [{
+      type: "Feature" as const,
+      id: "accom",
+      geometry: { type: "Point" as const, coordinates: meta.accommodationCoords },
+      properties: { icon: "🏠" },
+    }],
+  } : null;
+
+  const restaurantGeoJSON = visibleRestaurants.length > 0 ? {
+    type: "FeatureCollection" as const,
+    features: visibleRestaurants.map((r, i) => ({
       type: "Feature" as const,
       id: String(i),
       geometry: { type: "Point" as const, coordinates: r.coords },
-      properties: {},
+      properties: { icon: restaurantMapEmoji(r.cuisine, i) },
     })),
   } : null;
 
-  const routeGeoJSON = activityStops.length >= 2
-    ? {
-        type: "Feature" as const,
-        geometry: { type: "LineString" as const, coordinates: activityStops.map(s => s.coords) },
-        properties: {},
-      }
-    : null;
+  useEffect(() => {
+    if (selectedDay === null) return;
+    const stop = activityStops.find(s => s.day.dayNumber === selectedDay);
+    if (stop) {
+      cameraRef.current?.setCamera({ centerCoordinate: stop.coords, zoomLevel: 12, animationDuration: 400 });
+    }
+  }, [selectedDay]);
 
   async function zoomIn() {
     const zoom = await mapRef.current?.getZoom();
@@ -1338,29 +1391,53 @@ function TripMapModal({
             )}
           />
 
-          {/* Route line — canvas */}
-          {routeGeoJSON && showRoutes && (
-            <MapboxGL.ShapeSource id="tripRoute" shape={routeGeoJSON}>
-              <MapboxGL.LineLayer id="tripRouteLine" style={{ lineColor: colors.accent, lineWidth: 2, lineDasharray: [2, 2], lineOpacity: 0.8 }} />
-            </MapboxGL.ShapeSource>
-          )}
-
-          {/* Restaurant dots — canvas (smallest, always below activity & accommodation) */}
+          {/* Restaurant dots — yellow */}
           {restaurantGeoJSON && showRestaurants && (
             <MapboxGL.ShapeSource id="restaurants" shape={restaurantGeoJSON}>
               <MapboxGL.CircleLayer
                 id="restaurantCircles"
                 style={{
-                  circleRadius: 9,
-                  circleColor: "#FFFFFF",
+                  circleRadius: 10,
+                  circleColor: colors.gold,
                   circleStrokeWidth: 1.5,
-                  circleStrokeColor: colors.border,
+                  circleStrokeColor: "#FFFFFF",
                 }}
               />
               <MapboxGL.SymbolLayer
                 id="restaurantIcons"
                 style={{
-                  textField: "🍴",
+                  textField: ["get", "icon"] as any,
+                  textSize: 8,
+                  textAllowOverlap: true,
+                  textIgnorePlacement: true,
+                }}
+              />
+            </MapboxGL.ShapeSource>
+          )}
+
+          {/* Activity circles — green */}
+          {showActivities && (
+            <MapboxGL.ShapeSource
+              id="activities"
+              shape={activityGeoJSON}
+              onPress={e => {
+                const dayNum = e.features[0]?.properties?.dayNumber as number | undefined;
+                if (dayNum != null) setSelectedDay(prev => prev === dayNum ? null : dayNum);
+              }}
+            >
+              <MapboxGL.CircleLayer
+                id="activityCircles"
+                style={{
+                  circleRadius: 10,
+                  circleColor: colors.ocean,
+                  circleStrokeWidth: 1.5,
+                  circleStrokeColor: "#FFFFFF",
+                }}
+              />
+              <MapboxGL.SymbolLayer
+                id="activityLabels"
+                style={{
+                  textField: ["get", "icon"] as any,
                   textSize: 9,
                   textAllowOverlap: true,
                   textIgnorePlacement: true,
@@ -1369,41 +1446,28 @@ function TripMapModal({
             </MapboxGL.ShapeSource>
           )}
 
-          {/* Activity circles — canvas (below PointAnnotation layer) */}
-          <MapboxGL.ShapeSource
-            id="activities"
-            shape={activityGeoJSON}
-            onPress={e => {
-              const idx = Number(e.features[0]?.id);
-              if (!isNaN(idx)) setActiveIdx(idx);
-            }}
-          >
-            <MapboxGL.CircleLayer
-              id="activityCircles"
-              style={{
-                circleRadius: ["case", ["==", ["get", "active"], 1], 19, 15] as any,
-                circleColor: ["case", ["==", ["get", "active"], 1], colors.accent, colors.text] as any,
-                circleStrokeWidth: 2,
-                circleStrokeColor: "#FFFFFF",
-              }}
-            />
-            <MapboxGL.SymbolLayer
-              id="activityLabels"
-              style={{
-                textField: ["to-string", ["get", "dayNumber"]] as any,
-                textColor: "#FFFFFF",
-                textSize: 11,
-                textAllowOverlap: true,
-                textIgnorePlacement: true,
-              }}
-            />
-          </MapboxGL.ShapeSource>
-
-          {/* Accommodation — PointAnnotation renders as RN view, always above canvas layers */}
-          {meta?.accommodationCoords && showAccommodation && (
-            <MapboxGL.PointAnnotation key="accom" id="accom" coordinate={meta.accommodationCoords}>
-              <AccommodationPin />
-            </MapboxGL.PointAnnotation>
+          {/* Accommodation — blue circle, native canvas (PointAnnotation not reliable on Android) */}
+          {accommodationGeoJSON && showAccommodation && (
+            <MapboxGL.ShapeSource id="accommodation" shape={accommodationGeoJSON}>
+              <MapboxGL.CircleLayer
+                id="accomCircle"
+                style={{
+                  circleRadius: 10,
+                  circleColor: colors.accent,
+                  circleStrokeWidth: 1.5,
+                  circleStrokeColor: "#FFFFFF",
+                }}
+              />
+              <MapboxGL.SymbolLayer
+                id="accomLabel"
+                style={{
+                  textField: ["get", "icon"] as any,
+                  textSize: 9,
+                  textAllowOverlap: true,
+                  textIgnorePlacement: true,
+                }}
+              />
+            </MapboxGL.ShapeSource>
           )}
         </MapboxGL.MapView>
 
@@ -1422,8 +1486,8 @@ function TripMapModal({
           <View style={[mapStyles.filterSheet, { top: insets.top + 56 }]}>
             <Text style={mapStyles.filterTitle}>Map layers</Text>
             {([
-              { label: "Routes", value: showRoutes, setter: setShowRoutes, color: colors.accent },
-              { label: "Accommodation", value: showAccommodation, setter: setShowAccommodation, color: colors.ocean },
+              { label: "Activities", value: showActivities, setter: setShowActivities, color: colors.ocean },
+              { label: "Accommodations", value: showAccommodation, setter: setShowAccommodation, color: colors.accent },
               { label: "Restaurants", value: showRestaurants, setter: setShowRestaurants, color: colors.gold },
             ] as Array<{ label: string; value: boolean; setter: (v: boolean) => void; color: string }>).map(row => (
               <TouchableOpacity key={row.label} style={mapStyles.filterRow} onPress={() => row.setter(!row.value)}>
@@ -1452,28 +1516,28 @@ function TripMapModal({
         <View style={[mapStyles.bottomPanel, { paddingBottom: insets.bottom + 8 }]}>
           <DaySelector
             stops={activityStops.map(s => ({ dayNumber: s.day.dayNumber }))}
-            activeIdx={activeIdx}
-            onSelect={setActiveIdx}
+            selectedDay={selectedDay}
+            onSelect={setSelectedDay}
           />
 
-          {active && (
+          {activeStop && (
             <View style={mapStyles.stopCard}>
               <Image
-                source={{ uri: `https://picsum.photos/seed/${adventure.id}-${active.day.dayNumber}/800/500` }}
+                source={{ uri: `https://picsum.photos/seed/${adventure.id}-${activeStop.day.dayNumber}/800/500` }}
                 style={mapStyles.stopPhoto}
                 resizeMode="cover"
               />
               <View style={mapStyles.stopInfo}>
-                <Text style={mapStyles.stopTitle} numberOfLines={2}>{active.day.title}</Text>
+                <Text style={mapStyles.stopTitle} numberOfLines={2}>{activeStop.day.title}</Text>
                 <View style={mapStyles.stopMetaRow}>
                   <Feather name="map-pin" size={11} color={colors.muted} />
                   <Text style={mapStyles.stopMetaText} numberOfLines={1}>{adventure.region}</Text>
                 </View>
-                {(active.day.distanceKm || active.day.elevationGainM) ? (
+                {(activeStop.day.distanceKm || activeStop.day.elevationGainM) ? (
                   <View style={mapStyles.stopMetaRow}>
-                    {active.day.distanceKm ? <Text style={mapStyles.stopMetaText}>{active.day.distanceKm} km</Text> : null}
-                    {active.day.distanceKm && active.day.elevationGainM ? <Text style={mapStyles.stopMetaText}>  ·  </Text> : null}
-                    {active.day.elevationGainM ? <Text style={mapStyles.stopMetaText}>↑ {active.day.elevationGainM} m</Text> : null}
+                    {activeStop.day.distanceKm ? <Text style={mapStyles.stopMetaText}>{activeStop.day.distanceKm} km</Text> : null}
+                    {activeStop.day.distanceKm && activeStop.day.elevationGainM ? <Text style={mapStyles.stopMetaText}>  ·  </Text> : null}
+                    {activeStop.day.elevationGainM ? <Text style={mapStyles.stopMetaText}>↑ {activeStop.day.elevationGainM} m</Text> : null}
                   </View>
                 ) : null}
                 <View style={mapStyles.stopActions}>
@@ -1483,7 +1547,7 @@ function TripMapModal({
                   </TouchableOpacity>
                 </View>
               </View>
-              <TouchableOpacity style={mapStyles.detailBtn} onPress={() => onClose(active.day.dayNumber)}>
+              <TouchableOpacity style={mapStyles.detailBtn} onPress={() => onClose(activeStop.day.dayNumber)}>
                 <Text style={mapStyles.detailBtnText}>Show detail</Text>
               </TouchableOpacity>
             </View>
@@ -2240,22 +2304,38 @@ const addItemStyles = StyleSheet.create({
 
 // ─── Custom item card ─────────────────────────────────────────────────────────
 
-const CUSTOM_STRIPE: Record<ItemType, string> = {
-  stay: colors.coral,
-  restaurant: colors.coral,
-  activity: colors.sky,
+const CUSTOM_TYPE_COLOR: Record<ItemType, string> = {
+  stay: colors.accent,
+  restaurant: colors.blend,
+  activity: colors.sage,
+};
+
+const CUSTOM_TYPE_EMOJI: Record<ItemType, string> = {
+  stay: "🏨",
+  restaurant: "🍽️",
+  activity: "🏃",
 };
 
 function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem }) {
-  const stripeColor = CUSTOM_STRIPE[item.type] ?? colors.muted;
+  const tileColor = CUSTOM_TYPE_COLOR[item.type as ItemType] ?? colors.muted;
+  const typeEmoji = CUSTOM_TYPE_EMOJI[item.type as ItemType] ?? "📍";
   return (
-    <View style={[tileStyles.card, { overflow: "hidden" }]}>
+    <View style={[
+      tileStyles.card,
+      { overflow: "hidden", borderColor: tileColor, shadowColor: tileColor, shadowOffset: { width: 0, height: 0 }, shadowRadius: 14, shadowOpacity: 0.55 },
+    ]}>
       {item.photos && item.photos.length > 0 && (
         <View style={tileStyles.photoWrap}>
           <Image source={{ uri: item.photos[0] }} style={tileStyles.photo} resizeMode="cover" />
         </View>
       )}
       <View style={tileStyles.info}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+          <View style={{ backgroundColor: tileColor + "22", borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={{ fontSize: 11 }}>{typeEmoji}</Text>
+            <Text style={{ fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: tileColor }}>{item.type.charAt(0).toUpperCase() + item.type.slice(1)}</Text>
+          </View>
+        </View>
         <Text style={tileStyles.title}>{item.name}</Text>
         {item.location ? (
           <View style={tileStyles.infoRow}>
@@ -2710,45 +2790,46 @@ export default function TripDetailScreen() {
         overflow: "hidden",
         paddingHorizontal: spacing.md,
         paddingBottom: spacing.sm,
-        backgroundColor: colors.bg,
+        backgroundColor: colors.card,
       }}>
-        <View style={detailStyles.heroImageWrap}>
-          {/* Trip photo carousel — swipe left/right to switch trips */}
-          {allAdventures.length > 0 ? (
-            <FlatList
-              ref={heroCarouselRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              data={allAdventures}
-              initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
-              getItemLayout={(_, i) => ({ length: SCREEN_W - spacing.md * 2, offset: (SCREEN_W - spacing.md * 2) * i, index: i })}
-              keyExtractor={a => a.id}
-              renderItem={({ item }) => (
-                <Image
-                  source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
-                  style={{ width: SCREEN_W - spacing.md * 2, height: HERO_H - spacing.sm }}
-                  resizeMode="cover"
-                />
-              )}
-              onMomentumScrollEnd={e => {
-                const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - spacing.md * 2));
-                const target = allAdventures[idx];
-                if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
-              }}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          )}
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.78)"]} style={StyleSheet.absoluteFill} />
+        <View style={detailStyles.heroCard}>
+          {/* Photo carousel — inset with margin + rounded corners */}
+          <View style={detailStyles.heroImageWrap}>
+            {allAdventures.length > 0 ? (
+              <FlatList
+                ref={heroCarouselRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                data={allAdventures}
+                initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
+                getItemLayout={(_, i) => ({ length: SCREEN_W - spacing.md * 2 - 16, offset: (SCREEN_W - spacing.md * 2 - 16) * i, index: i })}
+                keyExtractor={a => a.id}
+                renderItem={({ item }) => (
+                  <Image
+                    source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
+                    style={{ width: SCREEN_W - spacing.md * 2 - 16, height: HERO_IMG_H }}
+                    resizeMode="cover"
+                  />
+                )}
+                onMomentumScrollEnd={e => {
+                  const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - spacing.md * 2 - 16));
+                  const target = allAdventures[idx];
+                  if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
+                }}
+              />
+            ) : (
+              <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            )}
+          </View>
+          {/* Text below image */}
           <View style={detailStyles.heroText}>
-            <Text style={detailStyles.heroTitle}>{adventure.title}</Text>
+            <Text style={detailStyles.heroTitle} numberOfLines={2}>{adventure.title}</Text>
             <View style={detailStyles.heroMeta}>
-              <Feather name="map-pin" size={12} color="rgba(255,255,255,0.75)" />
+              <Feather name="map-pin" size={12} color={colors.muted} />
               <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
               <Text style={detailStyles.heroMetaDot}>·</Text>
-              <MaterialCommunityIcons name={actIconName} size={14} color="rgba(255,255,255,0.75)" />
+              <MaterialCommunityIcons name={actIconName} size={14} color={colors.muted} />
               <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
               <Text style={detailStyles.heroMetaDot}>·</Text>
               <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
@@ -2824,11 +2905,14 @@ export default function TripDetailScreen() {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[detailStyles.dayContent, { overflow: "visible" }]}
               scrollEventThrottle={16}
-              onScroll={e => {
-                if (day.dayNumber === selectedDay) {
-                  heroOffset.setValue(e.nativeEvent.contentOffset.y);
-                }
-              }}
+              nestedScrollEnabled
+              onScroll={day.dayNumber === selectedDay
+                ? Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: heroOffset } } }],
+                    { useNativeDriver: false },
+                  )
+                : undefined
+              }
             >
               <View style={detailStyles.dateLabelRow}>
                 <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, day.dayNumber)}</Text>
@@ -3048,17 +3132,21 @@ const detailStyles = StyleSheet.create({
   headerBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerRight: { flexDirection: "row", alignItems: "center" },
   headerTitle: { fontSize: fontSize.xl, fontFamily: fonts.display, color: colors.text },
+  heroCard: {
+    backgroundColor: colors.card,
+  },
   heroImageWrap: {
-    flex: 1,
-    borderRadius: radius.lg,
+    margin: 8,
+    height: HERO_IMG_H,
+    borderRadius: 14,
     overflow: "hidden",
     backgroundColor: colors.border,
   },
-  heroText: { position: "absolute", bottom: 0, left: 0, right: 0, padding: spacing.md, gap: 6 },
-  heroTitle: { color: "#FFFFFF", fontSize: fontSize.xxl, fontWeight: "800", lineHeight: 30, letterSpacing: -0.3 },
+  heroText: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 14, gap: 4 },
+  heroTitle: { fontFamily: fonts.display, color: colors.text, fontSize: fontSize.lg, letterSpacing: -0.3 },
   heroMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
-  heroMetaText: { color: "rgba(255,255,255,0.8)", fontSize: fontSize.sm, textTransform: "capitalize" },
-  heroMetaDot: { color: "rgba(255,255,255,0.4)", fontSize: fontSize.sm },
+  heroMetaText: { fontFamily: fonts.sans, color: colors.muted, fontSize: fontSize.sm, textTransform: "capitalize" },
+  heroMetaDot: { color: colors.border, fontSize: fontSize.sm },
   dayTabWrap: {
     borderBottomWidth: 1, borderBottomColor: colors.border,
     backgroundColor: colors.card,
@@ -3113,21 +3201,10 @@ const detailStyles = StyleSheet.create({
 });
 
 const tileStyles = StyleSheet.create({
-  row: { flexDirection: "row", gap: spacing.sm, overflow: "visible" },
-  timeline: { alignItems: "center", width: 36 },
-  circle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.text, alignItems: "center", justifyContent: "center", zIndex: 1,
-  },
-  circleNum: { fontFamily: fonts.sansBold, color: colors.inverse, fontSize: fontSize.sm },
-  line: {
-    flex: 1, width: 2, borderLeftWidth: 2, borderLeftColor: colors.border,
-    borderStyle: "dashed", marginTop: 4, marginBottom: 4, minHeight: 40,
-  },
   card: {
     flex: 1, backgroundColor: colors.card, borderRadius: radius.lg,
     overflow: "hidden", ...shadow.sm, marginBottom: spacing.md,
-    borderWidth: 2,
+    borderWidth: 3.5,
   },
   photoWrap: { margin: 8, borderRadius: 12, overflow: "hidden", backgroundColor: colors.border },
   photo: { width: "100%", height: 160 },
@@ -3284,7 +3361,7 @@ const mapStyles = StyleSheet.create({
   },
   stopActionText: { fontSize: fontSize.xs, color: colors.text, fontWeight: "600" },
   detailBtn: {
-    backgroundColor: colors.text, margin: spacing.md, marginTop: spacing.sm,
+    backgroundColor: colors.accent, margin: spacing.md, marginTop: spacing.sm,
     borderRadius: radius.full, paddingVertical: 13, alignItems: "center",
   },
   detailBtnText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
@@ -3308,7 +3385,7 @@ const mapStyles = StyleSheet.create({
     position: "absolute", top: 0, right: 0,
     backgroundColor: colors.card, borderBottomLeftRadius: radius.lg,
     paddingHorizontal: spacing.md, paddingBottom: spacing.md,
-    minWidth: 210, ...shadow.md, zIndex: 20,
+    minWidth: 260, ...shadow.md, zIndex: 20,
   },
   filterTitle: {
     fontSize: fontSize.sm, fontWeight: "700", color: colors.muted,

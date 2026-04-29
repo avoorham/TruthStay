@@ -562,6 +562,35 @@ export async function removeCollaborator(adventureId: string, userId: string): P
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
+// ─── Interaction tracking ─────────────────────────────────────────────────────
+
+export interface InteractionPayload {
+  interaction_type:      "viewed" | "selected" | "saved" | "replaced" | "skipped" | "rated_up" | "rated_down" | "shared";
+  adventure_id?:         string | null;
+  content_entry_id?:     string | null;
+  session_id?:           string | null;
+  session_query?:        string | null;
+  session_region?:       string | null;
+  session_activity_type?: string | null;
+  session_vacation_type?: string | null;
+  day_number?:           number | null;
+  alternative_index?:    number | null;
+  replaced_by_entry_id?: string | null;
+  dwell_time_seconds?:   number | null;
+}
+
+export async function logInteraction(
+  payload: InteractionPayload | InteractionPayload[],
+): Promise<void> {
+  try {
+    await fetch(`${BASE}/api/interactions`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify(payload),
+    });
+  } catch { /* interaction logging must never throw */ }
+}
+
 // ─── Custom day items ─────────────────────────────────────────────────────────
 
 export async function updateDayCustomItems(adventureId: string, dayNumber: number, customItems: CustomItem[]): Promise<void> {
@@ -641,5 +670,187 @@ export async function updateAdventureEndDate(adventureId: string, endDate: strin
     .from("adventures")
     .update({ endDate })
     .eq("id", adventureId);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Public restaurants ───────────────────────────────────────────────────────
+
+export interface PublicRestaurant {
+  name:           string;
+  cuisine:        string;
+  priceRange:     string;
+  coords:         [number, number];
+  adventureId:    string;
+  adventureTitle: string;
+  region:         string;
+}
+
+export async function getPublicRestaurants(query?: string): Promise<PublicRestaurant[]> {
+  const qs  = query ? `?q=${encodeURIComponent(query)}` : "";
+  const res = await fetch(`${BASE}/api/restaurants/public${qs}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<PublicRestaurant[]>;
+}
+
+export interface PublicActivity {
+  title:          string;
+  activityType:   string;
+  difficulty:     string;
+  distanceKm:     number | null;
+  elevationM:     number | null;
+  coords:         [number, number];
+  adventureId:    string;
+  adventureTitle: string;
+  region:         string;
+}
+
+export async function getPublicActivities(type?: string): Promise<PublicActivity[]> {
+  const qs  = type ? `?type=${encodeURIComponent(type)}` : "";
+  const res = await fetch(`${BASE}/api/activities/public${qs}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<PublicActivity[]>;
+}
+
+// ─── Hotspot feed ─────────────────────────────────────────────────────────────
+
+export interface ContentEntry {
+  id:            string;
+  type:          string;          // "route" | "accommodation" | "restaurant" | "activity"
+  name:          string;
+  region:        string;
+  activity_type: string | null;
+  description:   string | null;
+  data:          Record<string, unknown>;
+  trust_score:   number | null;
+  created_at:    string;
+}
+
+export interface HotspotSection {
+  section:  string;             // "upcoming_trip" | "nearby" | "for_you" | "recent"
+  title:    string;
+  subtitle?: string;
+  tripId?:  string;
+  entries:  ContentEntry[];
+}
+
+export interface FeedState {
+  hasTrips:   boolean;
+  hasFriends: boolean;
+}
+
+export interface UpcomingTrip {
+  id:        string;
+  title:     string;
+  region:    string;
+  startDate: string;
+}
+
+export interface HotspotFeedResponse {
+  feed:          HotspotSection[];
+  state:         FeedState;
+  upcomingTrips: UpcomingTrip[];
+}
+
+export async function getHotspotFeed(opts?: { lat?: number; lng?: number }): Promise<HotspotFeedResponse> {
+  const params = new URLSearchParams();
+  if (opts?.lat != null) params.set("lat", String(opts.lat));
+  if (opts?.lng != null) params.set("lng", String(opts.lng));
+  const qs  = params.toString();
+  const res = await fetch(`${BASE}/api/feed/hotspots${qs ? `?${qs}` : ""}`, {
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<HotspotFeedResponse>;
+}
+
+// ─── Stories ──────────────────────────────────────────────────────────────────
+
+export interface FeedStory {
+  id:               string;
+  story_type:       string;
+  content_entry_id: string | null;
+  activity_post_id: string | null;
+  adventure_id:     string | null;
+  group_key:        string;
+  title:            string | null;
+  subtitle:         string | null;
+  description:      string | null;
+  image_url:        string | null;
+  metadata:         Record<string, unknown>;
+  context_tag:      string | null;
+  context_trip_id:  string | null;
+  is_viewed:        boolean;
+  is_saved:         boolean;
+  expires_at:       string | null;
+  created_at:       string;
+}
+
+export interface StoryCircle {
+  group_key:     string;
+  label:         string | null;
+  thumbnail_url: string | null;
+  has_unviewed:  boolean;
+  stories:       FeedStory[];
+}
+
+export async function getStoryCircles(): Promise<StoryCircle[]> {
+  const res = await fetch(`${BASE}/api/feed/stories`, { headers: await authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json() as { circles: StoryCircle[] };
+  return data.circles;
+}
+
+export async function markStoryViewed(storyId: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/stories`, {
+    method:  "PATCH",
+    headers: await authHeaders(),
+    body:    JSON.stringify({ storyId }),
+  });
+}
+
+export async function dismissStory(storyId: string): Promise<void> {
+  await fetch(`${BASE}/api/feed/stories`, {
+    method:  "DELETE",
+    headers: await authHeaders(),
+    body:    JSON.stringify({ storyId }),
+  });
+}
+
+// ─── Editorial posts ──────────────────────────────────────────────────────────
+
+export interface EditorialPost {
+  id:             string;
+  title:          string;
+  subtitle:       string | null;
+  body:           string | null;
+  hero_image_url: string | null;
+  images:         string[];
+  post_type:      string;
+  region:         string | null;
+  activity_type:  string | null;
+  target_audience: Record<string, unknown>;
+  published_at:   string | null;
+  view_count:     number;
+  save_count:     number;
+  created_at:     string;
+}
+
+export async function getEditorialPosts(): Promise<EditorialPost[]> {
+  const res = await fetch(`${BASE}/api/feed/editorial`, { headers: await authHeaders() });
+  if (!res.ok) return [];
+  const data = await res.json() as { posts: EditorialPost[] };
+  return data.posts;
+}
+
+// ─── Add to trip ──────────────────────────────────────────────────────────────
+
+export async function addContentEntryToTrip(
+  contentEntryId: string,
+  adventureId: string,
+): Promise<void> {
+  const { error } = await supabase.from("adventure_content_links").insert({
+    content_entry_id: contentEntryId,
+    adventure_id:     adventureId,
+  });
   if (error) throw new Error(error.message);
 }

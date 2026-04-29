@@ -179,7 +179,7 @@ function StoryViewer({
 
   const coords = story.metadata?.coordinates as { lat?: number; lng?: number } | undefined;
   const mapUrl = coords?.lat && coords.lng
-    ? `https://api.maptiler.com/maps/streets/static/${coords.lng},${coords.lat},12/480x320.png?key=placeholder`
+    ? (process.env.EXPO_PUBLIC_MAPTILER_KEY ? `https://api.maptiler.com/maps/streets/static/${coords.lng},${coords.lat},12/480x320.png?key=${process.env.EXPO_PUBLIC_MAPTILER_KEY}` : null)
     : null;
   const heroUri = story.image_url ?? mapUrl;
 
@@ -283,7 +283,7 @@ function StoriesBar({
         contentContainerStyle={storiesBarS.row}
       >
         {circles.map(circle => {
-          const ringColor = circle.has_unviewed ? TEAL : colors.border;
+          const ringColor = circle.has_unviewed ? TEAL : `${TEAL}55`;
           return (
             <TouchableOpacity
               key={circle.group_key}
@@ -575,8 +575,9 @@ function Divider() {
 // ─── Main feed screen ─────────────────────────────────────────────────────────
 
 export default function FeedScreen() {
-  const insets = useSafeAreaInsets();
+  const insets  = useSafeAreaInsets();
   const [loading, setLoading]           = useState(true);
+  const [hasNotifications]              = useState(false);
   const [feedState, setFeedState]       = useState<FeedState | null>(null);
   const [sections, setSections]         = useState<HotspotSection[]>([]);
   const [circles, setCircles]           = useState<StoryCircle[]>([]);
@@ -702,7 +703,16 @@ export default function FeedScreen() {
     <View style={[screenS.root, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={screenS.header}>
+        <TouchableOpacity style={screenS.headerBtn}>
+          <Feather name="plus" size={22} color={colors.text} />
+        </TouchableOpacity>
         <Text style={screenS.headerTitle}>Feed</Text>
+        <TouchableOpacity style={screenS.headerBtn}>
+          <View>
+            <Feather name="heart" size={22} color={colors.text} />
+            {hasNotifications && <View style={screenS.notifDot} />}
+          </View>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -809,16 +819,39 @@ const screenS = StyleSheet.create({
   root:   { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: {
-    paddingHorizontal: spacing.md,
-    paddingVertical:   spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop:        spacing.md,
+    paddingBottom:     spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor:   colors.card,
+    flexDirection:     "row",
+    alignItems:        "center",
+    justifyContent:    "space-between",
   },
   headerTitle: {
-    fontFamily: fonts.display,
-    fontSize:   fontSize.xl,
-    color:      colors.text,
+    fontFamily:    fonts.display,
+    fontSize:      fontSize.xxl,
+    color:         colors.text,
+    letterSpacing: -0.5,
+    flex:          1,
+    textAlign:     "center",
+  },
+  headerBtn: {
+    width:          36,
+    alignItems:     "center",
+    justifyContent: "center",
+  },
+  notifDot: {
+    position:        "absolute",
+    top:             -2,
+    right:           -2,
+    width:           8,
+    height:          8,
+    borderRadius:    4,
+    backgroundColor: colors.accent,
+    borderWidth:     1.5,
+    borderColor:     colors.card,
   },
   emptyMsg: {
     fontFamily: fonts.sans,
@@ -837,22 +870,22 @@ const storiesBarS = StyleSheet.create({
     paddingVertical:   spacing.sm,
   },
   row:    { paddingHorizontal: spacing.md, gap: spacing.md },
-  item:   { alignItems: "center", width: 64 },
+  item:   { alignItems: "center", width: 72 },
   ring: {
-    width:        60,
-    height:       60,
-    borderRadius: 30,
+    width:        68,
+    height:       68,
+    borderRadius: 34,
     borderWidth:  2.5,
-    padding:      2,
+    padding:      3,
     marginBottom: 4,
   },
-  avatar:  { width: "100%" as never, height: "100%" as never, borderRadius: 26, overflow: "hidden" },
+  avatar:  { width: "100%" as never, height: "100%" as never, borderRadius: 30, overflow: "hidden" },
   label: {
     fontFamily: fonts.sans,
     fontSize:   fontSize.xs,
     color:      colors.muted,
     textAlign:  "center",
-    maxWidth:   60,
+    maxWidth:   68,
   },
   dot: {
     position:    "absolute",

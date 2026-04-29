@@ -78,7 +78,7 @@ function ReviewCard({
   onDetail: () => void;
 }) {
   const d         = entry.data as any;
-  const sources   = Array.isArray(d?.sources)   ? (d.sources   as string[]) : [];
+  const sources   = Array.isArray(d?.sources) ? (d.sources as any[]).filter(s => typeof s === "string") as string[] : [];
   const scoutScore = typeof d?.scoutScore === "number" ? d.scoutScore as number : null;
   const photoUrl  = getPhotoUrl(entry.data);
   const externalUrl = getExternalUrl(entry.data, entry.type);
@@ -292,13 +292,13 @@ export default function ReviewQueuePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={load}
-              className="p-2 rounded-lg border border-grey-300 hover:bg-grey-100 transition text-grey-700"
+              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition text-grey-700"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
             <a
               href="/content"
-              className="inline-flex items-center gap-1.5 border border-grey-300 text-sm font-medium px-3 py-2 rounded-lg hover:bg-grey-100 transition"
+              className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium px-4 py-2 rounded-full hover:bg-slate-50 transition"
             >
               All Content
             </a>
@@ -309,9 +309,12 @@ export default function ReviewQueuePage() {
       {loading ? (
         <div className="text-center py-20 text-grey-500 text-sm">Loading…</div>
       ) : entries.length === 0 ? (
-        <div className="text-center py-20">
-          <CheckCircle2 size={40} className="text-green mx-auto mb-3" />
-          <p className="text-grey-700 font-medium">Queue is empty — all entries reviewed!</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-full bg-teal-bg flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-8 w-8 text-teal" />
+          </div>
+          <h3 className="text-lg font-semibold text-dark mb-2">Queue is empty</h3>
+          <p className="text-sm text-grey-500">All entries have been reviewed — great work!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

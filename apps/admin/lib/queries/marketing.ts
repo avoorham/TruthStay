@@ -47,8 +47,10 @@ export async function togglePromoCode(id: string, is_active: boolean) {
 }
 
 export async function createCampaign(campaign: {
-  name: string; subject: string; body_html?: string; body_text?: string;
-  segment_query?: object; scheduled_at?: string;
+  name: string; subject?: string; body_html?: string; body_text?: string;
+  segment_query?: object; segment_label?: string | null;
+  scheduled_at?: string | null; status?: string;
+  channel?: string; created_by?: string; agent_rationale?: string | null;
 }) {
   const db = createAdminClient();
   const { error } = await db.from("email_campaigns").insert(campaign);

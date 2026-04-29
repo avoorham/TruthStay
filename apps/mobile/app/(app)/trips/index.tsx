@@ -31,7 +31,7 @@ function tripStatus(adventure: AdventureRow): "current" | "upcoming" | "past" {
   if (!adventure.startDate) return "upcoming";
   const start = new Date(adventure.startDate);
   const end = new Date(adventure.startDate);
-  end.setDate(end.getDate() + (adventure.durationDays ?? 1));
+  end.setDate(end.getDate() + (adventure.durationDays ?? 1) - 1);
   const now = new Date();
   if (now >= start && now <= end) return "current";
   if (now < start) return "upcoming";

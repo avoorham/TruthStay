@@ -8,9 +8,14 @@
   --color-green: #2ECDA7;
   --color-green-dark: #00B87D;
   --color-green-light: #E0FBF2;
+  /* Teal — primary accent matching TruthStay consumer app */
+  --color-teal: #2DD4BF;
+  --color-teal-dark: #14B8A6;
+  --color-teal-light: #CCFBF1;
+  --color-teal-bg: #F0FDFA;
   --color-blend: #5BC8D6;
-  --color-navy: #0F2A4A;
-  --color-navy-light: #1C3D5F;
+  --color-navy: #0F172A;  /* slate-900 — matches sidebar spec */
+  --color-navy-light: #1E293B;
   --color-dark: #1A1D23;
   --color-charcoal: #3A3D42;
   --color-grey-700: #5F6368;
@@ -42,7 +47,7 @@
 html,
 body {
   height: 100%;
-  background: #F8F9FA;
+  background: #F8FAFC; /* slate-50 — matches design system */
   color: #1A1D23;
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;

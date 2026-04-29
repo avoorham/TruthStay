@@ -6,7 +6,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Mapbox, {
-  MapView, Camera, PointAnnotation, FillLayer, SymbolLayer, Images, ShapeSource,
+  MapView, Camera, PointAnnotation, FillLayer, SymbolLayer,
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
@@ -1439,16 +1439,12 @@ function AdventureSheet({
   );
 }
 
-// ─── Logo pin ─────────────────────────────────────────────────────────────────
+// ─── Adventure pin ────────────────────────────────────────────────────────────
 
-function TPin() {
+function AdventurePin() {
   return (
-    <View style={pillStyles.tPin}>
-      <Image
-        source={require("../../../assets/icon.png")}
-        style={pillStyles.tPinImage}
-        resizeMode="cover"
-      />
+    <View style={pillStyles.adventurePin}>
+      <MaterialCommunityIcons name="bag-suitcase" size={18} color="#FFFFFF" />
     </View>
   );
 }
@@ -2128,8 +2124,6 @@ export default function ExploreScreen() {
           defaultSettings={{ centerCoordinate: [13.0, 46.5], zoomLevel: 3.8 }}
         />
 
-        <Images images={{ "ts-pin": require("../../../assets/android-icon-foreground.png") }} />
-
         {/* Ocean/water color override */}
         <FillLayer id="water" existing style={{ fillColor: "#E8F1FF" }} />
 
@@ -2155,42 +2149,24 @@ export default function ExploreScreen() {
         />
 
         {/* Adventure pins */}
-        {mapMode === "adventures" && filtered.length > 0 && (
-          <ShapeSource
-            id="adventures-source"
-            shape={{
-              type: "FeatureCollection",
-              features: filtered.map(adv => ({
-                type: "Feature" as const,
-                id: adv.id,
-                geometry: { type: "Point" as const, coordinates: adv.coords },
-                properties: { id: adv.id },
-              })),
-            }}
-            onPress={e => {
-              const id = e.features[0]?.properties?.id as string | undefined;
-              const adv = id ? filtered.find(a => a.id === id) : undefined;
-              if (adv) {
-                cameraRef.current?.setCamera({
-                  centerCoordinate: adv.coords,
-                  zoomLevel: Math.max(zoom, 8),
-                  animationDuration: 400,
-                });
-                showSheet(adv);
-              }
+        {mapMode === "adventures" && filtered.map(adv => (
+          <PointAnnotation
+            key={adv.id}
+            id={adv.id}
+            coordinate={adv.coords}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onSelected={() => {
+              cameraRef.current?.setCamera({
+                centerCoordinate: adv.coords,
+                zoomLevel: Math.max(zoom, 8),
+                animationDuration: 400,
+              });
+              showSheet(adv);
             }}
           >
-            <SymbolLayer
-              id="adventures-layer"
-              style={{
-                iconImage: "ts-pin",
-                iconSize: 0.043,
-                iconAllowOverlap: true,
-                iconAnchor: "center",
-              }}
-            />
-          </ShapeSource>
-        )}
+            <AdventurePin />
+          </PointAnnotation>
+        ))}
 
         {/* Activity / restaurant / bar / café POI pins */}
         {mapMode === "pois" && poiPins.map(pin => (
@@ -2600,22 +2576,20 @@ const pillStyles = StyleSheet.create({
     color: "#000000",
     flexShrink: 1,
   },
-  tPin: {
-    width:         44,
-    height:        44,
-    borderRadius:  22,
-    overflow:      "hidden",
-    borderWidth:   2,
-    borderColor:   "#FFFFFF",
-    shadowColor:   "#000",
-    shadowOffset:  { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius:  5,
-    elevation:     6,
-  },
-  tPinImage: {
-    width:  "100%" as never,
-    height: "100%" as never,
+  adventurePin: {
+    width:           40,
+    height:          40,
+    borderRadius:    20,
+    backgroundColor: colors.accent,
+    alignItems:      "center",
+    justifyContent:  "center",
+    borderWidth:     2.5,
+    borderColor:     "#FFFFFF",
+    shadowColor:     "#000",
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.28,
+    shadowRadius:    6,
+    elevation:       6,
   },
   activityPin: {
     width: 34,

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   // ── Section: For upcoming trips ─────────────────────────────────────────────
   for (const trip of upcomingTrips ?? []) {
     const t = trip as { id: string; title: string; region: string; startDate: string };
-    const firstPart = t.region.split(",")[0].trim();
+    const firstPart = (t.region.split(",")[0] ?? t.region).trim();
     const { data: entries } = await db
       .from("content_entries")
       .select("id, type, name, region, activity_type, description, data, trust_score, created_at")

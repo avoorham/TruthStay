@@ -211,12 +211,12 @@ function AgentCard({ agent }: { agent: AgentConfig }) {
   const AgentIcon  = agent.icon;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col gap-5">
+    <div className="border border-slate-200 rounded-lg p-5 flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-teal-light flex items-center justify-center shrink-0">
-            <AgentIcon size={18} className="text-teal-dark" />
+          <div className="w-9 h-9 rounded-md bg-slate-100 flex items-center justify-center shrink-0">
+            <AgentIcon size={16} className="text-slate-500" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-dark">{agent.name}</h3>
@@ -315,7 +315,7 @@ export default function AgentsOverviewPage() {
         actions={
           <Link
             href="/agents/cfo"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
           >
             <DollarSign size={14} />
             CFO Command Centre
@@ -334,8 +334,8 @@ export default function AgentsOverviewPage() {
       <div className="grid grid-cols-5 gap-6">
 
         {/* Pending spend requests — 60% */}
-        <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
+        <div className="col-span-3 border border-slate-200 rounded-lg overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
             <div className="flex items-center gap-2">
               <Zap size={15} className="text-warning" />
               <h2 className="text-sm font-semibold text-dark">Active Spend Requests</h2>
@@ -354,12 +354,10 @@ export default function AgentsOverviewPage() {
           </div>
 
           {pendingRequests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center px-6">
-              <div className="w-12 h-12 rounded-full bg-green-light flex items-center justify-center mb-3">
-                <CheckCircle2 size={20} className="text-green-dark" />
-              </div>
-              <p className="text-sm font-semibold text-dark">All caught up</p>
-              <p className="text-xs text-grey-500 mt-1">No pending spend requests require your attention.</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+              <CheckCircle2 size={40} className="text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-900 mb-1">All caught up</p>
+              <p className="text-sm text-slate-500">No pending spend requests require your attention.</p>
             </div>
           ) : (
             <div className="divide-y divide-grey-50">
@@ -378,13 +376,13 @@ export default function AgentsOverviewPage() {
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => handleDeny(req.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-grey-200 text-xs font-medium text-grey-500 hover:border-danger hover:text-danger transition-colors"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-500 hover:border-red-300 hover:text-red-600 transition-colors"
                     >
                       <X size={12} /> Deny
                     </button>
                     <button
                       onClick={() => handleApprove(req.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal-dark transition-colors shadow-sm"
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors"
                     >
                       <Check size={12} /> Approve
                     </button>
@@ -396,8 +394,8 @@ export default function AgentsOverviewPage() {
         </div>
 
         {/* Recent agent messages — 40% */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-6 py-4 border-b border-grey-100">
+        <div className="col-span-2 border border-slate-200 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-2 px-6 py-4 border-b border-slate-200">
             <Bot size={15} className="text-teal" />
             <h2 className="text-sm font-semibold text-dark">Agent Messages</h2>
             <span className="ml-auto flex items-center gap-1 text-[10px] font-medium text-green-dark bg-green-light px-2 py-0.5 rounded-full">

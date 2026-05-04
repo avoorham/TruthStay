@@ -54,7 +54,7 @@ export default function MarketingAgentPage() {
       />
 
       {/* ── Agent status card ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-teal-bg flex items-center justify-center">
@@ -113,7 +113,7 @@ export default function MarketingAgentPage() {
       </div>
 
       {/* ── Decision log ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Decision log</h2>
         </div>
@@ -142,7 +142,7 @@ export default function MarketingAgentPage() {
       </div>
 
       {/* ── Monthly performance comparison ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Monthly performance</h2>
         </div>

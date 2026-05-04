@@ -81,7 +81,7 @@ export default function ContactsPage() {
         <select
           value={row.original.priority ?? "normal"}
           onChange={e => updateContact(row.original.id, { priority: e.target.value })}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
@@ -94,7 +94,7 @@ export default function ContactsPage() {
         <select
           value={row.original.status}
           onChange={e => updateContact(row.original.id, { status: e.target.value })}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
@@ -114,7 +114,7 @@ export default function ContactsPage() {
               updateContact(row.original.id, { assigned_to: val || null });
             }
           }}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 w-24 focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 w-24 text-slate-700 focus:outline-none focus:border-slate-400"
         />
       ),
     },
@@ -139,7 +139,7 @@ export default function ContactsPage() {
           { label: "In progress",   value: openCount,    color: openCount > 0 ? "text-warning" : "text-dark",     icon: Mail },
           { label: "Resolved",      value: resolvedCount,color: "text-green-dark",                                icon: CheckCircle2 },
         ].map(({ label, value, color, icon: Icon }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
+          <div key={label} className="border border-slate-200 rounded-lg p-5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-grey-50 flex items-center justify-center shrink-0">
               <Icon size={16} className="text-grey-500" />
             </div>
@@ -152,11 +152,11 @@ export default function ContactsPage() {
       </div>
 
       {/* Status tabs */}
-      <div className="flex gap-0 border-b border-grey-300">
+      <div className="flex gap-0 border-b border-slate-200">
         {["all", ...STATUSES].map(s => (
           <button key={s} onClick={() => setStatusFilter(s)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px capitalize ${
-              statusFilter === s ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"
+              statusFilter === s ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}>
             {s.replace(/_/g, " ")}
             {s === "new" && newCount > 0 && (
@@ -177,7 +177,7 @@ export default function ContactsPage() {
             const c = contacts.find(x => x.id === expanded);
             if (!c) return null;
             return (
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 -mt-2">
+              <div className="border border-slate-200 rounded-lg p-5 -mt-2">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-semibold text-dark">{c.name || c.email}</p>
@@ -185,16 +185,16 @@ export default function ContactsPage() {
                   </div>
                   <button onClick={() => setExpanded(null)} className="text-grey-400 hover:text-dark text-xl leading-none">×</button>
                 </div>
-                <div className="bg-grey-50 rounded-xl p-4">
-                  <p className="text-sm text-grey-700 leading-relaxed whitespace-pre-wrap">{c.message}</p>
+                <div className="bg-slate-50 rounded-md p-4">
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{c.message}</p>
                 </div>
                 <div className="flex gap-2 mt-4">
                   <a href={`mailto:${c.email}`}
-                    className="flex items-center gap-1.5 text-sm font-medium bg-blue text-white px-4 py-2 rounded-xl hover:bg-blue-dark transition">
+                    className="flex items-center gap-1.5 text-sm font-medium bg-teal-500 text-white px-4 py-2 rounded-md hover:bg-teal-600 transition">
                     <Mail size={13} /> Reply by email
                   </a>
                   <button onClick={() => updateContact(c.id, { status: "resolved" })}
-                    className="flex items-center gap-1.5 text-sm font-medium border border-teal/30 text-teal-dark bg-teal-light px-4 py-2 rounded-xl hover:bg-teal-light transition">
+                    className="flex items-center gap-1.5 text-sm font-medium border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded-md hover:bg-slate-50 transition">
                     <CheckCircle2 size={13} /> Mark resolved
                   </button>
                 </div>

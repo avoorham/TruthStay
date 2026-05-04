@@ -13,7 +13,8 @@ import { colors, fonts, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../
 import {
   getPublicAdventures, getPublicRestaurants, getPublicActivities,
   bookmarkAdventure, unbookmarkAdventure, forkAdventure,
-  type PublicAdventureRow,
+  type PublicAdventureRow, type ExploreContentEntry,
+  getExploreContentEntries,
 } from "../../../lib/api";
 import { ALL_LOCATIONS } from "../../../lib/locationData";
 
@@ -1460,6 +1461,38 @@ function MapPin({ category }: { category: string }) {
   );
 }
 
+function AccommodationPin({ selected }: { selected?: boolean }) {
+  return (
+    <View style={[pillStyles.contentPin, { backgroundColor: selected ? "#059669" : "#10B981" }]}>
+      <MaterialCommunityIcons name="bed" size={14} color="#FFFFFF" />
+    </View>
+  );
+}
+
+function ActivityEntryPin({ activityType, selected }: { activityType?: string | null; selected?: boolean }) {
+  const icon = activityType === "cycling" ? "bike"
+    : activityType === "hiking" ? "hiking"
+    : activityType === "trail_running" ? "run"
+    : activityType === "climbing" ? "carabiner"
+    : activityType === "kayaking" ? "kayaking"
+    : activityType === "skiing" ? "ski"
+    : activityType === "snowboarding" ? "snowboard"
+    : "run-fast";
+  return (
+    <View style={[pillStyles.contentPin, { backgroundColor: selected ? "#1D4ED8" : "#3B82F6" }]}>
+      <MaterialCommunityIcons name={icon as any} size={14} color="#FFFFFF" />
+    </View>
+  );
+}
+
+function RestaurantPin({ selected }: { selected?: boolean }) {
+  return (
+    <View style={[pillStyles.contentPin, { backgroundColor: selected ? "#D97706" : "#F59E0B" }]}>
+      <MaterialCommunityIcons name="silverware-fork-knife" size={14} color="#FFFFFF" />
+    </View>
+  );
+}
+
 // ─── Adventure card (impressions tile) ────────────────────────────────────────
 
 function AdventureCard({
@@ -1725,10 +1758,135 @@ function POICard({ pin }: { pin: POIPin }) {
   );
 }
 
+// ─── Content entry cards ──────────────────────────────────────────────────────
+
+function AccommodationCard({ entry }: { entry: ExploreContentEntry }) {
+  const data = entry.data as any;
+  const priceRange  = data?.priceRange   ?? data?.price_range   ?? null;
+  const propType    = data?.propertyType ?? data?.property_type ?? data?.type ?? null;
+  const highlights  = (data?.highlights  ?? data?.amenities     ?? []) as string[];
+  const trustScore  = entry.trust_score ?? 0;
+  const sourceCount = data?.sourceCount  ?? data?.source_count  ?? null;
+
+  return (
+    <View style={ceCardStyles.card}>
+      <View style={[ceCardStyles.iconHeader, { backgroundColor: "#10B981" }]}>
+        <MaterialCommunityIcons name="bed" size={36} color="rgba(255,255,255,0.9)" />
+        {!!priceRange && <Text style={ceCardStyles.priceTag}>{priceRange}</Text>}
+      </View>
+      <View style={ceCardStyles.body}>
+        <Text style={ceCardStyles.title} numberOfLines={2}>{entry.name}</Text>
+        <View style={ceCardStyles.metaRow}>
+          <Feather name="map-pin" size={11} color={colors.muted} />
+          <Text style={ceCardStyles.meta}>{entry.region}</Text>
+          {!!propType && <Text style={ceCardStyles.meta}>· {propType}</Text>}
+        </View>
+        {highlights.length > 0 && (
+          <View style={ceCardStyles.tagsRow}>
+            {highlights.slice(0, 3).map((h: string, i: number) => (
+              <View key={i} style={ceCardStyles.tag}>
+                <Text style={ceCardStyles.tagText}>{h}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={ceCardStyles.scoreRow}>
+          <MaterialCommunityIcons name="star" size={12} color="#F59E0B" />
+          <Text style={ceCardStyles.scoreText}>{trustScore.toFixed(1)}</Text>
+          {sourceCount != null && (
+            <Text style={ceCardStyles.sourceText}> · {sourceCount} sources</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function ActivityCard({ entry }: { entry: ExploreContentEntry }) {
+  const data        = entry.data as any;
+  const distanceKm  = data?.distanceKm    ?? data?.distance_km    ?? null;
+  const elevationM  = data?.elevationM    ?? data?.elevation_m    ?? null;
+  const difficulty  = data?.difficulty    ?? null;
+  const trustScore  = entry.trust_score   ?? 0;
+  const sourceCount = data?.sourceCount   ?? data?.source_count   ?? null;
+
+  return (
+    <View style={ceCardStyles.card}>
+      <View style={[ceCardStyles.iconHeader, { backgroundColor: "#3B82F6" }]}>
+        <MaterialCommunityIcons name="run-fast" size={36} color="rgba(255,255,255,0.9)" />
+        {!!difficulty && <Text style={ceCardStyles.priceTag}>{difficulty}</Text>}
+      </View>
+      <View style={ceCardStyles.body}>
+        <Text style={ceCardStyles.title} numberOfLines={2}>{entry.name}</Text>
+        <View style={ceCardStyles.metaRow}>
+          <Feather name="map-pin" size={11} color={colors.muted} />
+          <Text style={ceCardStyles.meta}>{entry.region}</Text>
+          {!!entry.activity_type && <Text style={ceCardStyles.meta}>· {entry.activity_type.replace("_", " ")}</Text>}
+        </View>
+        <View style={ceCardStyles.metaRow}>
+          {distanceKm != null && <Text style={ceCardStyles.meta}>{distanceKm} km</Text>}
+          {elevationM != null && <Text style={ceCardStyles.meta}> · ↑{elevationM} m</Text>}
+        </View>
+        <View style={ceCardStyles.scoreRow}>
+          <MaterialCommunityIcons name="star" size={12} color="#F59E0B" />
+          <Text style={ceCardStyles.scoreText}>{trustScore.toFixed(1)}</Text>
+          {sourceCount != null && (
+            <Text style={ceCardStyles.sourceText}> · {sourceCount} sources</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function RestaurantCard({ entry }: { entry: ExploreContentEntry }) {
+  const data        = entry.data as any;
+  const cuisine     = data?.cuisine       ?? data?.cuisineType    ?? entry.activity_type ?? null;
+  const priceRange  = data?.priceRange    ?? data?.price_range    ?? null;
+  const highlights  = (data?.highlights   ?? data?.amenities      ?? []) as string[];
+  const trustScore  = entry.trust_score   ?? 0;
+  const sourceCount = data?.sourceCount   ?? data?.source_count   ?? null;
+
+  return (
+    <View style={ceCardStyles.card}>
+      <View style={[ceCardStyles.iconHeader, { backgroundColor: "#F59E0B" }]}>
+        <MaterialCommunityIcons name="silverware-fork-knife" size={36} color="rgba(255,255,255,0.9)" />
+        {!!priceRange && <Text style={ceCardStyles.priceTag}>{priceRange}</Text>}
+      </View>
+      <View style={ceCardStyles.body}>
+        <Text style={ceCardStyles.title} numberOfLines={2}>{entry.name}</Text>
+        <View style={ceCardStyles.metaRow}>
+          <Feather name="map-pin" size={11} color={colors.muted} />
+          <Text style={ceCardStyles.meta}>{entry.region}</Text>
+          {!!cuisine && <Text style={ceCardStyles.meta}>· {cuisine}</Text>}
+        </View>
+        {highlights.length > 0 && (
+          <View style={ceCardStyles.tagsRow}>
+            {highlights.slice(0, 3).map((h: string, i: number) => (
+              <View key={i} style={ceCardStyles.tag}>
+                <Text style={ceCardStyles.tagText}>{h}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <View style={ceCardStyles.scoreRow}>
+          <MaterialCommunityIcons name="star" size={12} color="#F59E0B" />
+          <Text style={ceCardStyles.scoreText}>{trustScore.toFixed(1)}</Text>
+          {sourceCount != null && (
+            <Text style={ceCardStyles.sourceText}> · {sourceCount} sources</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
+
 // ─── Impressions sheet ────────────────────────────────────────────────────────
 
 function ImpressionsSheet({
   adventures, savedIds, onToggleSaved, onCardPress, impressionsY, poiPins, mapMode,
+  filterCategory, contentEntries, loadingContentEntries,
+  onContentEntryPress,
 }: {
   adventures: Adventure[];
   savedIds: Set<string>;
@@ -1737,6 +1895,10 @@ function ImpressionsSheet({
   impressionsY: Animated.Value;
   poiPins: POIPin[];
   mapMode: "adventures" | "pois";
+  filterCategory: FilterCategory;
+  contentEntries: ExploreContentEntry[];
+  loadingContentEntries: boolean;
+  onContentEntryPress: (entry: ExploreContentEntry) => void;
 }) {
   const insets = useSafeAreaInsets();
   const snapStateRef = useRef<"peek" | "half" | "expanded">("peek");
@@ -1779,10 +1941,19 @@ function ImpressionsSheet({
   }), [impressionsY]);
 
   const isPOIMode = mapMode === "pois";
-  const cat       = poiPins[0] ? ACTIVITY_CATEGORIES.find(c => c.key === poiPins[0].category) : null;
-  const countLabel = isPOIMode
-    ? `${poiPins.length} ${cat?.label.toLowerCase() ?? "results"}`
+  const isContentMode = filterCategory !== "vacations" && !isPOIMode;
+
+  const countLabel = isContentMode
+    ? loadingContentEntries
+      ? "Loading…"
+      : `${contentEntries.length} ${filterCategory === "accommodations" ? "accommodations" : filterCategory === "activities" ? "activities" : "restaurants"}`
+    : isPOIMode
+    ? `${poiPins.length} ${(poiPins[0] ? ACTIVITY_CATEGORIES.find(c => c.key === poiPins[0].category)?.label.toLowerCase() : null) ?? "results"}`
     : `${adventures.length} public ${adventures.length === 1 ? "itinerary" : "itineraries"}`;
+
+  const typeLabel = filterCategory === "accommodations" ? "accommodations"
+    : filterCategory === "activities" ? "activities"
+    : "restaurants";
 
   return (
     <Animated.View style={[impStyles.sheet, { transform: [{ translateY: impressionsY }] }]}>
@@ -1791,7 +1962,39 @@ function ImpressionsSheet({
         <Text style={impStyles.countLabel}>{countLabel}</Text>
       </View>
 
-      {isPOIMode ? (
+      {isContentMode ? (
+        loadingContentEntries ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 40 }}>
+            <ActivityIndicator size="small" color={colors.accent} />
+          </View>
+        ) : contentEntries.length === 0 ? (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingBottom: 40, gap: 8 }}>
+            <Feather name="map-pin" size={28} color={colors.border} />
+            <Text style={{ fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.text, textAlign: "center" }}>
+              No {typeLabel} found in this area
+            </Text>
+            <Text style={{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textAlign: "center", lineHeight: 18 }}>
+              Try zooming out or searching a different region.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={contentEntries}
+            keyExtractor={e => e.id}
+            showsVerticalScrollIndicator={false}
+            snapToInterval={CE_CARD_H + 16}
+            decelerationRate="fast"
+            contentContainerStyle={[impStyles.listContent, { paddingBottom: insets.bottom + 24 }]}
+            renderItem={({ item }) => (
+              <TouchableOpacity onPress={() => onContentEntryPress(item)} activeOpacity={0.9}>
+                {filterCategory === "accommodations" && <AccommodationCard entry={item} />}
+                {filterCategory === "activities"     && <ActivityCard      entry={item} />}
+                {filterCategory === "restaurants"    && <RestaurantCard    entry={item} />}
+              </TouchableOpacity>
+            )}
+          />
+        )
+      ) : isPOIMode ? (
         <FlatList
           data={poiPins}
           keyExtractor={p => p.id}
@@ -1881,6 +2084,11 @@ export default function ExploreScreen() {
   const [searchQuery, setSearchQuery]   = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
 
+  // Content entries (for accommodations / activities / restaurants filter)
+  const [contentEntries, setContentEntries]               = useState<ExploreContentEntry[]>([]);
+  const [loadingContentEntries, setLoadingContentEntries] = useState(false);
+  const contentEntriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const sheetY      = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const impressionsY = useRef(new Animated.Value(SNAP_PEEK)).current;
 
@@ -1893,6 +2101,31 @@ export default function ExploreScreen() {
   }, []);
 
   useEffect(() => { loadAdventures(); }, [loadAdventures]);
+
+  const loadContentEntries = useCallback((category: FilterCategory, bounds?: [[number, number], [number, number]]) => {
+    if (category === "vacations") { setContentEntries([]); return; }
+    const type = category === "accommodations" ? "accommodation"
+      : category === "activities" ? "route"
+      : "restaurant";
+    let boundsOpts: { north: number; south: number; east: number; west: number } | undefined;
+    if (bounds) {
+      const [[maxLng, maxLat], [minLng, minLat]] = bounds;
+      boundsOpts = { north: maxLat, south: minLat, east: maxLng, west: minLng };
+    }
+    setLoadingContentEntries(true);
+    getExploreContentEntries({ type, bounds: boundsOpts })
+      .then(entries => { setContentEntries(entries); setLoadingContentEntries(false); })
+      .catch(() => { setContentEntries([]); setLoadingContentEntries(false); });
+  }, []);
+
+  useEffect(() => {
+    if (filters.filterCategory !== "vacations") {
+      loadContentEntries(filters.filterCategory, mapBounds ?? undefined);
+    } else {
+      setContentEntries([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.filterCategory]);
 
   const handleFilterOpen = useCallback(async () => {
     setFilterOpen(true);
@@ -2115,6 +2348,12 @@ export default function ExploreScreen() {
               setMapBounds(b);
               const [[maxLng, maxLat], [minLng, minLat]] = b;
               setMapCentre([(maxLng + minLng) / 2, (maxLat + minLat) / 2]);
+              if (filters.filterCategory !== "vacations") {
+                if (contentEntriesTimer.current) clearTimeout(contentEntriesTimer.current);
+                contentEntriesTimer.current = setTimeout(() => {
+                  loadContentEntries(filters.filterCategory, b);
+                }, 350);
+              }
             }
           }, 150);
         }}
@@ -2177,6 +2416,47 @@ export default function ExploreScreen() {
             anchor={{ x: 0.5, y: 0.5 }}
           >
             <MapPin category={pin.category} />
+          </PointAnnotation>
+        ))}
+
+        {/* Content entry pins — accommodations / activities / restaurants */}
+        {mapMode === "adventures" && filters.filterCategory === "accommodations" && contentEntries.map(e => (
+          <PointAnnotation
+            key={`ce-${e.id}`}
+            id={`ce-${e.id}`}
+            coordinate={e.coords}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onSelected={() => {
+              cameraRef.current?.setCamera({ centerCoordinate: e.coords, zoomLevel: Math.max(zoom, 8), animationDuration: 400 });
+            }}
+          >
+            <AccommodationPin />
+          </PointAnnotation>
+        ))}
+        {mapMode === "adventures" && filters.filterCategory === "activities" && contentEntries.map(e => (
+          <PointAnnotation
+            key={`ce-${e.id}`}
+            id={`ce-${e.id}`}
+            coordinate={e.coords}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onSelected={() => {
+              cameraRef.current?.setCamera({ centerCoordinate: e.coords, zoomLevel: Math.max(zoom, 8), animationDuration: 400 });
+            }}
+          >
+            <ActivityEntryPin activityType={e.activity_type} />
+          </PointAnnotation>
+        ))}
+        {mapMode === "adventures" && filters.filterCategory === "restaurants" && contentEntries.map(e => (
+          <PointAnnotation
+            key={`ce-${e.id}`}
+            id={`ce-${e.id}`}
+            coordinate={e.coords}
+            anchor={{ x: 0.5, y: 0.5 }}
+            onSelected={() => {
+              cameraRef.current?.setCamera({ centerCoordinate: e.coords, zoomLevel: Math.max(zoom, 8), animationDuration: 400 });
+            }}
+          >
+            <RestaurantPin />
           </PointAnnotation>
         ))}
       </MapView>
@@ -2262,6 +2542,31 @@ export default function ExploreScreen() {
       </View>
 
 
+      {/* Category filter pills — always visible */}
+      <View style={[styles.categoryPillsWrap, { top: insets.top + spacing.sm + 46 }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryPillsContent}
+        >
+          {FILTER_CATEGORIES.map(cat => {
+            const isActive = filters.filterCategory === cat.key;
+            return (
+              <TouchableOpacity
+                key={cat.key}
+                style={[styles.categoryPill, isActive && styles.categoryPillActive]}
+                onPress={() => setFilters(f => ({ ...f, filterCategory: cat.key }))}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <FilterSheet
         visible={filterOpen}
         filters={filters}
@@ -2326,6 +2631,14 @@ export default function ExploreScreen() {
         impressionsY={impressionsY}
         poiPins={visiblePOIPins}
         mapMode={mapMode}
+        filterCategory={filters.filterCategory}
+        contentEntries={contentEntries}
+        loadingContentEntries={loadingContentEntries}
+        onContentEntryPress={(entry) => {
+          if (entry.coords) {
+            cameraRef.current?.setCamera({ centerCoordinate: entry.coords, zoomLevel: Math.max(zoom, 10), animationDuration: 400 });
+          }
+        }}
       />
 
       <AdventureExpandedModal
@@ -2408,6 +2721,42 @@ const styles = StyleSheet.create({
   categoryChipText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
   categoryChipTextActive: { color: "#FFFFFF" },
 
+  categoryPillsWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 48,
+  },
+  categoryPillsContent: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+    paddingVertical: 2,
+  },
+  categoryPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  categoryPillActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  categoryPillText: {
+    fontFamily: fonts.sansSemiBold,
+    fontSize: fontSize.sm,
+    color: colors.text,
+  },
+  categoryPillTextActive: {
+    color: colors.inverse,
+  },
   filterBtnWrap: { position: "absolute", right: spacing.md },
   filterBtn: {
     flexDirection: "row",
@@ -2603,6 +2952,62 @@ const pillStyles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  contentPin: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2.5,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+});
+
+const CE_CARD_H = 200;
+
+const ceCardStyles = StyleSheet.create({
+  card: {
+    width: CARD_W,
+    borderRadius: radius.xl,
+    backgroundColor: colors.card,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  iconHeader: {
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 12,
+  },
+  priceTag: {
+    fontFamily: fonts.sansBold,
+    fontSize: fontSize.sm,
+    color: "#FFFFFF",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  body: { padding: spacing.md, gap: 6 },
+  title: { fontFamily: fonts.display, fontSize: fontSize.base, color: colors.text, letterSpacing: -0.2 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  meta: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  tagsRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  tag: { backgroundColor: colors.inputBg, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  tagText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  scoreRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  scoreText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.text },
+  sourceText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
 });
 
 const filterStyles = StyleSheet.create({

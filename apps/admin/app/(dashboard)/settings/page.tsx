@@ -85,37 +85,37 @@ export default function SettingsPage() {
         description="Manage who has access to the admin dashboard and their permissions."
         actions={
           <button onClick={() => setShowAdd(!showAdd)}
-            className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
             <UserPlus size={14} /> Add admin
           </button>
         }
       />
 
       {showAdd && (
-        <form onSubmit={handleAddAdmin} className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
+        <form onSubmit={handleAddAdmin} className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
           <h3 className="font-display font-semibold text-dark text-sm flex items-center gap-2"><Shield size={14} /> Grant admin access</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">User email *</label>
               <input required type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@example.com"
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Role *</label>
               <select value={newRole} onChange={(e) => setNewRole(e.target.value)}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400">
                 {ROLES.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase())}</option>)}
               </select>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="submit" className="bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">Grant access</button>
+            <button type="submit" className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">Grant access</button>
             <button type="button" onClick={() => setShowAdd(false)} className="text-sm text-grey-700 px-4 py-2 hover:text-dark">Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-3 mb-2">
+      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3 mb-2">
         <h3 className="font-display font-semibold text-dark text-sm">Role permissions</h3>
         <div className="grid grid-cols-2 gap-2 text-xs text-grey-700">
           {[

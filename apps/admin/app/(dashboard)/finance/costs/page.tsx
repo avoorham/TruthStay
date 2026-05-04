@@ -14,11 +14,11 @@ export default function FinanceCostsPage() {
           </Link>
         }
       />
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 flex flex-col items-center justify-center text-center">
+      <div className="border border-slate-200 rounded-lg p-16 flex flex-col items-center justify-center text-center">
         <p className="text-3xl mb-3">⚡</p>
         <h2 className="text-lg font-semibold text-dark mb-2">Infrastructure costs are in the CFO</h2>
         <p className="text-sm text-grey-500 max-w-sm mb-5">Detailed infrastructure and API cost tracking, including usage meters, is in the CFO Command Centre under Infrastructure.</p>
-        <Link href="/agents/cfo" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm">
+        <Link href="/agents/cfo" className="flex items-center gap-2 px-4 py-2 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors">
           CFO Command Centre <ArrowRight size={14} />
         </Link>
       </div>

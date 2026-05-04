@@ -121,14 +121,14 @@ export default function CFOSettingsPage() {
           <div className="flex items-center gap-2">
             <Link
               href="/agents/cfo"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
               <ArrowLeft size={14} /> Back to CFO
             </Link>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-2 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-60"
             >
               {saved
                 ? <><CheckCircle2 size={15} /> Saved</>
@@ -154,7 +154,7 @@ export default function CFOSettingsPage() {
       <div className="space-y-8">
 
         {/* Budget controls */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-grey-100 bg-grey-50">
             <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest">Budget controls</p>
           </div>
@@ -171,7 +171,7 @@ export default function CFOSettingsPage() {
                   min="0"
                   value={settings.monthlyBurnBudget}
                   onChange={e => update("monthlyBurnBudget", Number(e.target.value))}
-                  className="flex-1 text-sm font-mono text-dark bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
+                  className="flex-1 text-sm font-mono text-slate-900 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-slate-400"
                 />
                 <span className="text-xs text-grey-400 whitespace-nowrap">/ month</span>
               </div>
@@ -214,7 +214,7 @@ export default function CFOSettingsPage() {
                   max="50"
                   value={settings.autoApproveThreshold}
                   onChange={e => update("autoApproveThreshold", Number(e.target.value))}
-                  className="flex-1 text-sm font-mono text-dark bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
+                  className="flex-1 text-sm font-mono text-slate-900 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 focus:outline-none focus:border-slate-400"
                 />
               </div>
               <p className="text-xs text-grey-400 mt-1.5">
@@ -225,7 +225,7 @@ export default function CFOSettingsPage() {
         </div>
 
         {/* Scenario controls */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-grey-100 bg-grey-50">
             <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest">Weekly scenarios</p>
           </div>
@@ -237,7 +237,7 @@ export default function CFOSettingsPage() {
               <select
                 value={settings.weeklyScenarioAutoApply}
                 onChange={e => update("weeklyScenarioAutoApply", e.target.value as CFOSettings["weeklyScenarioAutoApply"])}
-                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
               >
                 <option value="optimistic">🟢 Optimistic</option>
                 <option value="base">🟡 Base (recommended)</option>
@@ -252,7 +252,7 @@ export default function CFOSettingsPage() {
               <select
                 value={settings.scenarioGenerationDay}
                 onChange={e => update("scenarioGenerationDay", Number(e.target.value))}
-                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
               >
                 {DAYS_OF_WEEK.map((day, i) => (
                   <option key={day} value={i}>{day}{i === 0 ? " (default)" : ""}</option>
@@ -263,7 +263,7 @@ export default function CFOSettingsPage() {
         </div>
 
         {/* Plan & forecast controls */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-grey-100 bg-grey-50">
             <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest">Monthly plan &amp; forecasts</p>
           </div>
@@ -275,7 +275,7 @@ export default function CFOSettingsPage() {
               <select
                 value={settings.planApprovalDeadline}
                 onChange={e => update("planApprovalDeadline", Number(e.target.value))}
-                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
               >
                 {DAYS_OF_MONTH.slice(0, 15).map(d => (
                   <option key={d} value={d}>{d}{d === 3 ? " (default)" : ""}  of the month</option>
@@ -290,7 +290,7 @@ export default function CFOSettingsPage() {
               <select
                 value={settings.forecastHorizon}
                 onChange={e => update("forecastHorizon", Number(e.target.value))}
-                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
               >
                 {[1, 2, 3, 6, 9, 12].map(m => (
                   <option key={m} value={m}>{m} month{m > 1 ? "s" : ""}{m === 3 ? " (default)" : ""}</option>
@@ -301,7 +301,7 @@ export default function CFOSettingsPage() {
         </div>
 
         {/* Danger zone */}
-        <div className="bg-white rounded-2xl border border-danger/20 shadow-sm overflow-hidden">
+        <div className="border border-red-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-danger/10 bg-danger-light/40">
             <p className="text-xs font-semibold text-danger uppercase tracking-widest">Danger zone</p>
           </div>
@@ -329,14 +329,14 @@ export default function CFOSettingsPage() {
       <div className="mt-8 flex items-center justify-end gap-3 pt-6 border-t border-slate-200">
         <Link
           href="/agents/cfo"
-          className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:bg-slate-50 transition-colors"
+          className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
         >
           Cancel
         </Link>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm disabled:opacity-60"
+          className="flex items-center gap-2 px-6 py-2.5 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-60"
         >
           {saved
             ? <><CheckCircle2 size={15} /> Saved</>

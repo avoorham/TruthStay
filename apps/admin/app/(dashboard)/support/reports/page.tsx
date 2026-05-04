@@ -66,7 +66,7 @@ export default function ReportsPage() {
         {["all", ...STATUSES].map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-3 py-1.5 text-xs font-medium rounded-md capitalize transition ${
-              filter === s ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+              filter === s ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
             }`}>
             {s}
             {s === "new" && newCount > 0 && (
@@ -80,16 +80,14 @@ export default function ReportsPage() {
         <div className="text-center py-20 text-grey-500 text-sm">Loading…</div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-14 h-14 rounded-full bg-green-light flex items-center justify-center mb-3">
-            <CheckCircle2 size={22} className="text-green-dark" />
-          </div>
-          <p className="text-sm font-medium text-dark mb-1">All clear!</p>
-          <p className="text-xs text-grey-500">No reports with this status.</p>
+          <CheckCircle2 size={28} className="text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-900 mb-1">All clear!</p>
+          <p className="text-xs text-slate-500">No reports with this status.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map(report => (
-            <div key={report.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div key={report.id} className="border border-slate-200 rounded-lg p-5">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 rounded-full bg-danger-light flex items-center justify-center text-lg shrink-0">
                   {TYPE_ICON[report.report_type] ?? "❓"}
@@ -111,7 +109,7 @@ export default function ReportsPage() {
                     <span className="text-xs text-grey-400 shrink-0">{formatDateTime(report.created_at)}</span>
                   </div>
 
-                  <div className="mt-3 bg-grey-50 rounded-xl p-3">
+                  <div className="mt-3 bg-slate-50 rounded-md p-3">
                     <p className="text-xs font-semibold text-grey-500 uppercase tracking-wide mb-1">Reason</p>
                     <p className="text-sm text-grey-700 leading-relaxed">{report.reason}</p>
                   </div>
@@ -128,15 +126,15 @@ export default function ReportsPage() {
                         value={notes} onChange={e => setNotes(e.target.value)}
                         placeholder="Resolution notes (optional)…"
                         rows={2}
-                        className="w-full border border-grey-300 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:border-blue/60"
+                        className="w-full border border-slate-200 rounded-md px-3 py-2 text-xs resize-none focus:outline-none "
                       />
                       <div className="flex gap-2">
                         <button onClick={() => updateStatus(report.id, "resolved", notes)}
-                          className="flex items-center gap-1 bg-teal text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-teal-dark transition">
+                          className="flex items-center gap-1 bg-teal-500 text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-teal-600 transition">
                           <CheckCircle2 size={11} /> Resolve
                         </button>
                         <button onClick={() => updateStatus(report.id, "dismissed", notes)}
-                          className="flex items-center gap-1 border border-grey-300 text-grey-700 text-xs px-3 py-1.5 rounded-lg hover:bg-grey-100 transition">
+                          className="flex items-center gap-1 border border-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-md hover:bg-slate-50 transition">
                           <XCircle size={11} /> Dismiss
                         </button>
                         <button onClick={() => { setResolving(null); setNotes(""); }}
@@ -148,18 +146,18 @@ export default function ReportsPage() {
                       <div className="mt-3 flex gap-2">
                         {report.status === "new" && (
                           <button onClick={() => updateStatus(report.id, "acknowledged")}
-                            className="flex items-center gap-1 text-xs font-medium border border-grey-300 text-grey-700 px-3 py-1.5 rounded-lg hover:bg-grey-100 transition">
+                            className="flex items-center gap-1 text-xs font-medium border border-slate-200 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 transition">
                             <Flag size={11} /> Acknowledge
                           </button>
                         )}
                         {report.status !== "investigating" && (
                           <button onClick={() => updateStatus(report.id, "investigating")}
-                            className="flex items-center gap-1 text-xs font-medium border border-warning/30 text-warning bg-warning-light px-3 py-1.5 rounded-lg hover:bg-warning-light transition">
+                            className="flex items-center gap-1 text-xs font-medium border border-warning/30 text-warning bg-warning-light px-3 py-1.5 rounded-md hover:bg-warning-light transition">
                             Investigate
                           </button>
                         )}
                         <button onClick={() => setResolving(report.id)}
-                          className="flex items-center gap-1 text-xs font-medium text-teal border border-teal/30 bg-teal-light px-3 py-1.5 rounded-lg hover:bg-teal-light transition">
+                          className="flex items-center gap-1 text-xs font-medium text-teal-600 border border-teal-200 bg-teal-50 px-3 py-1.5 rounded-md hover:bg-teal-100 transition">
                           <CheckCircle2 size={11} /> Resolve / Dismiss
                         </button>
                       </div>

@@ -637,7 +637,7 @@ function RouteConnectModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 function StopCard({
   day, adventureId, stopNumber, isLast, review, onRate, onComment, onConnectRoute, photos, onAddPhoto, onShare,
-  onMoveUp, onMoveDown, onDraggingChange, onDragMove,
+  onMoveUp, onMoveDown, onDraggingChange, onDragMove, deleteZoneThreshold,
 }: {
   day: AdventureDayRow;
   adventureId: string;
@@ -653,7 +653,8 @@ function StopCard({
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDraggingChange?: (v: boolean) => void;
-  onDragMove?: (dy: number) => void;
+  onDragMove?: (dy: number, moveY: number) => void;
+  deleteZoneThreshold?: number;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -664,8 +665,8 @@ function StopCard({
   const THRESHOLD      = 60;
   const LONG_PRESS_MS  = 400;
 
-  const cbStop = useRef({ onMoveUp, onMoveDown, onDraggingChange, onDragMove });
-  cbStop.current = { onMoveUp, onMoveDown, onDraggingChange, onDragMove };
+  const cbStop = useRef({ onMoveUp, onMoveDown, onDraggingChange, onDragMove, deleteZoneThreshold });
+  cbStop.current = { onMoveUp, onMoveDown, onDraggingChange, onDragMove, deleteZoneThreshold };
 
   const stopPan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -690,7 +691,7 @@ function StopCard({
       }
       // Route tile only moves vertically
       cardPan.setValue({ x: 0, y: g.dy });
-      cbStop.current.onDragMove?.(g.dy);
+      cbStop.current.onDragMove?.(g.dy, g.moveY);
     },
 
     onPanResponderRelease: (_, g) => {
@@ -699,6 +700,11 @@ function StopCard({
       isDraggingRef.current = false;
       setIsDragging(false);
       cbStop.current.onDraggingChange?.(false);
+      // If dropped on delete zone skip normal reorder
+      if (cbStop.current.deleteZoneThreshold && g.moveY > cbStop.current.deleteZoneThreshold) {
+        Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+        return;
+      }
       if (g.dy < -THRESHOLD) cbStop.current.onMoveUp?.();
       else if (g.dy > THRESHOLD) cbStop.current.onMoveDown?.();
       Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
@@ -779,7 +785,7 @@ function StopCard({
 
 // ─── Accommodation tile ───────────────────────────────────────────────────────
 
-function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, onMovedToDay, onAddPhoto, onPreviewDay, onMoveUp, onMoveDown, onDraggingChange, onDragMove }: {
+function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, onMovedToDay, onAddPhoto, onPreviewDay, onMoveUp, onMoveDown, onDraggingChange, onDragMove, deleteZoneThreshold }: {
   accomOpt: { name: string; price_per_night_eur?: number; booking_url?: string } | null;
   meta: TripMeta;
   adventureId: string;
@@ -791,7 +797,8 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDraggingChange?: (v: boolean) => void;
-  onDragMove?: (dy: number) => void;
+  onDragMove?: (dy: number, moveY: number) => void;
+  deleteZoneThreshold?: number;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -811,12 +818,12 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
 
   const cbAccom = useRef({
     onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "accommodation", 0),
-    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove,
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove, deleteZoneThreshold,
     disabled: totalDays <= 1,
   });
   cbAccom.current = {
     onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "accommodation", 0),
-    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove,
+    onMoveUp, onMoveDown, onDraggingChange, onPreviewDay, onDragMove, deleteZoneThreshold,
     disabled: totalDays <= 1,
   };
 
@@ -844,7 +851,7 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
         return;
       }
       cardPan.setValue({ x: g.dx, y: g.dy });
-      cbAccom.current.onDragMove?.(g.dy);
+      cbAccom.current.onDragMove?.(g.dy, g.moveY);
       const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
       const nearLeft  = g.moveX < EDGE_ZONE;
       const nearRight = g.moveX > SCREEN_W - EDGE_ZONE;
@@ -877,6 +884,13 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
       isDraggingRef.current = false;
       setIsDragging(false);
       cbAccom.current.onDraggingChange?.(false);
+      // If dropped on delete zone skip normal reorder/day-move
+      if (cbAccom.current.deleteZoneThreshold && g.moveY > cbAccom.current.deleteZoneThreshold) {
+        previewDayRef.current = dayNumber;
+        dayRepeatRef.current = false;
+        Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+        return;
+      }
       if (previewDayRef.current !== dayNumber) {
         cbAccom.current.onDragToDay(previewDayRef.current);
       } else {
@@ -970,7 +984,7 @@ function AccommodationCard({ accomOpt, meta, adventureId, dayNumber, totalDays, 
 
 // ─── Restaurant tile ──────────────────────────────────────────────────────────
 
-function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMovedToDay, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay, onDraggingChange, onDragMove }: {
+function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, onMovedToDay, isLast, onMoveUp, onMoveDown, onAddPhoto, onPreviewDay, onDraggingChange, onDragMove, deleteZoneThreshold }: {
   restaurant: RestaurantStop;
   adventureId: string;
   idx: number;
@@ -983,7 +997,8 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   onAddPhoto?: () => void;
   onPreviewDay?: (dir: "left" | "right") => void;
   onDraggingChange?: (v: boolean) => void;
-  onDragMove?: (dy: number) => void;
+  onDragMove?: (dy: number, moveY: number) => void;
+  deleteZoneThreshold?: number;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const cardPan = useRef(new Animated.ValueXY()).current;
@@ -1004,13 +1019,13 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
   const cbRest = useRef({
     onMoveUp, onMoveDown,
     onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "restaurant", idx),
-    onDraggingChange, onPreviewDay, onDragMove,
+    onDraggingChange, onPreviewDay, onDragMove, deleteZoneThreshold,
     disabled: totalDays <= 1,
   });
   cbRest.current = {
     onMoveUp, onMoveDown,
     onDragToDay: (targetDay: number) => onMovedToDay(dayNumber, targetDay, "restaurant", idx),
-    onDraggingChange, onPreviewDay, onDragMove,
+    onDraggingChange, onPreviewDay, onDragMove, deleteZoneThreshold,
     disabled: totalDays <= 1,
   };
 
@@ -1038,7 +1053,7 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
         return;
       }
       cardPan.setValue({ x: g.dx, y: g.dy });
-      cbRest.current.onDragMove?.(g.dy);
+      cbRest.current.onDragMove?.(g.dy, g.moveY);
       const isHoriz = Math.abs(g.dx) >= Math.abs(g.dy);
       const nearLeft  = g.moveX < EDGE_ZONE;
       const nearRight = g.moveX > SCREEN_W - EDGE_ZONE;
@@ -1071,6 +1086,13 @@ function RestaurantCard({ restaurant, adventureId, idx, dayNumber, totalDays, on
       isDraggingRef.current = false;
       setIsDragging(false);
       cbRest.current.onDraggingChange?.(false);
+      // If dropped on delete zone skip normal reorder/day-move
+      if (cbRest.current.deleteZoneThreshold && g.moveY > cbRest.current.deleteZoneThreshold) {
+        previewDayRef.current = dayNumber;
+        dayRepeatRef.current = false;
+        Animated.spring(cardPan, { toValue: { x: 0, y: 0 }, useNativeDriver: false }).start();
+        return;
+      }
       if (previewDayRef.current !== dayNumber) {
         cbRest.current.onDragToDay(previewDayRef.current);
       } else {
@@ -2035,15 +2057,18 @@ const ITEM_TYPES: { id: ItemType; label: string; icon: string }[] = [
 function AddItemModal({
   dayNumber,
   adventureId,
+  adventureRegion,
   onSave,
   onClose,
 }: {
   dayNumber: number;
   adventureId: string;
+  adventureRegion?: string;
   onSave: (item: import("../../../lib/api").CustomItem) => void;
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const [mode, setMode]         = useState<"pick" | "discover" | "manual">("pick");
   const [selectedType, setSelectedType] = useState<ItemType>("activity");
   const [link, setLink]         = useState("");
   const [scraping, setScraping] = useState(false);
@@ -2054,6 +2079,11 @@ function AddItemModal({
   const [photos, setPhotos]     = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving]     = useState(false);
+  // Discover chat state
+  const [discoverQuery, setDiscoverQuery] = useState("");
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverResult, setDiscoverResult] = useState<{ name: string; type: ItemType; description: string; location: string } | null>(null);
+  const [discoverError, setDiscoverError] = useState("");
 
   async function handleScrape() {
     const url = link.trim();
@@ -2078,6 +2108,49 @@ function AddItemModal({
     } finally {
       setScraping(false);
     }
+  }
+
+  async function handleDiscover() {
+    if (!discoverQuery.trim()) return;
+    setDiscoverLoading(true);
+    setDiscoverError("");
+    setDiscoverResult(null);
+    try {
+      const regionCtx = adventureRegion ? ` in ${adventureRegion}` : "";
+      const prompt = `I'm planning a trip${regionCtx} and want to add something to Day ${dayNumber} of my itinerary. ${discoverQuery.trim()}. Suggest ONE specific place. Respond ONLY with valid JSON (no other text): {"name":"...","type":"stay|restaurant|activity","description":"...","location":"..."}`;
+      const { sendChatMessage } = await import("../../../lib/api");
+      const result = await sendChatMessage([{ role: "user", content: prompt }]);
+      // Parse JSON from response
+      const text: string = typeof result === "string" ? result : (result.message ?? result.content ?? JSON.stringify(result));
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("no JSON");
+      const parsed = JSON.parse(jsonMatch[0]) as { name?: string; type?: string; description?: string; location?: string };
+      const validTypes: ItemType[] = ["stay", "restaurant", "activity"];
+      setDiscoverResult({
+        name: parsed.name ?? "Suggested place",
+        type: (validTypes.includes(parsed.type as ItemType) ? parsed.type : "activity") as ItemType,
+        description: parsed.description ?? "",
+        location: parsed.location ?? "",
+      });
+    } catch {
+      setDiscoverError("Couldn't get a suggestion. Try rephrasing or add manually.");
+    } finally {
+      setDiscoverLoading(false);
+    }
+  }
+
+  function handleAddDiscoverResult() {
+    if (!discoverResult) return;
+    onSave({
+      id: `custom_${Date.now()}`,
+      name: discoverResult.name,
+      type: discoverResult.type,
+      location: discoverResult.location || null,
+      notes: discoverResult.description || null,
+      photos: [],
+      rating: null,
+      sourceUrl: null,
+    });
   }
 
   async function handleAddPhoto() {
@@ -2115,134 +2188,241 @@ function AddItemModal({
         <View style={[addItemStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={addItemStyles.handle} />
           <View style={addItemStyles.headerRow}>
-            <Text style={addItemStyles.title}>Add to Day {dayNumber}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Feather name="x" size={20} color={colors.muted} />
+            <TouchableOpacity onPress={mode === "pick" ? onClose : () => setMode("pick")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name={mode === "pick" ? "x" : "arrow-left"} size={20} color={colors.muted} />
             </TouchableOpacity>
+            <Text style={addItemStyles.title}>
+              {mode === "pick" ? `Add to Day ${dayNumber}` : mode === "discover" ? "Ask Discover" : "Add Manually"}
+            </Text>
+            <View style={{ width: 28 }} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Type selector */}
-            <View style={addItemStyles.typeRow}>
-              {ITEM_TYPES.map(t => (
-                <TouchableOpacity
-                  key={t.id}
-                  style={[addItemStyles.typeBtn, selectedType === t.id && addItemStyles.typeBtnActive]}
-                  onPress={() => setSelectedType(t.id)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={addItemStyles.typeIcon}>{t.icon}</Text>
-                  <Text style={[addItemStyles.typeLabel, selectedType === t.id && addItemStyles.typeLabelActive]}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* URL scraper */}
-            <Text style={addItemStyles.label}>Link (optional)</Text>
-            <View style={addItemStyles.linkRow}>
-              <TextInput
-                style={[addItemStyles.input, { flex: 1 }]}
-                value={link}
-                onChangeText={setLink}
-                placeholder="Paste a URL to auto-fill…"
-                placeholderTextColor={colors.subtle}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-              <TouchableOpacity
-                style={[addItemStyles.fetchBtn, scraping && { opacity: 0.5 }]}
-                onPress={handleScrape}
-                disabled={scraping}
-              >
-                {scraping
-                  ? <ActivityIndicator size="small" color={colors.inverse} />
-                  : <Text style={addItemStyles.fetchText}>Fetch</Text>
-                }
+          {/* ── Picker screen ── */}
+          {mode === "pick" && (
+            <View style={addItemStyles.pickerScreen}>
+              <Text style={addItemStyles.pickerSubtitle}>How do you want to add a place?</Text>
+              <TouchableOpacity style={addItemStyles.pickerOptionDiscover} onPress={() => setMode("discover")} activeOpacity={0.85}>
+                <View style={addItemStyles.pickerOptionIcon}>
+                  <MaterialCommunityIcons name="robot-outline" size={22} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={addItemStyles.pickerOptionTitle}>Ask Discover</Text>
+                  <Text style={addItemStyles.pickerOptionSub}>Let AI suggest a place based on your query</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+              <TouchableOpacity style={addItemStyles.pickerOptionManual} onPress={() => setMode("manual")} activeOpacity={0.85}>
+                <View style={[addItemStyles.pickerOptionIcon, { backgroundColor: colors.sheet }]}>
+                  <Feather name="edit-3" size={20} color={colors.text} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[addItemStyles.pickerOptionTitle, { color: colors.text }]}>Add Manually</Text>
+                  <Text style={[addItemStyles.pickerOptionSub, { color: colors.muted }]}>Fill in the details yourself</Text>
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.muted} />
               </TouchableOpacity>
             </View>
+          )}
 
-            {/* Name */}
-            <Text style={addItemStyles.label}>Name *</Text>
-            <TextInput
-              style={addItemStyles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="e.g. Rifugio Auronzo"
-              placeholderTextColor={colors.subtle}
-            />
-
-            {/* Location */}
-            <Text style={addItemStyles.label}>Location</Text>
-            <TextInput
-              style={addItemStyles.input}
-              value={location}
-              onChangeText={setLocation}
-              placeholder="e.g. Cortina d'Ampezzo"
-              placeholderTextColor={colors.subtle}
-            />
-
-            {/* Photo picker */}
-            <Text style={addItemStyles.label}>Photos</Text>
-            <View style={addItemStyles.photoRow}>
-              {photos.map((url, i) => (
-                <Image key={i} source={{ uri: url }} style={addItemStyles.photoThumb} />
-              ))}
+          {/* ── Discover chat screen ── */}
+          {mode === "discover" && (
+            <View style={addItemStyles.discoverScreen}>
+              <Text style={addItemStyles.discoverHint}>
+                Ask for a specific type of place, e.g. "find me a cosy restaurant near the old town" or "suggest a morning hike under 3 hours"
+              </Text>
+              <View style={addItemStyles.discoverInputRow}>
+                <TextInput
+                  style={addItemStyles.discoverInput}
+                  value={discoverQuery}
+                  onChangeText={setDiscoverQuery}
+                  placeholder="What are you looking for?"
+                  placeholderTextColor={colors.subtle}
+                  multiline
+                  maxLength={200}
+                  onSubmitEditing={handleDiscover}
+                />
+              </View>
               <TouchableOpacity
-                style={[addItemStyles.addPhotoBtn, uploading && { opacity: 0.5 }]}
-                onPress={handleAddPhoto}
-                disabled={uploading}
+                style={[addItemStyles.discoverBtn, (!discoverQuery.trim() || discoverLoading) && { opacity: 0.5 }]}
+                onPress={handleDiscover}
+                disabled={!discoverQuery.trim() || discoverLoading}
+                activeOpacity={0.85}
               >
-                {uploading
-                  ? <ActivityIndicator size="small" color={colors.muted} />
-                  : <Feather name="camera" size={20} color={colors.muted} />
+                {discoverLoading
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <>
+                      <MaterialCommunityIcons name="robot-outline" size={16} color="#FFFFFF" />
+                      <Text style={addItemStyles.discoverBtnText}>Find a place</Text>
+                    </>
                 }
               </TouchableOpacity>
+
+              {discoverError !== "" && (
+                <Text style={addItemStyles.discoverError}>{discoverError}</Text>
+              )}
+
+              {discoverResult && (
+                <View style={addItemStyles.discoverCard}>
+                  <View style={addItemStyles.discoverCardHeader}>
+                    <Text style={addItemStyles.discoverCardEmoji}>
+                      {discoverResult.type === "restaurant" ? "🍽️" : discoverResult.type === "stay" ? "🏨" : "🏃"}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={addItemStyles.discoverCardName}>{discoverResult.name}</Text>
+                      {discoverResult.location !== "" && (
+                        <Text style={addItemStyles.discoverCardLocation}>📍 {discoverResult.location}</Text>
+                      )}
+                    </View>
+                  </View>
+                  {discoverResult.description !== "" && (
+                    <Text style={addItemStyles.discoverCardDesc}>{discoverResult.description}</Text>
+                  )}
+                  <View style={addItemStyles.discoverCardActions}>
+                    <TouchableOpacity style={addItemStyles.discoverCardEdit} onPress={() => {
+                      setName(discoverResult.name);
+                      setSelectedType(discoverResult.type);
+                      setLocation(discoverResult.location);
+                      setNotes(discoverResult.description);
+                      setMode("manual");
+                    }}>
+                      <Text style={addItemStyles.discoverCardEditText}>Edit first</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={addItemStyles.discoverCardAdd} onPress={handleAddDiscoverResult} activeOpacity={0.85}>
+                      <Text style={addItemStyles.discoverCardAddText}>Add to Day {dayNumber}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
+          )}
 
-            {/* Notes */}
-            <Text style={addItemStyles.label}>Notes</Text>
-            <TextInput
-              style={[addItemStyles.input, { minHeight: 70, textAlignVertical: "top" }]}
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Any notes or tips…"
-              placeholderTextColor={colors.subtle}
-              multiline
-            />
+          {/* ── Manual form screen ── */}
+          {mode === "manual" && (
+            <>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {/* Type selector */}
+                <View style={addItemStyles.typeRow}>
+                  {ITEM_TYPES.map(t => (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={[addItemStyles.typeBtn, selectedType === t.id && addItemStyles.typeBtnActive]}
+                      onPress={() => setSelectedType(t.id)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={addItemStyles.typeIcon}>{t.icon}</Text>
+                      <Text style={[addItemStyles.typeLabel, selectedType === t.id && addItemStyles.typeLabelActive]}>
+                        {t.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
 
-            {/* Star rating */}
-            <Text style={addItemStyles.label}>Rating</Text>
-            <View style={addItemStyles.starRow}>
-              {[1, 2, 3, 4, 5].map(n => (
-                <TouchableOpacity key={n} onPress={() => setRating(n)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <MaterialCommunityIcons
-                    name={n <= rating ? "star" : "star-outline"}
-                    size={28}
-                    color={n <= rating ? "#F59E0B" : colors.border}
+                {/* URL scraper */}
+                <Text style={addItemStyles.label}>Link (optional)</Text>
+                <View style={addItemStyles.linkRow}>
+                  <TextInput
+                    style={[addItemStyles.input, { flex: 1 }]}
+                    value={link}
+                    onChangeText={setLink}
+                    placeholder="Paste a URL to auto-fill…"
+                    placeholderTextColor={colors.subtle}
+                    autoCapitalize="none"
+                    keyboardType="url"
                   />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
+                  <TouchableOpacity
+                    style={[addItemStyles.fetchBtn, scraping && { opacity: 0.5 }]}
+                    onPress={handleScrape}
+                    disabled={scraping}
+                  >
+                    {scraping
+                      ? <ActivityIndicator size="small" color={colors.inverse} />
+                      : <Text style={addItemStyles.fetchText}>Fetch</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
 
-          {/* Actions */}
-          <View style={addItemStyles.actionRow}>
-            <TouchableOpacity style={addItemStyles.cancelBtn} onPress={onClose}>
-              <Text style={addItemStyles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[addItemStyles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator color={colors.inverse} size="small" />
-                : <Text style={addItemStyles.saveText}>Add to Day {dayNumber}</Text>
-              }
-            </TouchableOpacity>
-          </View>
+                {/* Name */}
+                <Text style={addItemStyles.label}>Name *</Text>
+                <TextInput
+                  style={addItemStyles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="e.g. Rifugio Auronzo"
+                  placeholderTextColor={colors.subtle}
+                />
+
+                {/* Location */}
+                <Text style={addItemStyles.label}>Location</Text>
+                <TextInput
+                  style={addItemStyles.input}
+                  value={location}
+                  onChangeText={setLocation}
+                  placeholder="e.g. Cortina d'Ampezzo"
+                  placeholderTextColor={colors.subtle}
+                />
+
+                {/* Photo picker */}
+                <Text style={addItemStyles.label}>Photos</Text>
+                <View style={addItemStyles.photoRow}>
+                  {photos.map((url, i) => (
+                    <Image key={i} source={{ uri: url }} style={addItemStyles.photoThumb} />
+                  ))}
+                  <TouchableOpacity
+                    style={[addItemStyles.addPhotoBtn, uploading && { opacity: 0.5 }]}
+                    onPress={handleAddPhoto}
+                    disabled={uploading}
+                  >
+                    {uploading
+                      ? <ActivityIndicator size="small" color={colors.muted} />
+                      : <Feather name="camera" size={20} color={colors.muted} />
+                    }
+                  </TouchableOpacity>
+                </View>
+
+                {/* Notes */}
+                <Text style={addItemStyles.label}>Notes</Text>
+                <TextInput
+                  style={[addItemStyles.input, { minHeight: 70, textAlignVertical: "top" }]}
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Any notes or tips…"
+                  placeholderTextColor={colors.subtle}
+                  multiline
+                />
+
+                {/* Star rating */}
+                <Text style={addItemStyles.label}>Rating</Text>
+                <View style={addItemStyles.starRow}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <TouchableOpacity key={n} onPress={() => setRating(n)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <MaterialCommunityIcons
+                        name={n <= rating ? "star" : "star-outline"}
+                        size={28}
+                        color={n <= rating ? "#F59E0B" : colors.border}
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* Actions */}
+              <View style={addItemStyles.actionRow}>
+                <TouchableOpacity style={addItemStyles.cancelBtn} onPress={() => setMode("pick")}>
+                  <Text style={addItemStyles.cancelText}>Back</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[addItemStyles.saveBtn, saving && { opacity: 0.6 }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving
+                    ? <ActivityIndicator color={colors.inverse} size="small" />
+                    : <Text style={addItemStyles.saveText}>Add to Day {dayNumber}</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -2300,6 +2480,61 @@ const addItemStyles = StyleSheet.create({
     backgroundColor: colors.accent, alignItems: "center",
   },
   saveText: { color: colors.inverse, fontWeight: "700", fontSize: fontSize.sm },
+  // Picker screen
+  pickerScreen: { paddingVertical: spacing.md, gap: spacing.sm },
+  pickerSubtitle: { fontSize: fontSize.sm, color: colors.muted, textAlign: "center", marginBottom: spacing.xs },
+  pickerOptionDiscover: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.accent, borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  pickerOptionManual: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: colors.sheet, borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1.5, borderColor: colors.border,
+  },
+  pickerOptionIcon: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center", justifyContent: "center",
+  },
+  pickerOptionTitle: { fontSize: fontSize.base, fontWeight: "700", color: "#FFFFFF" },
+  pickerOptionSub: { fontSize: fontSize.xs, color: "rgba(255,255,255,0.8)", marginTop: 2 },
+  // Discover screen
+  discoverScreen: { paddingVertical: spacing.sm, gap: spacing.sm },
+  discoverHint: { fontSize: fontSize.xs, color: colors.muted, lineHeight: 18, marginBottom: spacing.xs },
+  discoverInputRow: { gap: spacing.xs },
+  discoverInput: {
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.sm, paddingVertical: 10,
+    fontSize: fontSize.base, color: colors.text, minHeight: 60, textAlignVertical: "top",
+  },
+  discoverBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    backgroundColor: colors.accent, borderRadius: radius.full, paddingVertical: 13,
+  },
+  discoverBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.sm },
+  discoverError: { fontSize: fontSize.sm, color: "#E53E3E", textAlign: "center", marginTop: spacing.xs },
+  discoverCard: {
+    borderWidth: 1.5, borderColor: colors.accent + "44", borderRadius: radius.lg,
+    backgroundColor: colors.accentLight, padding: spacing.md, gap: spacing.sm, marginTop: spacing.xs,
+  },
+  discoverCardHeader: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  discoverCardEmoji: { fontSize: 28 },
+  discoverCardName: { fontWeight: "700", fontSize: fontSize.base, color: colors.text },
+  discoverCardLocation: { fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
+  discoverCardDesc: { fontSize: fontSize.sm, color: colors.muted, lineHeight: 18 },
+  discoverCardActions: { flexDirection: "row", gap: spacing.sm },
+  discoverCardEdit: {
+    flex: 1, paddingVertical: 10, borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border, alignItems: "center",
+  },
+  discoverCardEditText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  discoverCardAdd: {
+    flex: 2, paddingVertical: 10, borderRadius: radius.full,
+    backgroundColor: colors.accent, alignItems: "center",
+  },
+  discoverCardAddText: { fontSize: fontSize.sm, fontWeight: "700", color: "#FFFFFF" },
 });
 
 // ─── Custom item card ─────────────────────────────────────────────────────────
@@ -2316,7 +2551,7 @@ const CUSTOM_TYPE_EMOJI: Record<ItemType, string> = {
   activity: "🏃",
 };
 
-function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem }) {
+function CustomItemCard({ item, onDeleteConfirm }: { item: import("../../../lib/api").CustomItem; onDeleteConfirm?: () => void }) {
   const tileColor = CUSTOM_TYPE_COLOR[item.type as ItemType] ?? colors.muted;
   const typeEmoji = CUSTOM_TYPE_EMOJI[item.type as ItemType] ?? "📍";
   return (
@@ -2330,11 +2565,19 @@ function CustomItemCard({ item }: { item: import("../../../lib/api").CustomItem 
         </View>
       )}
       <View style={tileStyles.info}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <View style={{ backgroundColor: tileColor + "22", borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={{ fontSize: 11 }}>{typeEmoji}</Text>
-            <Text style={{ fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: tileColor }}>{item.type.charAt(0).toUpperCase() + item.type.slice(1)}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View style={{ backgroundColor: tileColor + "22", borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Text style={{ fontSize: 11 }}>{typeEmoji}</Text>
+              <Text style={{ fontFamily: fonts.sansMedium, fontSize: fontSize.xs, color: tileColor }}>{item.type.charAt(0).toUpperCase() + item.type.slice(1)}</Text>
+            </View>
+            <Text style={{ fontSize: 10, color: colors.subtle }}>Added by you</Text>
           </View>
+          {onDeleteConfirm && (
+            <TouchableOpacity onPress={onDeleteConfirm} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="trash-2" size={14} color={colors.subtle} />
+            </TouchableOpacity>
+          )}
         </View>
         <Text style={tileStyles.title}>{item.name}</Text>
         {item.location ? (
@@ -2383,15 +2626,23 @@ export default function TripDetailScreen() {
   const [addItemDay, setAddItemDay]       = useState<number | null>(null);
   const [swipeEnabled, setSwipeEnabled]   = useState(true);
   const [localTileOrder, setLocalTileOrder] = useState<Record<number, TileId[]>>({});
+  const [anyDragging, setAnyDragging]     = useState(false);
+  const [dragOverDelete, setDragOverDelete] = useState(false);
+  const [toast, setToast]                 = useState("");
   const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
   const heroCarouselRef = useRef<FlatList<AdventureRow>>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipScrollRef   = useRef(false);
   const heroOffset      = useRef(new Animated.Value(0)).current;
+  const toastTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragOverDeleteRef = useRef(false);
+  const draggedTileInfoRef = useRef<{ dayNumber: number; tileId: string; tileName: string } | null>(null);
   // Hover-push drag tracking
   const tileHeightsRef    = useRef<Record<string, number>>({});
   const dragBaseOrderRef  = useRef<Record<number, TileId[]>>({});
   const lastHoverSlotRef  = useRef<Record<number, number>>({});
+
+  const DELETE_ZONE_Y = SCREEN_H - 140;
 
   // Must be before any early return — Rules of Hooks
   const sortedDays = React.useMemo(
@@ -2613,6 +2864,12 @@ export default function TripDetailScreen() {
     }
   }
 
+  function showToast(msg: string) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(""), 3000);
+  }
+
   async function handleAddItem(dayNumber: number, item: CustomItem) {
     if (!adventure) return;
     const day = adventure.adventure_days.find(d => d.dayNumber === dayNumber);
@@ -2620,6 +2877,16 @@ export default function TripDetailScreen() {
     const existing: CustomItem[] = (day.alternatives?.customItems ?? []) as CustomItem[];
     const updated = [...existing, item];
     await updateDayCustomItems(adventure.id, dayNumber, updated);
+    // Also write to content_entries for admin review (non-fatal)
+    Promise.resolve(supabase.from("content_entries").insert({
+      name: item.name,
+      type: item.type,
+      description: item.notes ?? null,
+      source_url: item.sourceUrl ?? null,
+      source_type: "user",
+      verified: false,
+      location: item.location ?? null,
+    })).catch(() => {/* non-fatal */});
     // Update local state so the new tile appears instantly
     setAdventure(prev => {
       if (!prev) return prev;
@@ -2633,6 +2900,47 @@ export default function TripDetailScreen() {
       };
     });
     setAddItemDay(null);
+    showToast("Added to your itinerary! This place will be reviewed before appearing in public recommendations.");
+  }
+
+  function handleDeleteTileConfirm(dayNumber: number, tileId: string, tileName: string) {
+    Alert.alert(
+      `Delete ${tileName}?`,
+      `Are you sure you want to remove ${tileName} from your itinerary?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Yes, Delete", style: "destructive", onPress: () => doDeleteTile(dayNumber, tileId, tileName) },
+      ],
+    );
+  }
+
+  async function doDeleteTile(dayNumber: number, tileId: string, tileName: string) {
+    if (!adventure) return;
+    if (tileId.startsWith("custom_")) {
+      const dayRow = adventure.adventure_days.find(d => d.dayNumber === dayNumber);
+      if (!dayRow) return;
+      const existing: CustomItem[] = (dayRow.alternatives?.customItems ?? []) as CustomItem[];
+      const updated = existing.filter(item => item.id !== tileId);
+      setAdventure(prev => prev ? {
+        ...prev,
+        adventure_days: prev.adventure_days.map(d =>
+          d.dayNumber === dayNumber
+            ? { ...d, alternatives: { ...(d.alternatives ?? {}), customItems: updated } }
+            : d,
+        ),
+      } : prev);
+      updateDayCustomItems(adventure.id, dayNumber, updated).catch(() => {});
+    } else {
+      // Remove AI tile from the display order
+      const dayRestaurants = meta.restaurants.filter(r => r.night === dayNumber);
+      const stored = (adventure.adventure_days.find(d => d.dayNumber === dayNumber)
+        ?.alternatives as { tileOrder?: TileId[] } | null)?.tileOrder;
+      const current: TileId[] = localTileOrder[dayNumber] ?? stored ?? defaultTileOrder(dayNumber, dayRestaurants);
+      const next = current.filter(t => t !== tileId);
+      setLocalTileOrder(prev => ({ ...prev, [dayNumber]: next }));
+      updateTileOrder(adventure.id, dayNumber, next).catch(() => {});
+    }
+    showToast(`${tileName} removed from itinerary`);
   }
 
   function defaultTileOrder(dayNum: number, restaurants: RestaurantStop[]): TileId[] {
@@ -2930,13 +3238,26 @@ export default function TripDetailScreen() {
                 const isLast  = orderIdx === tileOrder.length - 1;
                 const tileKey = `${day.dayNumber}:${tileId}`;
 
-                // Shared onDraggingChange: disable swipe + capture base order for hover-push
+                // Shared onDraggingChange: disable swipe + capture base order + set global drag state
                 const handleDraggingChange = (active: boolean) => {
                   setSwipeEnabled(!active);
+                  setAnyDragging(active);
                   if (active) {
                     dragBaseOrderRef.current[day.dayNumber] = [...tileOrder];
                     lastHoverSlotRef.current[day.dayNumber] = orderIdx;
                   } else {
+                    // Check if ended over delete zone (via ref to avoid stale closure)
+                    if (dragOverDeleteRef.current && draggedTileInfoRef.current) {
+                      const { dayNumber: dn, tileId: tid, tileName: tname } = draggedTileInfoRef.current;
+                      dragOverDeleteRef.current = false;
+                      draggedTileInfoRef.current = null;
+                      setDragOverDelete(false);
+                      handleDeleteTileConfirm(dn, tid, tname);
+                    } else {
+                      dragOverDeleteRef.current = false;
+                      draggedTileInfoRef.current = null;
+                      setDragOverDelete(false);
+                    }
                     delete dragBaseOrderRef.current[day.dayNumber];
                     delete lastHoverSlotRef.current[day.dayNumber];
                   }
@@ -2963,7 +3284,14 @@ export default function TripDetailScreen() {
                         onMoveUp={canUp ? () => moveTile(day.dayNumber, "route", "up") : undefined}
                         onMoveDown={canDown ? () => moveTile(day.dayNumber, "route", "down") : undefined}
                         onDraggingChange={handleDraggingChange}
-                        onDragMove={dy => handleTileDragMove(day.dayNumber, "route", dy)}
+                        onDragMove={(dy, moveY) => {
+                          handleTileDragMove(day.dayNumber, "route", dy);
+                          const over = moveY > DELETE_ZONE_Y;
+                          dragOverDeleteRef.current = over;
+                          draggedTileInfoRef.current = { dayNumber: day.dayNumber, tileId: "route", tileName: day.title };
+                          setDragOverDelete(over);
+                        }}
+                        deleteZoneThreshold={DELETE_ZONE_Y}
                       />
                     </View>
                   );
@@ -2990,7 +3318,14 @@ export default function TripDetailScreen() {
                         onMoveUp={canUp ? () => moveTile(day.dayNumber, "accommodation", "up") : undefined}
                         onMoveDown={canDown ? () => moveTile(day.dayNumber, "accommodation", "down") : undefined}
                         onDraggingChange={handleDraggingChange}
-                        onDragMove={dy => handleTileDragMove(day.dayNumber, "accommodation", dy)}
+                        onDragMove={(dy, moveY) => {
+                          handleTileDragMove(day.dayNumber, "accommodation", dy);
+                          const over = moveY > DELETE_ZONE_Y;
+                          dragOverDeleteRef.current = over;
+                          draggedTileInfoRef.current = { dayNumber: day.dayNumber, tileId: "accommodation", tileName: dayAccomOpt.name };
+                          setDragOverDelete(over);
+                        }}
+                        deleteZoneThreshold={DELETE_ZONE_Y}
                       />
                     </View>
                   );
@@ -3018,7 +3353,14 @@ export default function TripDetailScreen() {
                         onMoveUp={canUp ? () => moveTile(day.dayNumber, tileId, "up") : undefined}
                         onMoveDown={canDown ? () => moveTile(day.dayNumber, tileId, "down") : undefined}
                         onDraggingChange={handleDraggingChange}
-                        onDragMove={dy => handleTileDragMove(day.dayNumber, tileId, dy)}
+                        onDragMove={(dy, moveY) => {
+                          handleTileDragMove(day.dayNumber, tileId, dy);
+                          const over = moveY > DELETE_ZONE_Y;
+                          dragOverDeleteRef.current = over;
+                          draggedTileInfoRef.current = { dayNumber: day.dayNumber, tileId, tileName: r.name };
+                          setDragOverDelete(over);
+                        }}
+                        deleteZoneThreshold={DELETE_ZONE_Y}
                       />
                     </View>
                   );
@@ -3029,7 +3371,11 @@ export default function TripDetailScreen() {
 
               {/* Custom items added via the "+" button */}
               {((day.alternatives?.customItems ?? []) as CustomItem[]).map(item => (
-                <CustomItemCard key={item.id} item={item} />
+                <CustomItemCard
+                  key={item.id}
+                  item={item}
+                  onDeleteConfirm={() => handleDeleteTileConfirm(day.dayNumber, item.id, item.name)}
+                />
               ))}
 
               {/* Add item button — owners only */}
@@ -3037,10 +3383,10 @@ export default function TripDetailScreen() {
                 <TouchableOpacity
                   style={detailStyles.addItemBtn}
                   onPress={() => setAddItemDay(day.dayNumber)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                 >
-                  <Feather name="plus" size={16} color={colors.muted} />
-                  <Text style={detailStyles.addItemBtnText}>Add activity</Text>
+                  <Feather name="plus-circle" size={16} color="#FFFFFF" />
+                  <Text style={detailStyles.addItemBtnText}>Add</Text>
                 </TouchableOpacity>
               )}
 
@@ -3100,13 +3446,14 @@ export default function TripDetailScreen() {
         <AddItemModal
           dayNumber={addItemDay}
           adventureId={adventure.id}
+          adventureRegion={adventure.region}
           onSave={(item) => handleAddItem(addItemDay, item)}
           onClose={() => setAddItemDay(null)}
         />
       )}
 
       {/* Floating Share to Feed button — only for owner with photos */}
-      {isOwner && Object.values(reviewPhotos).flat().length > 0 && (
+      {isOwner && Object.values(reviewPhotos).flat().length > 0 && !anyDragging && (
         <TouchableOpacity
           style={[detailStyles.shareFeedBtn, { bottom: insets.bottom + 16 }]}
           onPress={handleShareToFeed}
@@ -3115,6 +3462,28 @@ export default function TripDetailScreen() {
           <Feather name="share-2" size={15} color="#fff" />
           <Text style={detailStyles.shareFeedText}>Share to Feed</Text>
         </TouchableOpacity>
+      )}
+
+      {/* Drag-to-delete zone — appears as fixed overlay when any tile is dragging */}
+      {anyDragging && (
+        <View
+          style={[
+            detailStyles.deleteZone,
+            { bottom: insets.bottom + 20 },
+            dragOverDelete && detailStyles.deleteZoneActive,
+          ]}
+          pointerEvents="none"
+        >
+          <Feather name="trash-2" size={20} color="#FFFFFF" />
+          <Text style={detailStyles.deleteZoneText}>Delete</Text>
+        </View>
+      )}
+
+      {/* Toast */}
+      {toast !== "" && (
+        <View style={[detailStyles.toastWrap, { bottom: insets.bottom + 80 }]} pointerEvents="none">
+          <Text style={detailStyles.toastText}>{toast}</Text>
+        </View>
       )}
     </View>
   );
@@ -3194,11 +3563,30 @@ const detailStyles = StyleSheet.create({
   publicBadgeText: { color: colors.accent, fontSize: fontSize.sm, fontWeight: "600" },
   addItemBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: spacing.xs, paddingVertical: 14,
-    borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed",
-    borderRadius: radius.lg, marginBottom: spacing.md,
+    gap: 6, paddingVertical: 14, paddingHorizontal: 32,
+    borderRadius: 99, backgroundColor: colors.accent,
+    alignSelf: "center", marginBottom: spacing.md,
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 }, shadowRadius: 10, shadowOpacity: 0.35, elevation: 4,
   },
-  addItemBtnText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
+  addItemBtnText: { fontSize: fontSize.sm, fontWeight: "700", color: "#FFFFFF" },
+  deleteZone: {
+    position: "absolute", alignSelf: "center", left: "25%", right: "25%",
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: "#EF4444", borderRadius: 99,
+    paddingHorizontal: 28, paddingVertical: 14,
+    shadowColor: "#EF4444", shadowOffset: { width: 0, height: 4 }, shadowRadius: 14, shadowOpacity: 0.5, elevation: 10,
+  },
+  deleteZoneActive: {
+    transform: [{ scale: 1.1 }],
+    shadowOpacity: 0.8, shadowRadius: 20,
+  },
+  deleteZoneText: { color: "#FFFFFF", fontWeight: "700", fontSize: fontSize.sm },
+  toastWrap: {
+    position: "absolute", left: spacing.lg, right: spacing.lg,
+    backgroundColor: "rgba(26,29,35,0.92)", borderRadius: radius.lg,
+    paddingHorizontal: spacing.md, paddingVertical: 12, alignItems: "center",
+  },
+  toastText: { color: "#FFFFFF", fontSize: fontSize.sm, fontWeight: "500", textAlign: "center" },
 });
 
 const tileStyles = StyleSheet.create({

@@ -235,7 +235,7 @@ export default function ContentDetailPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center gap-1.5 border border-grey-300 text-sm font-medium px-3 py-2 rounded-lg hover:bg-grey-100 transition"
+              className="inline-flex items-center gap-1.5 border border-slate-200 text-slate-700 text-sm font-medium px-3 py-2 rounded-md hover:bg-slate-50 transition"
             >
               <ArrowLeft size={14} /> Back
             </button>
@@ -255,7 +255,7 @@ export default function ContentDetailPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition disabled:opacity-50"
             >
               <Save size={14} /> {saving ? "Saving…" : saved ? "Saved!" : "Save"}
             </button>
@@ -275,7 +275,7 @@ export default function ContentDetailPage() {
         <div className="col-span-2 space-y-4">
 
           {/* Editable details */}
-          <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
             <div className="flex items-center gap-2">
               <TypeIcon size={15} className="text-teal-dark" />
               <h2 className="font-display font-semibold text-dark text-sm">Details</h2>
@@ -286,7 +286,7 @@ export default function ContentDetailPage() {
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 focus:ring-2 focus:ring-blue/10"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400"
               />
             </div>
 
@@ -296,7 +296,7 @@ export default function ContentDetailPage() {
                 <input
                   value={region}
                   onChange={e => setRegion(e.target.value)}
-                  className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 focus:ring-2 focus:ring-blue/10"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400"
                 />
               </div>
               <div>
@@ -304,7 +304,7 @@ export default function ContentDetailPage() {
                 <input
                   value={country}
                   onChange={e => setCountry(e.target.value)}
-                  className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 focus:ring-2 focus:ring-blue/10"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400"
                 />
               </div>
             </div>
@@ -315,7 +315,7 @@ export default function ContentDetailPage() {
                 value={activityType}
                 onChange={e => setActivityType(e.target.value)}
                 placeholder="e.g. beach holiday, city break"
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 focus:ring-2 focus:ring-blue/10"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400"
               />
             </div>
 
@@ -325,14 +325,14 @@ export default function ContentDetailPage() {
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 rows={4}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 focus:ring-2 focus:ring-blue/10 resize-none"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400 resize-none"
               />
             </div>
           </div>
 
           {/* Highlights */}
           {highlights.length > 0 && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Star size={14} className="text-warning" />
                 <h2 className="font-display font-semibold text-dark text-sm">Highlights</h2>
@@ -350,7 +350,7 @@ export default function ContentDetailPage() {
 
           {/* Type-specific metadata */}
           {(isRoute || isAccommodation || isRestaurant) && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
               <h2 className="font-display font-semibold text-dark text-sm mb-3">
                 {isRoute ? "Route details" : isAccommodation ? "Accommodation details" : "Restaurant details"}
               </h2>
@@ -387,7 +387,7 @@ export default function ContentDetailPage() {
 
           {/* Sources */}
           {sources.length > 0 && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
               <h2 className="font-display font-semibold text-dark text-sm mb-3">
                 Sources <span className="text-grey-400 font-normal">({sources.length})</span>
               </h2>
@@ -407,7 +407,7 @@ export default function ContentDetailPage() {
 
           {/* Scout reasoning */}
           {scoutReason && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
               <h2 className="font-display font-semibold text-dark text-sm mb-2">Scout reasoning</h2>
               <p className="text-xs text-grey-600 leading-relaxed italic">"{scoutReason}"</p>
             </div>
@@ -415,7 +415,7 @@ export default function ContentDetailPage() {
 
           {/* Raw data dump */}
           {entry.data && (
-            <details className="bg-white border border-grey-300 rounded-xl overflow-hidden">
+            <details className="bg-white border border-slate-200 rounded-lg overflow-hidden">
               <summary className="px-5 py-4 text-sm font-semibold text-grey-700 cursor-pointer select-none hover:bg-slate-50 transition-colors">
                 Raw agent data
               </summary>
@@ -428,7 +428,7 @@ export default function ContentDetailPage() {
 
         {/* ── Sidebar ── */}
         <div className="space-y-4">
-          <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-3">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
             <h2 className="font-display font-semibold text-dark text-sm">Status</h2>
             <div className="flex items-center justify-between">
               <span className="text-xs text-grey-700">Verified</span>
@@ -448,7 +448,7 @@ export default function ContentDetailPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-3">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
             <h2 className="font-display font-semibold text-dark text-sm">Trust score</h2>
             {entry.trust_score != null
               ? <TrustScoreBadge score={entry.trust_score} />
@@ -468,7 +468,7 @@ export default function ContentDetailPage() {
           </div>
 
           {coordinates && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-2">
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-2">
               <div className="flex items-center gap-2">
                 <MapPin size={13} className="text-teal-dark" />
                 <h2 className="font-display font-semibold text-dark text-sm">Location</h2>
@@ -487,7 +487,7 @@ export default function ContentDetailPage() {
             </div>
           )}
 
-          <div className="bg-white border border-grey-300 rounded-xl p-5 space-y-2">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-2">
             <h2 className="font-display font-semibold text-dark text-sm">Timestamps</h2>
             <div className="text-xs text-grey-700 space-y-1">
               <div>Created: <span className="text-dark">{formatDateTime(entry.created_at)}</span></div>
@@ -498,7 +498,7 @@ export default function ContentDetailPage() {
           </div>
 
           {data.agentRunId && (
-            <div className="bg-white border border-grey-300 rounded-xl p-5">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
               <h2 className="font-display font-semibold text-dark text-sm mb-2">Scout run</h2>
               <p className="text-[11px] text-grey-500 font-mono break-all">{String(data.agentRunId)}</p>
             </div>

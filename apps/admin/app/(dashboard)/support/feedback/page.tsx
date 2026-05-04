@@ -101,7 +101,7 @@ export default function FeedbackPage() {
         <select
           value={row.original.admin_status ?? ""}
           onChange={e => updateStatus(row.original.id, e.target.value)}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {FEEDBACK_STATUSES.map(s => (
             <option key={s} value={s}>{s || "pending"}</option>
@@ -127,7 +127,7 @@ export default function FeedbackPage() {
           { label: "Low ratings",  value: String(lowRating),     sub: "1–2 stars" },
           { label: "Needs review", value: String(unresolved),    sub: "unacknowledged" },
         ].map(({ label, value, sub }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div key={label} className="border border-slate-200 rounded-lg p-5">
             <p className="text-xs text-grey-500 mb-1">{label}</p>
             <p className="text-3xl font-bold text-dark tracking-tight">{value}</p>
             <p className="text-xs text-grey-400 mt-0.5">{sub}</p>
@@ -140,12 +140,12 @@ export default function FeedbackPage() {
         <span className="text-xs text-grey-500 font-medium">Filter by rating:</span>
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           <button onClick={() => setRatingFilter(null)}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition ${ratingFilter == null ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"}`}>
+            className={`px-3 py-1 text-xs font-medium rounded-md transition ${ratingFilter == null ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"}`}>
             All
           </button>
           {[1, 2, 3, 4, 5].map(r => (
             <button key={r} onClick={() => setRatingFilter(r)}
-              className={`px-3 py-1 text-xs font-medium rounded-md flex items-center gap-0.5 transition ${ratingFilter === r ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"}`}>
+              className={`px-3 py-1 text-xs font-medium rounded-md flex items-center gap-0.5 transition ${ratingFilter === r ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"}`}>
               {r}<Star size={10} className="fill-current" />
             </button>
           ))}

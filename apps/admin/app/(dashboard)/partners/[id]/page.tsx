@@ -121,23 +121,23 @@ export default function PartnerDetailPage() {
         actions={
           <div className="flex gap-2">
             <button onClick={() => router.back()}
-              className="inline-flex items-center gap-1.5 border border-grey-300 text-grey-700 text-sm font-medium px-3 py-2 rounded-lg hover:bg-grey-100 transition">
+              className="inline-flex items-center gap-1.5 border border-slate-200 text-slate-700 text-sm font-medium px-3 py-2 rounded-md hover:bg-slate-50 transition">
               <ArrowLeft size={14} /> Back
             </button>
             {editing ? (
               <>
                 <button onClick={handleSave} disabled={saving}
-                  className="inline-flex items-center gap-1.5 bg-teal text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-teal-dark transition disabled:opacity-60">
+                  className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-3 py-2 rounded-md hover:bg-teal-600 transition disabled:opacity-60">
                   <Save size={14} /> {saving ? "Saving…" : "Save"}
                 </button>
                 <button onClick={() => setEditing(false)}
-                  className="inline-flex items-center gap-1.5 border border-grey-300 text-grey-700 text-sm px-3 py-2 rounded-lg hover:bg-grey-100 transition">
+                  className="inline-flex items-center gap-1.5 border border-slate-200 text-slate-700 text-sm px-3 py-2 rounded-md hover:bg-slate-50 transition">
                   <X size={14} /> Cancel
                 </button>
               </>
             ) : (
               <button onClick={() => setEditing(true)}
-                className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-blue-dark transition">
+                className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-3 py-2 rounded-md hover:bg-teal-600 transition">
                 <Edit2 size={14} /> Edit
               </button>
             )}
@@ -148,7 +148,7 @@ export default function PartnerDetailPage() {
       {/* ── Profile + KPIs ── */}
       <div className="grid grid-cols-3 gap-6">
         {/* Profile card */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <div className="border border-slate-200 rounded-lg p-6 space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-full bg-blue-light flex items-center justify-center text-blue font-bold text-lg shrink-0">
               {partner.name[0]}
@@ -179,7 +179,7 @@ export default function PartnerDetailPage() {
                   type="number" min="0" max="100" step="0.1"
                   value={editForm.commission_rate}
                   onChange={e => setEditForm(f => ({ ...f, commission_rate: e.target.value }))}
-                  className="w-20 border border-grey-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-blue/60"
+                  className="w-20 border border-slate-200 rounded-md px-2 py-1 text-sm focus:outline-none "
                 />
               ) : (
                 <span>{partner.commission_rate}% commission</span>
@@ -194,7 +194,7 @@ export default function PartnerDetailPage() {
                 <select
                   value={editForm.status}
                   onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                  className="w-full border border-grey-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-blue/60"
+                  className="w-full border border-slate-200 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none "
                 >
                   {["active", "inactive", "suspended", "pending"].map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
@@ -217,7 +217,7 @@ export default function PartnerDetailPage() {
             { label: "Commission earned", value: formatCurrency(totalEarned), sub: "paid", mono: true },
             { label: "Pending payout",    value: formatCurrency(pendingComm), sub: "to be paid", mono: true },
           ].map(({ label, value, sub, mono }) => (
-            <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div key={label} className="border border-slate-200 rounded-lg p-5">
               <p className="text-xs text-grey-500 mb-1">{label}</p>
               <p className={`text-2xl font-bold text-dark tracking-tight ${mono ? "font-mono" : ""}`}>{value}</p>
               <p className="text-xs text-grey-400 mt-0.5">{sub}</p>
@@ -227,7 +227,7 @@ export default function PartnerDetailPage() {
       </div>
 
       {/* ── Revenue chart ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">Commission revenue — last 6 months</h3>
         <div className="h-[220px]">
           {totalBookings === 0 ? (
@@ -250,7 +250,7 @@ export default function PartnerDetailPage() {
       </div>
 
       {/* ── Booking history ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Booking history</h3>
         </div>
@@ -281,7 +281,7 @@ export default function PartnerDetailPage() {
       </div>
 
       {/* ── Notes ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-3">Notes</h3>
         {editing ? (
           <textarea
@@ -289,7 +289,7 @@ export default function PartnerDetailPage() {
             onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
             rows={4}
             placeholder="Add internal notes about this partner…"
-            className="w-full border border-grey-300 rounded-xl px-3 py-2 text-sm text-grey-700 focus:outline-none focus:border-blue/60 resize-none"
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-grey-700 focus:outline-none  resize-none"
           />
         ) : (
           partner.notes

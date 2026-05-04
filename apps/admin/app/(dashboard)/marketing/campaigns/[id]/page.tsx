@@ -91,7 +91,7 @@ function KPI({ label, value, sub, icon: Icon, accent }: {
   icon: React.ElementType; accent: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-grey-200 shadow-sm p-5">
+    <div className="border border-slate-200 rounded-lg p-5">
       <div className="flex items-start justify-between mb-3">
         <p className="text-xs text-grey-500 font-medium">{label}</p>
         <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", accent)}>
@@ -158,7 +158,7 @@ export default function CampaignDetailPage() {
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -188,11 +188,11 @@ export default function CampaignDetailPage() {
             {isDraft && (
               <>
                 <button onClick={() => updateStatus("scheduled")}
-                  className="inline-flex items-center gap-1.5 bg-teal text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-teal-dark transition">
+                  className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
                   <CheckCircle2 size={14} /> Approve &amp; Schedule
                 </button>
                 <button
-                  className="inline-flex items-center gap-1.5 border border-grey-300 text-sm font-semibold text-dark px-3 py-2 rounded-xl hover:bg-grey-50 transition">
+                  className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium text-slate-700 px-3 py-2 rounded-md hover:bg-slate-50 transition">
                   <Edit2 size={13} /> Edit
                 </button>
                 <button onClick={() => updateStatus("cancelled")}
@@ -203,7 +203,7 @@ export default function CampaignDetailPage() {
             )}
             {campaign.status === "scheduled" && (
               <button onClick={() => updateStatus("cancelled")}
-                className="inline-flex items-center gap-1.5 border border-grey-300 text-sm text-grey-500 px-3 py-2 rounded-xl hover:border-danger hover:text-danger transition">
+                className="inline-flex items-center gap-1.5 border border-slate-200 text-sm text-slate-500 px-3 py-2 rounded-md hover:border-danger hover:text-danger transition">
                 Cancel Campaign
               </button>
             )}
@@ -255,7 +255,7 @@ export default function CampaignDetailPage() {
       {isSent && openRateData.length > 0 && (
         <div className="grid grid-cols-5 gap-6">
           {/* Open rate timeline */}
-          <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="col-span-3 border border-slate-200 rounded-lg p-6">
             <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-5">
               Open &amp; click rate — 72 hours after send
             </h2>
@@ -274,7 +274,7 @@ export default function CampaignDetailPage() {
           </div>
 
           {/* Email preview panel */}
-          <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="col-span-2 border border-slate-200 rounded-lg p-6">
             <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Email preview</h2>
             <div className="bg-grey-50 rounded-xl border border-grey-200 p-4 text-xs text-grey-700 space-y-2">
               <p className="font-semibold text-dark text-sm">{campaign.subject || campaign.name}</p>
@@ -284,7 +284,7 @@ export default function CampaignDetailPage() {
                 <p>We noticed you haven't planned an adventure recently and wanted to reach out with some fresh ideas tailored to your interests.</p>
                 <p>Your next unforgettable trip is just a tap away.</p>
                 <div className="mt-3">
-                  <span className="inline-block bg-teal text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">
+                  <span className="inline-block bg-teal-500 text-white text-[11px] font-medium px-3 py-1.5 rounded-md">
                     Explore destinations →
                   </span>
                 </div>
@@ -297,7 +297,7 @@ export default function CampaignDetailPage() {
 
       {/* Non-sent state */}
       {!isSent && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="border border-slate-200 rounded-lg p-6">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Email preview</h2>
           <div className="bg-grey-50 rounded-xl border border-grey-200 p-4 text-xs text-grey-700 space-y-2">
             <p className="font-semibold text-dark text-sm">{campaign.subject || campaign.name}</p>
@@ -306,7 +306,7 @@ export default function CampaignDetailPage() {
               <p>Hi {"{first_name}"},</p>
               <p>We have something exciting to share with you. Check out the latest adventures and destinations on TruthStay.</p>
               <div className="mt-3">
-                <span className="inline-block bg-teal text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg">
+                <span className="inline-block bg-teal-500 text-white text-[11px] font-medium px-3 py-1.5 rounded-md">
                   Explore now →
                 </span>
               </div>
@@ -324,7 +324,7 @@ export default function CampaignDetailPage() {
 
       {/* Recipient table */}
       {isSent && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-grey-100">
             <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Recipients (sample)</h2>
           </div>

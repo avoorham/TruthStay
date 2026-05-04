@@ -131,18 +131,17 @@ function NavItem({
         href={group.href!}
         title={collapsed ? group.label : undefined}
         className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors relative group",
+          "flex items-center py-2 px-3 rounded-md text-sm transition-colors relative group mb-1",
           collapsed && "justify-center px-0",
           isActive
-            ? "text-white bg-white/8"
-            : "text-white/50 hover:text-white/80 hover:bg-white/5"
+            ? "bg-slate-800 text-white border-l-2 border-teal-400"
+            : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
         )}
       >
-        {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-teal rounded-r-full" />}
-        <Icon size={15} className={isActive ? "text-teal shrink-0" : "shrink-0"} />
+        <Icon size={16} className={cn("shrink-0", isActive ? "opacity-100" : "opacity-70", !collapsed && "mr-3")} />
         {!collapsed && <span className="font-medium">{group.label}</span>}
         {collapsed && (
-          <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-grey-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg">
+          <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-slate-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg border border-white/10">
             {group.label}
           </span>
         )}
@@ -151,31 +150,30 @@ function NavItem({
   }
 
   return (
-    <div>
+    <div className="mb-1">
       <button
         onClick={() => { if (!collapsed) setOpen(o => !o); }}
         title={collapsed ? group.label : undefined}
         className={cn(
-          "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors relative group",
+          "w-full flex items-center py-2 px-3 rounded-md text-sm transition-colors relative group",
           collapsed && "justify-center px-0",
           isActive
             ? "text-white"
-            : "text-white/50 hover:text-white/80 hover:bg-white/5"
+            : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
         )}
       >
-        {isActive && !collapsed && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-teal rounded-r-full" />}
-        <Icon size={15} className={isActive ? "text-teal shrink-0" : "shrink-0"} />
+        <Icon size={16} className={cn("shrink-0", isActive ? "opacity-100 text-teal-400" : "opacity-70", !collapsed && "mr-3")} />
         {!collapsed && (
           <>
             <span className="flex-1 text-left font-medium">{group.label}</span>
             <ChevronDown
               size={13}
-              className={cn("text-white/30 transition-transform", open && "rotate-180")}
+              className={cn("text-slate-500 transition-transform", open && "rotate-180")}
             />
           </>
         )}
         {collapsed && (
-          <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-grey-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg">
+          <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-slate-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg border border-white/10">
             {group.label}
           </span>
         )}
@@ -192,8 +190,8 @@ function NavItem({
                 className={cn(
                   "block py-1.5 px-2 rounded-md text-xs transition-colors",
                   childActive
-                    ? "text-white font-medium bg-white/6"
-                    : "text-white/40 hover:text-white/70 hover:bg-white/4"
+                    ? "text-white font-medium bg-slate-800/60"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
                 )}
               >
                 {child.label}
@@ -238,7 +236,7 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
         {!collapsed && (
           <div className="min-w-0">
             <span className="font-display text-sm font-bold text-white tracking-tight block leading-none">truthstay</span>
-            <span className="text-white/35 text-[10px] font-medium tracking-widest uppercase">Admin</span>
+            <span className="text-slate-500 text-[10px] font-medium tracking-widest uppercase">Admin</span>
           </div>
         )}
       </div>
@@ -247,32 +245,31 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
       {!collapsed && (
         <div className="px-3 pt-3 pb-1 shrink-0">
           <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/4 border border-white/6">
-            <div className="w-5 h-5 rounded-full bg-teal/20 flex items-center justify-center shrink-0">
-              <span className="text-teal text-[10px] font-bold leading-none">
+            <div className="w-5 h-5 rounded-full bg-teal-400/20 flex items-center justify-center shrink-0">
+              <span className="text-teal-400 text-[10px] font-bold leading-none">
                 {userEmail[0]?.toUpperCase()}
               </span>
             </div>
-            <span className="text-white/60 text-xs truncate flex-1">{userEmail}</span>
+            <div className="min-w-0 flex-1">
+              <span className="text-white/60 text-xs truncate block">{userEmail}</span>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── Nav sections ── */}
-      <nav className={cn("flex-1 overflow-y-auto py-3 space-y-4", collapsed ? "px-2" : "px-3")}>
+      <nav className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-3")}>
         {NAV_SECTIONS.map((section, si) => (
-          <div key={section.section}>
-            {/* Section label */}
+          <div key={section.section} className={si > 0 ? "mt-8" : ""}>
             {!collapsed && (
-              <p className="px-3 mb-1.5 text-[10px] font-semibold tracking-widest text-white/25 uppercase select-none">
+              <p className="text-[11px] font-medium tracking-widest uppercase text-slate-500 mb-2 px-3 select-none">
                 {section.section}
               </p>
             )}
             {collapsed && si > 0 && (
               <div className="border-t border-white/8 mb-3 mt-1" />
             )}
-
-            {/* Items */}
-            <div className="space-y-0.5">
+            <div>
               {section.items.map(group => (
                 <NavItem key={group.label} group={group} collapsed={collapsed} />
               ))}
@@ -283,54 +280,51 @@ export function Sidebar({ userEmail }: { userEmail: string }) {
 
       {/* ── Footer ── */}
       <div className={cn("shrink-0 border-t border-white/8 py-3 space-y-0.5", collapsed ? "px-2" : "px-3")}>
-        {/* Settings */}
         <Link
           href="/settings"
           title={collapsed ? "Settings" : undefined}
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors group relative",
+            "flex items-center py-2 px-3 rounded-md text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors group relative mb-1",
             collapsed && "justify-center px-0"
           )}
         >
-          <Settings size={15} className="shrink-0" />
+          <Settings size={16} className={cn("shrink-0 opacity-70", !collapsed && "mr-3")} />
           {!collapsed && <span>Settings</span>}
           {collapsed && (
-            <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-grey-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg">
+            <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-slate-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg border border-white/10">
               Settings
             </span>
           )}
         </Link>
 
-        {/* Sign out */}
         <button
           onClick={signOut}
           title={collapsed ? "Sign out" : undefined}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors group relative",
+            "w-full flex items-center py-2 px-3 rounded-md text-sm text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors group relative mb-1",
             collapsed && "justify-center px-0"
           )}
         >
-          <LogOut size={15} className="shrink-0" />
+          <LogOut size={16} className={cn("shrink-0 opacity-70", !collapsed && "mr-3")} />
           {!collapsed && <span>Sign out</span>}
           {collapsed && (
-            <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-grey-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg">
+            <span className="absolute left-full ml-3 px-2 py-1 rounded-md bg-slate-900 text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-50 transition-opacity shadow-lg border border-white/10">
               Sign out
             </span>
           )}
         </button>
 
-        {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors",
+            "w-full flex items-center py-2 px-3 rounded-md text-sm text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition-colors",
             collapsed && "justify-center px-0"
           )}
         >
           {collapsed
-            ? <PanelLeftOpen  size={15} className="shrink-0" />
-            : <PanelLeftClose size={15} className="shrink-0" />}
+            ? <PanelLeftOpen  size={16} className="shrink-0 opacity-70" />
+            : <PanelLeftClose size={16} className={cn("shrink-0 opacity-70", "mr-3")} />}
           {!collapsed && <span>Collapse menu</span>}
         </button>
       </div>

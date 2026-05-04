@@ -99,7 +99,7 @@ export default function FlaggedContentPage() {
           { label: "Stale sources",   value: items.filter(i => i.flag_reason === "stale_source").length, color: "text-dark" },
           { label: "Spam / reports",  value: items.filter(i => i.flag_reason === "multiple_reports").length, color: "text-dark" },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+          <div key={label} className="border border-slate-200 rounded-lg p-4">
             <p className="text-xs text-grey-500 mb-1">{label}</p>
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
           </div>
@@ -112,7 +112,7 @@ export default function FlaggedContentPage() {
           {(["all", "pending", "reviewed", "removed"] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition ${
-                statusFilter === s ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+                statusFilter === s ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
               }`}>
               {s}
             </button>
@@ -122,7 +122,7 @@ export default function FlaggedContentPage() {
           {(["all", "low_trust_score", "stale_source", "multiple_reports", "ai_detected"] as FilterReason[]).map(r => (
             <button key={r} onClick={() => setFilter(r)}
               className={`px-3 py-1 text-xs font-medium rounded-md transition ${
-                filter === r ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+                filter === r ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
               }`}>
               {r === "all" ? "All reasons" : FLAG_REASON_LABEL[r as FlagReason]}
             </button>
@@ -133,16 +133,14 @@ export default function FlaggedContentPage() {
       {/* Flagged items */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-14 h-14 rounded-full bg-green-light flex items-center justify-center mb-3">
-            <Shield size={22} className="text-green-dark" />
-          </div>
-          <p className="text-sm font-medium text-dark mb-1">No flagged items</p>
-          <p className="text-xs text-grey-500">All content looks good for these filters.</p>
+          <Shield size={28} className="text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-900 mb-1">No flagged items</p>
+          <p className="text-xs text-slate-500">All content looks good for these filters.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map(item => (
-            <div key={item.id} className={`bg-white rounded-2xl border shadow-sm p-5 ${item.status === "pending" ? "border-slate-200" : "border-grey-100 opacity-70"}`}>
+            <div key={item.id} className={`rounded-lg border p-5 ${item.status === "pending" ? "border-slate-200" : "border-slate-100 opacity-70"}`}>
               <div className="flex items-start gap-4">
                 <div className="shrink-0 space-y-1">
                   <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${TYPE_COLOR[item.type]}`}>
@@ -183,7 +181,7 @@ export default function FlaggedContentPage() {
                     </div>
                   </div>
 
-                  <div className="mt-3 bg-grey-50 rounded-xl p-3">
+                  <div className="mt-3 bg-slate-50 rounded-md p-3">
                     <p className="text-xs text-grey-700 leading-relaxed">{item.flag_details}</p>
                     {item.last_updated && (
                       <p className="text-[10px] text-grey-400 mt-1">Last content update: {formatDateTime(item.last_updated)}</p>
@@ -193,11 +191,11 @@ export default function FlaggedContentPage() {
                   {item.status === "pending" && (
                     <div className="flex gap-2 mt-3">
                       <button onClick={() => handleAction(item.id, "reviewed")}
-                        className="flex items-center gap-1.5 text-xs font-medium border border-grey-300 text-grey-700 px-3 py-1.5 rounded-lg hover:bg-grey-100 transition">
+                        className="flex items-center gap-1.5 text-xs font-medium border border-slate-200 text-slate-700 px-3 py-1.5 rounded-md hover:bg-slate-50 transition">
                         <Eye size={11} /> Mark reviewed
                       </button>
                       <button onClick={() => handleAction(item.id, "removed")}
-                        className="flex items-center gap-1.5 text-xs font-medium border border-danger/30 text-danger bg-danger-light px-3 py-1.5 rounded-lg hover:bg-danger-light transition">
+                        className="flex items-center gap-1.5 text-xs font-medium border border-danger/30 text-danger bg-danger-light px-3 py-1.5 rounded-md hover:bg-danger-light transition">
                         <Trash2 size={11} /> Remove content
                       </button>
                     </div>

@@ -143,8 +143,8 @@ export default function MarketingOverviewPage() {
       {/* ── Charts row ── */}
       <div className="grid grid-cols-5 gap-6">
         {/* Acquisition sources stacked area — 60% */}
-        <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">
+        <div className="col-span-3 border border-slate-200 rounded-lg p-6">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-6">
             Acquisition sources — last 14 days
           </h2>
           <div className="h-[280px]">
@@ -183,7 +183,7 @@ export default function MarketingOverviewPage() {
         </div>
 
         {/* Agent activity feed — 40% */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="col-span-2 border border-slate-200 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-5">
             <Bot size={15} className="text-teal" />
             <h2 className="text-sm font-semibold text-dark">Marketing Agent Activity</h2>
@@ -215,13 +215,13 @@ export default function MarketingOverviewPage() {
       </div>
 
       {/* ── Channel performance table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-grey-100">
-          <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Channel performance — today</h2>
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500">Channel performance — today</h2>
         </div>
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-grey-100 text-xs text-grey-500 uppercase tracking-wide">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr className="text-xs text-slate-500 uppercase tracking-wider">
               <th className="text-left px-6 py-3">Channel</th>
               <th className="text-right px-6 py-3">Sent</th>
               <th className="text-right px-6 py-3">Open rate</th>
@@ -231,7 +231,7 @@ export default function MarketingOverviewPage() {
           </thead>
           <tbody>
             {CHANNEL_STATS.map(row => (
-              <tr key={row.channel} className="border-b border-grey-50 hover:bg-slate-50 transition-colors">
+              <tr key={row.channel} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors last:border-0">
                 <td className="px-6 py-3 font-medium text-dark">{row.channel}</td>
                 <td className="px-6 py-3 text-right font-mono text-grey-700">{row.sent}</td>
                 <td className="px-6 py-3 text-right text-grey-700">{row.open_rate}</td>

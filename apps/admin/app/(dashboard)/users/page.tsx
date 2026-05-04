@@ -47,11 +47,9 @@ export default function UsersPage() {
   function EmptyState() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-16 h-16 rounded-full bg-teal-bg flex items-center justify-center mb-4">
-          <Users className="h-8 w-8 text-teal" />
-        </div>
-        <h3 className="text-lg font-semibold text-dark mb-2">No users found</h3>
-        <p className="text-sm text-grey-500 max-w-sm">
+        <Users className="h-10 w-10 text-slate-300 mb-3" />
+        <p className="text-sm font-medium text-slate-900 mb-1">No users found</p>
+        <p className="text-sm text-slate-500">
           {statusFilter ? `No users with status "${statusFilter}".` : "No registered users yet."}
         </p>
       </div>
@@ -132,13 +130,13 @@ export default function UsersPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-teal/60 focus:ring-1 focus:ring-teal/20"
+          className="border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>{s ? s.charAt(0).toUpperCase() + s.slice(1) : "All statuses"}</option>
           ))}
         </select>
-        <button onClick={load} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition text-grey-700">
+        <button onClick={load} className="p-2 rounded-md border border-slate-200 hover:bg-slate-50 transition text-slate-500">
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
         <span className="text-sm text-grey-500 ml-auto">{filtered.length} user{filtered.length !== 1 ? "s" : ""}</span>

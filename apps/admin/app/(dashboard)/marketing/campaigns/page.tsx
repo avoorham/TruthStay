@@ -101,9 +101,9 @@ function channelLabel(ch?: string) {
 }
 
 function plannerCardBg(ch?: string) {
-  if (ch === "email") return "bg-blue text-white";
+  if (ch === "email") return "bg-blue-600 text-white";
   if (ch === "push")  return "bg-lavender text-charcoal border border-slate-200";
-  if (ch === "both")  return "bg-teal text-white";
+  if (ch === "both")  return "bg-teal-500 text-white";
   return "bg-grey-200 text-dark";
 }
 
@@ -144,10 +144,10 @@ function ScheduleDateModal({
   });
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+      <div className="bg-white rounded-lg border border-slate-200 p-6 w-full max-w-sm shadow-lg">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-dark">{title}</h3>
-          <button onClick={onClose} className="text-grey-400 hover:text-dark p-1 rounded-lg hover:bg-grey-100 transition">
+          <button onClick={onClose} className="text-grey-400 hover:text-dark p-1 rounded-md hover:bg-slate-50 transition">
             <X size={18} />
           </button>
         </div>
@@ -156,17 +156,17 @@ function ScheduleDateModal({
           type="datetime-local"
           value={dt}
           onChange={e => setDt(e.target.value)}
-          className="w-full border border-grey-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/10 transition mb-5"
+          className="w-full border border-slate-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-teal-400 transition mb-5"
         />
         <div className="flex gap-2">
           <button onClick={onClose}
-            className="flex-1 border border-grey-300 text-sm font-medium rounded-xl px-4 py-2.5 hover:bg-grey-50 transition">
+            className="flex-1 border border-slate-200 text-sm font-medium rounded-md px-4 py-2.5 hover:bg-slate-50 transition">
             Cancel
           </button>
           <button
             onClick={() => { if (dt) onConfirm(new Date(dt).toISOString()); }}
             disabled={!dt}
-            className="flex-1 bg-teal text-white text-sm font-semibold rounded-xl px-4 py-2.5 hover:bg-teal-dark transition disabled:opacity-40">
+            className="flex-1 bg-teal-500 text-white text-sm font-medium rounded-md px-4 py-2.5 hover:bg-teal-600 transition disabled:opacity-40">
             Approve &amp; Schedule
           </button>
         </div>
@@ -179,7 +179,7 @@ function ScheduleDateModal({
 
 function KanbanCard({ campaign }: { campaign: Campaign }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 select-none hover:shadow-md transition-shadow">
+    <div className="border border-slate-200 rounded-lg p-4 select-none transition">
       {campaign.status === "draft" && (
         <div className="mb-2.5">
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-teal-dark bg-teal-light px-2 py-0.5 rounded-full">
@@ -283,7 +283,7 @@ function KanbanView({
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
           {KANBAN_COLS.map(col => (
-            <div key={col.id} className={cn("flex-shrink-0 w-[270px] rounded-2xl p-3", col.bg)}>
+            <div key={col.id} className={cn("flex-shrink-0 w-[270px] rounded-lg p-3", col.bg)}>
               <div className="flex items-center gap-2 mb-3 px-1">
                 <span className={cn("w-2 h-2 rounded-full", col.dot)} />
                 <span className={cn("text-[11px] font-bold uppercase tracking-wider", col.head)}>
@@ -424,7 +424,7 @@ function PlannerView({
 
   return (
     <>
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         {/* Planner toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-grey-100 gap-3">
           <div className="flex items-center gap-1.5">
@@ -591,7 +591,7 @@ function PlannerView({
 
       {/* ── Unscheduled tray ── */}
       {unscheduled.length > 0 && (
-        <div className="mt-4 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="mt-4 bg-slate-100 rounded-lg border border-slate-200 overflow-hidden">
           <button
             onClick={() => setTrayOpen(o => !o)}
             className="w-full flex items-center gap-2 px-5 py-3 text-sm font-semibold text-dark hover:bg-slate-200/50 transition text-left">
@@ -605,7 +605,7 @@ function PlannerView({
                 <div key={c.id}
                   draggable
                   onDragStart={() => { plannerDrag.current = { campaignId: c.id }; }}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 w-[200px] cursor-grab active:cursor-grabbing select-none hover:shadow-md transition-shadow"
+                  className="bg-white rounded-lg border border-slate-200 p-3 w-[200px] cursor-grab active:cursor-grabbing select-none transition"
                 >
                   <div className="flex items-center gap-1.5 mb-1.5">
                     {c.created_by === "agent"
@@ -757,10 +757,10 @@ function CreateCampaignModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl flex flex-col max-h-[90vh]">
-        <div className="flex items-center justify-between p-6 border-b border-grey-100 shrink-0">
+      <div className="bg-white rounded-lg border border-slate-200 w-full max-w-lg shadow-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100 shrink-0">
           <h2 className="font-display font-semibold text-dark text-lg">Create Campaign</h2>
-          <button onClick={onClose} className="text-grey-400 hover:text-dark p-1 rounded-lg hover:bg-grey-100 transition">
+          <button onClick={onClose} className="text-grey-400 hover:text-dark p-1 rounded-md hover:bg-slate-50 transition">
             <X size={18} />
           </button>
         </div>
@@ -770,7 +770,7 @@ function CreateCampaignModal({
             <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Campaign name</label>
             <input value={name} onChange={e => setName(e.target.value)}
               placeholder="e.g. Summer re-engagement — France"
-              className="w-full border border-grey-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/10 transition" />
+              className="w-full border border-slate-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-teal-400 transition" />
           </div>
 
           <div>
@@ -779,8 +779,8 @@ function CreateCampaignModal({
               {(["email", "push", "both"] as const).map(ch => (
                 <button key={ch} onClick={() => setChannel(ch)}
                   className={cn(
-                    "flex-1 py-2 rounded-xl text-xs font-semibold border transition",
-                    channel === ch ? "bg-slate-900 text-white border-slate-900" : "border-grey-300 text-grey-500 hover:border-grey-400 hover:text-dark"
+                    "flex-1 py-2 rounded-md text-xs font-medium border transition",
+                    channel === ch ? "bg-slate-900 text-white border-slate-900" : "border-slate-200 text-slate-500 hover:border-slate-300 hover:text-dark"
                   )}>
                   {channelLabel(ch)}
                 </button>
@@ -793,7 +793,7 @@ function CreateCampaignModal({
               <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Subject line</label>
               <input value={subject} onChange={e => setSubject(e.target.value)}
                 placeholder="e.g. Your next adventure awaits"
-                className="w-full border border-grey-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/10 transition" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-teal-400 transition" />
             </div>
           )}
 
@@ -803,7 +803,7 @@ function CreateCampaignModal({
             </label>
             <textarea value={body} onChange={e => setBody(e.target.value)} rows={4}
               placeholder={channel === "push" ? "Push notification body..." : "Email body..."}
-              className="w-full border border-grey-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/10 transition" />
+              className="w-full border border-slate-200 rounded-md px-3 py-2.5 text-sm resize-none focus:outline-none focus:border-teal-400 transition" />
           </div>
 
           <div>
@@ -816,7 +816,7 @@ function CreateCampaignModal({
                 { label: "Subscription",    opts: ["All", "Free", "Pro", "Premium"] },
               ].map(({ label, opts }) => (
                 <select key={label}
-                  className="border border-grey-300 rounded-xl px-3 py-2.5 text-sm text-grey-700 focus:outline-none focus:border-teal transition bg-white">
+                  className="border border-slate-200 rounded-md px-3 py-2.5 text-sm text-grey-700 focus:outline-none transition bg-white">
                   <option value="">{label}</option>
                   {opts.map(o => <option key={o}>{o}</option>)}
                 </select>
@@ -831,18 +831,18 @@ function CreateCampaignModal({
           <div>
             <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Schedule</label>
             <input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)}
-              className="w-full border border-grey-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-teal focus:ring-2 focus:ring-teal/10 transition" />
+              className="w-full border border-slate-200 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:border-teal-400 transition" />
             <p className="text-[11px] text-grey-400 mt-1">Leave blank to save as unscheduled draft</p>
           </div>
         </div>
 
         <div className="flex gap-3 p-6 border-t border-grey-100 shrink-0">
           <button onClick={() => submit(true)} disabled={!name || saving}
-            className="flex-1 border border-grey-300 text-sm font-semibold text-dark rounded-xl px-4 py-2.5 hover:bg-grey-50 transition disabled:opacity-40">
+            className="flex-1 border border-slate-200 text-sm font-medium text-slate-700 rounded-md px-4 py-2.5 hover:bg-slate-50 transition disabled:opacity-40">
             Save as Draft
           </button>
           <button onClick={() => submit(false)} disabled={!name || !scheduledAt || saving}
-            className="flex-1 bg-teal text-white text-sm font-semibold rounded-xl px-4 py-2.5 hover:bg-teal-dark transition disabled:opacity-40">
+            className="flex-1 bg-teal-500 text-white text-sm font-medium rounded-md px-4 py-2.5 hover:bg-teal-600 transition disabled:opacity-40">
             Schedule
           </button>
         </div>
@@ -896,7 +896,7 @@ export default function CampaignsPage() {
         actions={
           <button
             onClick={() => setCreateModal(true)}
-            className="inline-flex items-center gap-1.5 bg-teal text-white text-sm font-semibold px-4 py-2 rounded-full hover:bg-teal-dark transition">
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
             <Plus size={14} /> Create Campaign
           </button>
         }
@@ -910,15 +910,15 @@ export default function CampaignsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search campaigns…"
-            className="pl-8 pr-3 py-2 text-sm border border-grey-300 rounded-xl focus:outline-none focus:border-teal/60 focus:ring-2 focus:ring-teal/10 transition w-[200px]"
+            className="pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-md focus:outline-none focus:border-teal-400 transition w-[200px]"
           />
         </div>
-        <button className="flex items-center gap-1.5 border border-grey-300 text-sm text-grey-500 rounded-xl px-3 py-2 hover:border-grey-400 hover:text-dark transition">
+        <button className="flex items-center gap-1.5 border border-slate-200 text-sm text-slate-500 rounded-md px-3 py-2 hover:border-slate-300 hover:text-slate-900 transition">
           <Filter size={13} /> Filter
         </button>
 
         {/* View toggle */}
-        <div className="ml-auto flex gap-0 border border-grey-200 rounded-xl overflow-hidden">
+        <div className="ml-auto flex gap-0 border border-slate-200 rounded-md overflow-hidden">
           {VIEWS.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => setView(key)}
               className={cn(
@@ -945,7 +945,7 @@ export default function CampaignsPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-dark text-white text-sm px-5 py-2.5 rounded-full shadow-xl z-50 pointer-events-none whitespace-nowrap">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-dark text-white text-sm px-5 py-2.5 rounded-full z-50 pointer-events-none whitespace-nowrap">
           {toast}
         </div>
       )}

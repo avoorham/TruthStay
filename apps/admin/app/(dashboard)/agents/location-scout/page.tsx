@@ -213,9 +213,9 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
   return (
     <div className="space-y-4">
       {/* Progress toward target */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div className="border border-slate-200 rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-7 h-7 rounded-lg bg-teal-light flex items-center justify-center shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
             <MapPin size={14} className="text-teal-dark" />
           </div>
           <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest">Content library</p>
@@ -255,7 +255,7 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
 
       {/* Top regions */}
       {(stats?.topRegions.length ?? 0) > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <div className="border border-slate-200 rounded-lg p-5">
           <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Top regions</p>
           <div className="space-y-2">
             {(stats?.topRegions ?? []).slice(0, 7).map(r => (
@@ -269,7 +269,7 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
       )}
 
       {/* Budget card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div className="border border-slate-200 rounded-lg p-5">
         <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Scout budget</p>
         <div className="space-y-2.5">
           <div>
@@ -323,7 +323,7 @@ function EntryCard({
 
   return (
     <div className={cn(
-      "bg-white rounded-xl border shadow-sm transition-all",
+      "border border-slate-200 rounded-lg transition-all",
       approved ? "border-green-600/30 bg-green-light/20" :
       rejected ? "border-danger/20 bg-danger-light/20" :
                  "border-slate-200"
@@ -414,7 +414,7 @@ function EntryCard({
               </button>
               <button
                 onClick={() => onApprove(entry.id)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal-dark transition-colors shadow-sm"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors"
               >
                 <CheckCircle2 size={11} /> Approve
               </button>
@@ -485,7 +485,7 @@ function RunResultsSection({
 
   if (run.entries.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
+      <div className="border border-slate-200 rounded-lg p-10 text-center">
         <div className="w-14 h-14 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-3">
           <MapPin size={20} className="text-grey-400" />
         </div>
@@ -501,11 +501,11 @@ function RunResultsSection({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-green-light flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
             <CheckCircle2 size={15} className="text-green-dark" />
           </div>
           <div>
@@ -586,8 +586,8 @@ function RunHistoryTable({ runs }: { runs: AgentRun[] }) {
 
   if (runs.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 text-center">
-        <div className="w-12 h-12 rounded-full bg-teal-light flex items-center justify-center mx-auto mb-3">
+      <div className="border border-slate-200 rounded-lg p-10 text-center">
+        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
           <Clock size={18} className="text-teal-dark" />
         </div>
         <p className="text-sm font-semibold text-dark">No runs yet</p>
@@ -597,7 +597,7 @@ function RunHistoryTable({ runs }: { runs: AgentRun[] }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-grey-100">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Run history</p>
       </div>
@@ -838,7 +838,7 @@ export default function LocationScoutPage() {
           <button
             key={i}
             onClick={() => applyPreset(p)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-sm hover:border-teal hover:text-teal-dark hover:bg-teal-bg transition-colors text-grey-700 bg-white shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-sm hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50 transition-colors text-grey-700 bg-white"
           >
             <span>{p.emoji}</span>
             <span className="text-xs font-medium">{p.label}</span>
@@ -852,7 +852,7 @@ export default function LocationScoutPage() {
             <Plus size={11} /> Add preset
           </button>
         ) : (
-          <div className="flex items-center gap-1.5 bg-white border border-teal rounded-full px-2 py-1 shadow-sm">
+          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2 py-1">
             <input
               value={newPreset.emoji}
               onChange={e => setNewPreset(p => ({ ...p, emoji: e.target.value }))}
@@ -881,9 +881,9 @@ export default function LocationScoutPage() {
       <div className="grid grid-cols-3 gap-6 mb-6">
 
         {/* ─ Scout Trigger Form ─ */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="col-span-2 border border-slate-200 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2.5 px-6 py-4 border-b border-grey-100">
-            <div className="w-8 h-8 rounded-xl bg-teal-light flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
               <MapPin size={15} className="text-teal-dark" />
             </div>
             <h2 className="text-sm font-semibold text-dark">Scout trigger</h2>
@@ -918,7 +918,7 @@ export default function LocationScoutPage() {
                   value={form.customRegion}
                   onChange={e => updateForm("customRegion", e.target.value)}
                   placeholder="e.g. Azores, Portugal"
-                  className="mt-2 w-full text-sm text-dark border border-teal rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+                  className="mt-2 w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2.5 bg-white focus:outline-none focus:border-teal-400"
                   autoFocus
                 />
               )}
@@ -1026,10 +1026,10 @@ export default function LocationScoutPage() {
                 onClick={handleRun}
                 disabled={!canRun}
                 className={cn(
-                  "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm",
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
                   canRun
-                    ? "bg-teal text-white hover:bg-teal-dark"
-                    : "bg-grey-100 text-grey-400 cursor-not-allowed"
+                    ? "bg-teal-500 text-white hover:bg-teal-600"
+                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 )}
               >
                 <Play size={14} />
@@ -1047,10 +1047,10 @@ export default function LocationScoutPage() {
 
       {/* ── Loading state ── */}
       {(run.phase === "running" || run.phase === "fetching") && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 mb-6 text-center">
+        <div className="border border-slate-200 rounded-lg p-10 mb-6 text-center">
           <div className="flex flex-col items-center gap-4">
             <div className="relative">
-              <div className="w-16 h-16 rounded-full bg-teal-light flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
                 <MapPin size={24} className="text-teal-dark" />
               </div>
               <Loader2

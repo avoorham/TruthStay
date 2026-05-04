@@ -152,7 +152,7 @@ export default function ContentPage() {
         actions={
           <a
             href="/content/review-queue"
-            className="inline-flex items-center gap-1.5 bg-teal text-white text-sm font-semibold px-5 py-2.5 rounded-full hover:bg-teal-dark transition"
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition"
           >
             Review Queue
           </a>
@@ -164,7 +164,7 @@ export default function ContentPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-teal/60 focus:ring-1 focus:ring-teal/20"
+          className="border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {TYPES.map((t) => <option key={t} value={t}>{t ? t.charAt(0).toUpperCase() + t.slice(1) : "All types"}</option>)}
         </select>
@@ -172,7 +172,7 @@ export default function ContentPage() {
         <select
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-teal/60 focus:ring-1 focus:ring-teal/20"
+          className="border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           {SOURCE_TYPES.map((s) => <option key={s} value={s}>{s ? s.charAt(0).toUpperCase() + s.slice(1) : "All sources"}</option>)}
         </select>
@@ -180,14 +180,14 @@ export default function ContentPage() {
         <select
           value={verifiedFilter}
           onChange={(e) => setVerifiedFilter(e.target.value)}
-          className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-teal/60 focus:ring-1 focus:ring-teal/20"
+          className="border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400"
         >
           <option value="">All verified states</option>
           <option value="true">Verified</option>
           <option value="false">Unverified</option>
         </select>
 
-        <button onClick={load} className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition text-grey-700">
+        <button onClick={load} className="p-2 rounded-md border border-slate-200 hover:bg-slate-50 transition text-slate-500">
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
@@ -196,16 +196,12 @@ export default function ContentPage() {
         <div className="text-center py-20 text-grey-500 text-sm">Loading…</div>
       ) : entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-full bg-teal-bg flex items-center justify-center mb-4">
-            <FileText className="h-8 w-8 text-teal" />
-          </div>
-          <h3 className="text-lg font-semibold text-dark mb-2">No content entries</h3>
-          <p className="text-sm text-grey-500 max-w-sm mb-6">
-            No entries match the selected filters. Try adjusting the filters or run the scout agent to generate content.
-          </p>
+          <FileText className="h-10 w-10 text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-900 mb-1">No content entries</p>
+          <p className="text-sm text-slate-500 mb-6">No entries match the selected filters.</p>
           <a
             href="/content/review-queue"
-            className="bg-teal text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-teal-dark transition"
+            className="bg-teal-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-teal-600 transition"
           >
             Review Queue
           </a>

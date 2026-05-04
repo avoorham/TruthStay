@@ -127,7 +127,7 @@ export default function NotificationsPage() {
         actions={
           tab === "announcements" && (
             <button onClick={() => setShowForm(!showForm)}
-              className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+              className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
               <Plus size={14} /> New announcement
             </button>
           )
@@ -135,43 +135,43 @@ export default function NotificationsPage() {
       />
 
       {showForm && (
-        <form onSubmit={createAnnouncement} className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
-          <h3 className="font-display font-semibold text-dark text-sm flex items-center gap-2"><Bell size={14} /> Create announcement</h3>
+        <form onSubmit={createAnnouncement} className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
+          <h3 className="font-medium text-slate-900 text-sm flex items-center gap-2"><Bell size={14} /> Create announcement</h3>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs font-semibold text-grey-700 mb-1">Title *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
               <input required value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-semibold text-grey-700 mb-1">Body *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Body *</label>
               <textarea required rows={3} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60 resize-none" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400 resize-none" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-grey-700 mb-1">Priority</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
               <select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400">
                 {["low", "normal", "high", "urgent"].map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-grey-700 mb-1">Expires at</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Expires at</label>
               <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm((f) => ({ ...f, ends_at: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400" />
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="submit" className="bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">Publish</button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-grey-700 px-4 py-2 hover:text-dark">Cancel</button>
+            <button type="submit" className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">Publish</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2">Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="flex gap-1 border-b border-grey-300">
+      <div className="flex gap-1 border-b border-slate-200">
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${tab === key ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"}`}>
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition -mb-px ${tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
             {label}
           </button>
         ))}

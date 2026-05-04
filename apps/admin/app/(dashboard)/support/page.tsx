@@ -99,7 +99,7 @@ export default function SupportPage() {
         <select
           value={row.original.status}
           onChange={(e) => updateReportStatus(row.original.id, e.target.value)}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-slate-400 text-slate-700"
         >
           {REPORT_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
@@ -119,7 +119,7 @@ export default function SupportPage() {
         <select
           value={row.original.status}
           onChange={(e) => updateContactStatus(row.original.id, e.target.value)}
-          className="text-xs border border-grey-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-blue/60"
+          className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:border-slate-400 text-slate-700"
         >
           {CONTACT_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
@@ -153,10 +153,10 @@ export default function SupportPage() {
         description={`${newReports + newContacts} items need attention.`}
       />
 
-      <div className="flex gap-1 border-b border-grey-300">
+      <div className="flex gap-1 border-b border-slate-200">
         {TABS.map(({ key, label, icon, count }) => (
           <button key={key} onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${tab === key ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"}`}>
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition -mb-px ${tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
             {icon}{label}
             {count != null && count > 0 && (
               <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-danger text-white text-[10px] font-bold">{count}</span>

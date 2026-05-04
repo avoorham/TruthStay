@@ -89,9 +89,9 @@ function PostCard({
   const isDraft   = post.status === "draft";
 
   return (
-    <div className="bg-white rounded-2xl border border-grey-200 shadow-sm overflow-hidden">
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
       {/* Hero */}
-      <div className="relative h-40 bg-gradient-to-br from-teal-light to-blue-light flex items-center justify-center">
+      <div className="relative h-40 bg-slate-100 flex items-center justify-center">
         {post.hero_image_url ? (
           <Image
             src={post.hero_image_url}
@@ -162,13 +162,13 @@ function PostCard({
         {/* Actions */}
         <div className="flex gap-2 pt-1">
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-grey-700 border border-grey-200 rounded-lg hover:bg-grey-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
             onClick={() => router.push(`/marketing/editorial/${post.id}`)}
           >
             <Pencil size={14} /> Edit
           </button>
           <button
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-grey-700 border border-grey-200 rounded-lg hover:bg-grey-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
             onClick={() => window.open(post.hero_image_url ?? "#", "_blank")}
           >
             <Eye size={14} /> Preview
@@ -176,14 +176,14 @@ function PostCard({
           {(isPending || isDraft) && (
             <>
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-teal rounded-lg hover:bg-teal-dark transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-teal-500 rounded-md hover:bg-teal-600 transition-colors disabled:opacity-50"
                 onClick={() => onAction("approve")}
                 disabled={actioning}
               >
                 <CheckCircle2 size={14} /> Approve & Publish
               </button>
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger-light transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-danger border border-danger/30 rounded-md hover:bg-danger-light transition-colors disabled:opacity-50"
                 onClick={() => onAction("reject")}
                 disabled={actioning}
               >
@@ -193,7 +193,7 @@ function PostCard({
           )}
           {post.status === "approved" && (
             <button
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-grey-500 border border-grey-200 rounded-lg hover:bg-grey-50 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-md hover:bg-slate-50 transition-colors disabled:opacity-50"
               onClick={() => onAction("archive")}
               disabled={actioning}
             >
@@ -246,13 +246,13 @@ export default function EditorialPage() {
   const tabCount = posts.length;
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="space-y-6">
       <PageHeader
         title="Editorial Posts"
         description="Agent-drafted and admin-created posts that appear in users' feeds."
         actions={
           <button
-            className="flex items-center gap-2 px-4 py-2 bg-teal text-white rounded-xl text-sm font-semibold hover:bg-teal-dark transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-md text-sm font-medium hover:bg-teal-600 transition-colors"
             onClick={() => router.push("/marketing/editorial/new")}
           >
             <Plus size={16} /> Create post
@@ -261,7 +261,7 @@ export default function EditorialPage() {
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-grey-100 rounded-xl p-1 w-fit mb-8">
+      <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
         {STATUS_TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.key;
@@ -270,16 +270,16 @@ export default function EditorialPage() {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors",
                 active
-                  ? "bg-white text-dark shadow-sm"
-                  : "text-grey-500 hover:text-dark",
+                  ? "bg-white text-slate-900 border border-slate-200"
+                  : "text-slate-500 hover:text-slate-900",
               )}
             >
               <Icon size={14} />
               {tab.label}
               {active && tabCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-teal text-white text-xs rounded-full">
+                <span className="ml-1 px-1.5 py-0.5 bg-teal-500 text-white text-xs rounded-full">
                   {tabCount}
                 </span>
               )}

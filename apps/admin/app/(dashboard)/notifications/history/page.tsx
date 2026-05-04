@@ -113,7 +113,7 @@ export default function NotificationHistoryPage() {
           { label: "Total recipients",value: totalRecip.toLocaleString() },
           { label: "Avg open rate",   value: avgOpenRate },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+          <div key={label} className="border border-slate-200 rounded-lg p-5">
             <p className="text-xs text-grey-500 mb-1">{label}</p>
             <p className="text-2xl font-bold text-dark tracking-tight">{value}</p>
           </div>
@@ -126,7 +126,7 @@ export default function NotificationHistoryPage() {
           {(["all", "email", "push", "sms", "in_app"] as ChannelFilter[]).map(c => (
             <button key={c} onClick={() => setChannelFilter(c)}
               className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition ${
-                channelFilter === c ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+                channelFilter === c ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
               }`}>
               {c.replace("_", " ")}
             </button>
@@ -136,7 +136,7 @@ export default function NotificationHistoryPage() {
           {(["all", "sent", "scheduled", "failed"] as StatusFilter[]).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)}
               className={`px-3 py-1 text-xs font-medium rounded-md capitalize transition ${
-                statusFilter === s ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+                statusFilter === s ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
               }`}>
               {s}
             </button>

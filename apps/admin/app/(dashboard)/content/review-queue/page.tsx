@@ -89,7 +89,7 @@ function ReviewCard({
     : null;
 
   return (
-    <div className="bg-white border border-grey-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
 
       {/* ── Hero image / gradient ── */}
       <div className="relative h-44 shrink-0">
@@ -237,14 +237,14 @@ function ReviewCard({
           <button
             onClick={onApprove}
             disabled={actioning}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-green/10 text-green text-sm font-semibold px-3 py-2 rounded-xl hover:bg-green/20 transition disabled:opacity-50"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-green-50 text-green-700 text-sm font-medium px-3 py-2 rounded-md hover:bg-green-100 transition disabled:opacity-50"
           >
             <CheckCircle2 size={14} /> Approve
           </button>
           <button
             onClick={onReject}
             disabled={actioning}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-danger/10 text-danger text-sm font-semibold px-3 py-2 rounded-xl hover:bg-danger/20 transition disabled:opacity-50"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 bg-red-50 text-red-600 text-sm font-medium px-3 py-2 rounded-md hover:bg-red-100 transition disabled:opacity-50"
           >
             <XCircle size={14} /> Reject
           </button>
@@ -292,13 +292,13 @@ export default function ReviewQueuePage() {
           <div className="flex items-center gap-2">
             <button
               onClick={load}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 transition text-grey-700"
+              className="p-2 rounded-md border border-slate-200 hover:bg-slate-50 transition text-slate-500"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
             <a
               href="/content"
-              className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium px-4 py-2 rounded-full hover:bg-slate-50 transition"
+              className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium px-4 py-2 rounded-md text-slate-700 hover:bg-slate-50 transition"
             >
               All Content
             </a>
@@ -310,11 +310,9 @@ export default function ReviewQueuePage() {
         <div className="text-center py-20 text-grey-500 text-sm">Loading…</div>
       ) : entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-full bg-teal-bg flex items-center justify-center mb-4">
-            <CheckCircle2 className="h-8 w-8 text-teal" />
-          </div>
-          <h3 className="text-lg font-semibold text-dark mb-2">Queue is empty</h3>
-          <p className="text-sm text-grey-500">All entries have been reviewed — great work!</p>
+          <CheckCircle2 className="h-10 w-10 text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-slate-900 mb-1">Queue is empty</p>
+          <p className="text-sm text-slate-500">All entries have been reviewed — great work!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

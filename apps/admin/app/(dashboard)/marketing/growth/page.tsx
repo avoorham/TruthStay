@@ -60,7 +60,7 @@ export default function GrowthPage() {
       <PageHeader title="Growth Analytics" description="Acquisition funnel, cohort retention, viral metrics, and channel attribution." />
 
       {/* ── Acquisition funnel ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">Acquisition funnel</h2>
         <div className="space-y-3">
           {FUNNEL.map((step, i) => (
@@ -94,7 +94,7 @@ export default function GrowthPage() {
       </div>
 
       {/* ── Cohort retention ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Cohort retention — % still active</h2>
         </div>
@@ -139,7 +139,7 @@ export default function GrowthPage() {
       </div>
 
       {/* ── Viral metrics ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Viral metrics</h2>
         </div>
@@ -169,7 +169,7 @@ export default function GrowthPage() {
       </div>
 
       {/* ── Channel attribution ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Channel attribution</h2>
         </div>

@@ -221,7 +221,7 @@ export default function AgentDetailPage({
         actions={
           <Link
             href="/agents"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <ArrowLeft size={14} /> All agents
           </Link>
@@ -229,11 +229,11 @@ export default function AgentDetailPage({
       />
 
       {/* ── Profile header card ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+      <div className="border border-slate-200 rounded-lg p-6 mb-8">
         <div className="flex flex-col md:flex-row md:items-center gap-6">
           {/* Icon + status */}
           <div className="flex items-center gap-4 shrink-0">
-            <div className="w-14 h-14 rounded-2xl bg-teal-light flex items-center justify-center">
+            <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center">
               <AgentIcon size={24} className="text-teal-dark" />
             </div>
             <div>
@@ -300,7 +300,7 @@ export default function AgentDetailPage({
           ) : (
             <button
               onClick={() => setStatus("active")}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
             >
               <Play size={14} /> Resume agent
             </button>
@@ -321,11 +321,11 @@ export default function AgentDetailPage({
                 type="number"
                 value={newBudget}
                 onChange={e => setNewBudget(Number(e.target.value))}
-                className="w-24 text-sm font-mono text-dark border border-teal rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-teal/30"
+                className="w-24 text-sm font-mono text-dark border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:border-teal-400"
               />
               <button
                 onClick={() => setEditBudget(false)}
-                className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-semibold hover:bg-teal-dark transition-colors"
+                className="px-3 py-1.5 rounded-md bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors"
               >
                 Save
               </button>
@@ -341,7 +341,7 @@ export default function AgentDetailPage({
           {id === "cfo" && (
             <Link
               href="/agents/cfo"
-              className="ml-auto flex items-center gap-2 px-4 py-2 rounded-xl bg-navy text-white text-sm font-semibold hover:bg-navy-light transition-colors shadow-sm"
+              className="ml-auto flex items-center gap-2 px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 transition-colors"
             >
               <DollarSign size={14} /> CFO Command Centre
             </Link>
@@ -352,7 +352,7 @@ export default function AgentDetailPage({
       {/* ── Bottom two-column layout ── */}
       <div className="grid grid-cols-5 gap-6 mb-8">
         {/* Message history */}
-        <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="col-span-3 border border-slate-200 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-6 py-4 border-b border-grey-100">
             <Bot size={15} className="text-teal" />
             <h2 className="text-sm font-semibold text-dark">Message history</h2>
@@ -380,7 +380,7 @@ export default function AgentDetailPage({
         </div>
 
         {/* Spend authorisations */}
-        <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="col-span-2 border border-slate-200 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2 px-6 py-4 border-b border-grey-100">
             <DollarSign size={15} className="text-teal" />
             <h2 className="text-sm font-semibold text-dark">Spend authorisations</h2>
@@ -405,7 +405,7 @@ export default function AgentDetailPage({
       </div>
 
       {/* ── Cost trend chart ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">Daily spend — last 7 days</p>
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">

@@ -56,7 +56,7 @@ const HEATMAP_DATA: Record<string, Record<number, number>> = {
 };
 
 function heatColor(val: number): string {
-  if (val >= 9)  return "bg-teal text-white";
+  if (val >= 9)  return "bg-teal-500 text-white";
   if (val >= 7)  return "bg-teal/60 text-teal-dark";
   if (val >= 5)  return "bg-teal/30 text-teal-dark";
   if (val >= 3)  return "bg-teal/10 text-grey-500";
@@ -90,11 +90,11 @@ export default function SocialPage() {
       <PageHeader title="Social Media" description="AI-generated content calendar, performance, and platform settings." />
 
       {/* Tab bar */}
-      <div className="flex gap-0 border-b border-grey-300">
+      <div className="flex gap-0 border-b border-slate-200">
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
-              tab === key ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"
+              tab === key ? "border-slate-900 text-slate-900"
             }`}>
             {label}
           </button>
@@ -103,7 +103,7 @@ export default function SocialPage() {
 
       {/* ── Calendar ── */}
       {tab === "calendar" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <div className="grid grid-cols-7 border-b border-grey-100">
             {WEEK_DAYS.map(d => (
               <div key={d} className="px-3 py-2 text-xs font-semibold text-grey-500 text-center border-r border-grey-100 last:border-r-0">
@@ -146,7 +146,7 @@ export default function SocialPage() {
       {tab === "published" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {PUBLISHED_POSTS.map(post => (
-            <div key={post.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+            <div key={post.id} className="border border-slate-200 rounded-lg p-5 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${PLATFORM_COLOR[post.platform]}`}>
                   {post.platform}
@@ -179,7 +179,7 @@ export default function SocialPage() {
           {/* Per-platform KPI cards */}
           <div className="grid grid-cols-3 gap-6">
             {PLATFORM_STATS.map(p => (
-              <div key={p.platform} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+              <div key={p.platform} className="border border-slate-200 rounded-lg p-6">
                 <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">{p.platform}</p>
                 <p className="text-3xl font-bold text-dark tracking-tight">{p.followers}</p>
                 <p className="text-xs text-grey-500 mt-1">{p.growth}</p>
@@ -198,7 +198,7 @@ export default function SocialPage() {
           </div>
 
           {/* Posting time heatmap */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="border border-slate-200 rounded-lg p-6">
             <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-5">Optimal posting times — engagement score</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -234,7 +234,7 @@ export default function SocialPage() {
       {tab === "settings" && (
         <div className="space-y-4 max-w-2xl">
           {/* Connection status */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-6 space-y-4">
             <h3 className="text-sm font-semibold text-dark">Platform Connections</h3>
             {[
               { platform: "Instagram",   connected: true,  handle: "@truthstay" },
@@ -254,29 +254,29 @@ export default function SocialPage() {
           </div>
 
           {/* Posts per week targets */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-6 space-y-4">
             <h3 className="text-sm font-semibold text-dark">Posts Per Week Targets</h3>
             {(["instagram", "tiktok", "twitter"] as const).map(pl => (
               <div key={pl} className="flex items-center justify-between gap-4">
                 <label className="text-sm text-grey-700 capitalize">{pl === "twitter" ? "X / Twitter" : pl}</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setPostsPerWeek(p => ({ ...p, [pl]: Math.max(0, p[pl] - 1) }))}
-                    className="w-7 h-7 rounded-lg border border-grey-300 flex items-center justify-center text-grey-700 hover:bg-grey-100 transition text-sm font-bold">−</button>
+                    className="w-7 h-7 rounded-md border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition text-sm font-bold">−</button>
                   <span className="w-8 text-center text-sm font-semibold text-dark">{postsPerWeek[pl]}</span>
                   <button onClick={() => setPostsPerWeek(p => ({ ...p, [pl]: p[pl] + 1 }))}
-                    className="w-7 h-7 rounded-lg border border-grey-300 flex items-center justify-center text-grey-700 hover:bg-grey-100 transition text-sm font-bold">+</button>
+                    className="w-7 h-7 rounded-md border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-50 transition text-sm font-bold">+</button>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Brand voice + auto-post */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-6 space-y-4">
             <h3 className="text-sm font-semibold text-dark">Brand Voice</h3>
             <textarea
               defaultValue="Friendly, honest, and inspiring. Always community-first. Avoid corporate jargon. Use emojis sparingly. Reference real user experiences."
               rows={4}
-              className="w-full border border-grey-300 rounded-xl px-3 py-2 text-sm text-grey-700 focus:outline-none focus:border-blue/60 resize-none"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-grey-700 focus:outline-none  resize-none"
             />
             <div className="flex items-center justify-between pt-2 border-t border-grey-100">
               <div>
@@ -289,7 +289,7 @@ export default function SocialPage() {
                   : <ToggleLeft size={24} className="text-grey-300" />}
               </button>
             </div>
-            <button className="w-full bg-blue text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-dark transition">
+            <button className="w-full bg-teal-500 text-white text-sm font-medium py-2.5 rounded-md hover:bg-teal-600 transition">
               Save settings
             </button>
           </div>

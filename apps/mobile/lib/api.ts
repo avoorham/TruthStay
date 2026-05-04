@@ -723,6 +723,36 @@ export async function getPublicActivities(type?: string): Promise<PublicActivity
   return res.json() as Promise<PublicActivity[]>;
 }
 
+// ─── Explore content entries ──────────────────────────────────────────────────
+
+export interface ExploreContentEntry {
+  id:            string;
+  type:          string;
+  name:          string;
+  region:        string;
+  activity_type: string | null;
+  description:   string | null;
+  data:          Record<string, unknown>;
+  trust_score:   number | null;
+  coords:        [number, number];
+}
+
+export async function getExploreContentEntries(opts: {
+  type: "accommodation" | "route" | "restaurant";
+  bounds?: { north: number; south: number; east: number; west: number };
+}): Promise<ExploreContentEntry[]> {
+  const params = new URLSearchParams({ type: opts.type });
+  if (opts.bounds) {
+    params.set("north", String(opts.bounds.north));
+    params.set("south", String(opts.bounds.south));
+    params.set("east",  String(opts.bounds.east));
+    params.set("west",  String(opts.bounds.west));
+  }
+  const res = await fetch(`${BASE}/api/explore/content-entries?${params}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<ExploreContentEntry[]>;
+}
+
 // ─── Hotspot feed ─────────────────────────────────────────────────────────────
 
 export interface ContentEntry {

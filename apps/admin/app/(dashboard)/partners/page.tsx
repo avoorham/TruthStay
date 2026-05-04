@@ -92,15 +92,15 @@ export default function PartnersPage() {
         description="Hotels, tour operators, and other booking partners."
         actions={
           <button onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
             <Plus size={14} /> New partner
           </button>
         }
       />
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
-          <h3 className="font-display font-semibold text-dark text-sm">Add partner</h3>
+        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
+          <h3 className="font-medium text-slate-900 text-sm">Add partner</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: "Name *", key: "name", required: true },
@@ -109,16 +109,16 @@ export default function PartnersPage() {
               { label: "Commission rate (%) *", key: "commission_rate", type: "number", required: true },
             ].map(({ label, key, type, required }) => (
               <div key={key}>
-                <label className="block text-xs font-semibold text-grey-700 mb-1">{label}</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
                 <input required={required} type={type || "text"} value={(form as any)[key]}
                   onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                  className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-slate-400" />
               </div>
             ))}
             <div>
-              <label className="block text-xs font-semibold text-grey-700 mb-1">Type *</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Type *</label>
               <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:border-slate-400">
                 {["hotel", "hostel", "villa", "tour_operator", "activity_provider", "restaurant"].map((t) => (
                   <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                 ))}
@@ -126,8 +126,8 @@ export default function PartnersPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button type="submit" className="bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">Add partner</button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-grey-700 px-4 py-2 hover:text-dark">Cancel</button>
+            <button type="submit" className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">Add partner</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2">Cancel</button>
           </div>
         </form>
       )}

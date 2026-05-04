@@ -20,7 +20,7 @@ const VARIABLE_EXAMPLES = ["{{user_name}}", "{{trip_name}}", "{{destination}}", 
 
 function TemplateCard({ t, onPreview }: { t: Template; onPreview: (t: Template) => void }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+    <div className="border border-slate-200 rounded-lg p-5 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-semibold text-dark text-sm">{t.name}</p>
@@ -85,7 +85,7 @@ export default function NotificationTemplatesPage() {
         description="Manage reusable templates with variable placeholders."
         actions={
           <button onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
             <Plus size={14} /> New template
           </button>
         }
@@ -93,19 +93,19 @@ export default function NotificationTemplatesPage() {
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
+        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
           <h3 className="font-display font-semibold text-dark text-sm">Create template</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Name *</label>
               <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 placeholder="e.g. Welcome email"
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none " />
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Channel *</label>
               <select value={form.channel} onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none ">
                 {["email", "push", "sms", "in_app"].map(c => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
               </select>
             </div>
@@ -113,13 +113,13 @@ export default function NotificationTemplatesPage() {
               <label className="block text-xs font-semibold text-grey-700 mb-1">Subject / Title *</label>
               <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="e.g. Welcome to TruthStay, {{user_name}}!"
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none " />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-grey-700 mb-1">Body *</label>
               <textarea required rows={4} value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                 placeholder="Use {{variable_name}} for dynamic content…"
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none " />
               <p className="text-[10px] text-grey-400 mt-1">Available variables:</p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {VARIABLE_EXAMPLES.map(v => (
@@ -129,18 +129,18 @@ export default function NotificationTemplatesPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">Create</button>
+            <button type="submit" className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">Create</button>
             <button type="button" onClick={() => setShowForm(false)} className="text-sm text-grey-700 px-4 py-2 hover:text-dark">Cancel</button>
           </div>
         </form>
       )}
 
       {/* Channel filter */}
-      <div className="flex gap-1 border-b border-grey-300">
+      <div className="flex gap-1 border-b border-slate-200">
         {CHANNELS.map(c => (
           <button key={c} onClick={() => setChannel(c)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px capitalize ${
-              channel === c ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"
+              channel === c ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}>
             {c.replace("_", " ")}
             {c !== "all" && (
@@ -163,7 +163,7 @@ export default function NotificationTemplatesPage() {
       {/* Preview modal */}
       {preview && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-lg border border-slate-200 shadow-lg p-6 max-w-lg w-full" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-xs text-grey-400 mb-0.5">{preview.channel.replace("_", " ").toUpperCase()}</p>
@@ -171,15 +171,15 @@ export default function NotificationTemplatesPage() {
               </div>
               <button onClick={() => setPreview(null)} className="text-grey-400 hover:text-dark text-lg leading-none">×</button>
             </div>
-            <div className="border border-grey-200 rounded-xl p-4 bg-grey-50">
+            <div className="border border-slate-200 rounded-md p-4 bg-slate-50">
               <p className="font-semibold text-dark text-sm mb-2">{preview.title}</p>
               <p className="text-sm text-grey-700 leading-relaxed whitespace-pre-wrap">{preview.body}</p>
             </div>
             <div className="mt-4 flex gap-2">
-              <button className="flex-1 bg-blue text-white text-sm font-semibold py-2 rounded-lg hover:bg-blue-dark transition">
+              <button className="flex-1 bg-teal-500 text-white text-sm font-medium py-2 rounded-md hover:bg-teal-600 transition">
                 Test send
               </button>
-              <button onClick={() => setPreview(null)} className="flex-1 border border-grey-300 text-grey-700 text-sm py-2 rounded-lg hover:bg-grey-100 transition">
+              <button onClick={() => setPreview(null)} className="flex-1 border border-slate-200 text-slate-700 text-sm py-2 rounded-md hover:bg-slate-50 transition">
                 Close
               </button>
             </div>

@@ -260,7 +260,7 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
       <div className="grid grid-cols-3 gap-8">
         {/* Main column */}
         <div className="col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl border border-grey-200 p-6 space-y-5">
+          <div className="border border-slate-200 rounded-lg p-6 space-y-5">
             <h2 className="font-display font-bold text-dark text-base">Content</h2>
 
             <Field label="Title">
@@ -291,7 +291,7 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Review notes */}
-          <div className="bg-white rounded-2xl border border-grey-200 p-6 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-6 space-y-4">
             <h2 className="font-display font-bold text-dark text-base">Review Notes</h2>
             <Textarea
               value={reviewNotes}
@@ -306,10 +306,10 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
         <div className="space-y-5">
           {/* Publish / approve controls */}
           {!isNew && isPending && (
-            <div className="bg-teal-bg rounded-2xl border border-teal/20 p-5 space-y-3">
+            <div className="bg-teal-50 rounded-lg border border-teal-200 p-5 space-y-3">
               <h3 className="font-semibold text-dark text-sm">Approval</h3>
               <button
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-teal text-white rounded-xl text-sm font-semibold hover:bg-teal-dark transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-teal-500 text-white rounded-md text-sm font-medium hover:bg-teal-600 transition-colors disabled:opacity-50"
                 onClick={() => handleStatusAction("approve")}
                 disabled={actioning}
               >
@@ -326,7 +326,7 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
           )}
 
           {/* Post type */}
-          <div className="bg-white rounded-2xl border border-grey-200 p-5 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-5 space-y-4">
             <h3 className="font-semibold text-dark text-sm flex items-center gap-2">
               <Tag size={14} /> Post Type
             </h3>
@@ -338,7 +338,7 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Target audience */}
-          <div className="bg-white rounded-2xl border border-grey-200 p-5 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-5 space-y-4">
             <h3 className="font-semibold text-dark text-sm flex items-center gap-2">
               <Users size={14} /> Target Audience
             </h3>
@@ -357,7 +357,7 @@ export default function EditEditorialPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Region / activity */}
-          <div className="bg-white rounded-2xl border border-grey-200 p-5 space-y-4">
+          <div className="border border-slate-200 rounded-lg p-5 space-y-4">
             <h3 className="font-semibold text-dark text-sm flex items-center gap-2">
               <Globe size={14} /> Region & Activity
             </h3>

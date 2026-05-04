@@ -103,10 +103,10 @@ function FinanceKPIRow({ stats }: {
   return (
     <div className={`grid gap-6 mb-8`} style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>
       {stats.map((s) => (
-        <div key={s.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <p className="text-sm text-grey-500 mb-1">{s.label}</p>
-          <p className={`text-3xl font-bold tracking-tight font-mono ${
-            s.negative ? "text-danger" : s.positive ? "text-green-600" : "text-dark"
+        <div key={s.label} className="border border-slate-200 rounded-lg p-5">
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-500 mb-1">{s.label}</p>
+          <p className={`text-2xl font-normal font-mono ${
+            s.negative ? "text-red-600" : s.positive ? "text-green-600" : "text-slate-900"
           }`}>
             {s.value}
           </p>
@@ -122,12 +122,10 @@ function EmptyState({ icon: Icon, heading, body }: {
   icon: React.ElementType; heading: string; body: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-16 h-16 rounded-full bg-teal-bg flex items-center justify-center mb-4">
-        <Icon className="h-8 w-8 text-teal" />
-      </div>
-      <h3 className="text-lg font-semibold text-dark mb-2">{heading}</h3>
-      <p className="text-sm text-grey-500 max-w-sm">{body}</p>
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <Icon className="h-10 w-10 text-slate-300 mb-3" />
+      <p className="text-sm font-medium text-slate-900 mb-1">{heading}</p>
+      <p className="text-sm text-slate-500">{body}</p>
     </div>
   );
 }
@@ -136,8 +134,8 @@ function EmptyState({ icon: Icon, heading, body }: {
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
-      <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">{title}</p>
+    <div className="border border-slate-200 rounded-lg p-6 mb-8">
+      <p className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-6">{title}</p>
       <div className="h-[400px]">
         {children}
       </div>
@@ -222,8 +220,8 @@ function RevenueTab({ subscriptions, commissions }: { subscriptions: Subscriptio
       </ChartCard>
 
       <div>
-        <h3 className="text-lg font-semibold text-dark mb-4">Subscriptions</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <h3 className="text-sm font-medium text-slate-900 mb-4">Subscriptions</h3>
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           {subscriptions.length === 0 ? (
             <EmptyState
               icon={CreditCard}
@@ -292,8 +290,8 @@ function CostsTab({ costs, commissions }: { costs: ApiCost[]; commissions: Commi
       </ChartCard>
 
       <div>
-        <h3 className="text-lg font-semibold text-dark mb-4">API Cost Log</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <h3 className="text-sm font-medium text-slate-900 mb-4">API Cost Log</h3>
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           {costs.length === 0 ? (
             <EmptyState
               icon={BarChart3}
@@ -368,11 +366,11 @@ function CashFlowTab({ subscriptions, commissions, costs }: {
       </ChartCard>
 
       <div>
-        <h3 className="text-lg font-semibold text-dark mb-4">Monthly breakdown</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <h3 className="text-sm font-medium text-slate-900 mb-4">Monthly breakdown</h3>
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-grey-100 text-xs text-grey-500 uppercase tracking-wide">
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <th className="text-left px-6 py-3">Month</th>
                 <th className="text-right px-6 py-3">Revenue</th>
                 <th className="text-right px-6 py-3">Expenses</th>
@@ -387,7 +385,7 @@ function CashFlowTab({ subscriptions, commissions, costs }: {
                   </td>
                 </tr>
               ) : tableData.map((row) => (
-                <tr key={row.month} className="border-b border-grey-50 hover:bg-slate-50 transition-colors">
+                <tr key={row.month} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors last:border-0">
                   <td className="px-6 py-3 font-medium text-dark">{monthLabel(row.month)}</td>
                   <td className="px-6 py-3 text-right font-mono text-green-600 font-semibold">{formatCurrency(row.revenue)}</td>
                   <td className="px-6 py-3 text-right font-mono text-danger">{formatCurrency(row.costs)}</td>
@@ -458,10 +456,10 @@ function ForecastTab({ subscriptions, commissions, costs }: {
         { label: "6-month revenue forecast",     value: formatCurrency(sixMonthRev),   positive: sixMonthRev > 0 },
       ]} />
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
+      <div className="border border-slate-200 rounded-lg p-6 mb-8">
         <div className="flex items-center justify-between mb-6">
-          <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Revenue &amp; cost forecast — next 6 months</p>
-          <span className="text-xs text-grey-400 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">Linear trend projection</span>
+          <p className="text-sm font-medium uppercase tracking-wider text-slate-500">Revenue &amp; cost forecast — next 6 months</p>
+          <span className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-3 py-1">Linear trend projection</span>
         </div>
         <div className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -485,11 +483,11 @@ function ForecastTab({ subscriptions, commissions, costs }: {
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-dark mb-4">6-month projection</h3>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <h3 className="text-sm font-medium text-slate-900 mb-4">6-month projection</h3>
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-grey-100 text-xs text-grey-500 uppercase tracking-wide">
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
                 <th className="text-left px-6 py-3">Month</th>
                 <th className="text-right px-6 py-3">Revenue</th>
                 <th className="text-right px-6 py-3">Costs</th>
@@ -502,7 +500,7 @@ function ForecastTab({ subscriptions, commissions, costs }: {
                 const cost = projCost[i] ?? 0;
                 const net  = rev - cost;
                 return (
-                  <tr key={m} className="border-b border-grey-50 hover:bg-slate-50 transition-colors">
+                  <tr key={m} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors last:border-0">
                     <td className="px-6 py-3 font-medium text-dark">{monthLabel(m)}</td>
                     <td className="px-6 py-3 text-right font-mono text-green-600 font-semibold">{formatCurrency(rev)}</td>
                     <td className="px-6 py-3 text-right font-mono text-danger">{formatCurrency(cost)}</td>
@@ -558,7 +556,7 @@ export default function FinancePage() {
       />
 
       {/* ── Tab bar + time range ── */}
-      <div className="flex items-center justify-between border-b border-slate-200 mb-8 bg-white sticky top-0 z-10 px-6 -mx-6">
+      <div className="flex items-center justify-between border-b border-slate-200 mb-8 bg-white sticky top-0 z-10 px-8 -mx-8">
         {/* Tabs */}
         <div className="flex">
           {TABS.map(({ key, label }) => (
@@ -567,8 +565,8 @@ export default function FinancePage() {
               onClick={() => setTab(key)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
                 tab === key
-                  ? "border-teal text-teal"
-                  : "border-transparent text-grey-500 hover:text-dark hover:border-slate-300"
+                  ? "border-slate-900 text-slate-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
               }`}
             >
               {label}
@@ -584,8 +582,8 @@ export default function FinancePage() {
               onClick={() => setTimeRange(range)}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
                 timeRange === range
-                  ? "bg-white text-dark shadow-sm"
-                  : "text-grey-500 hover:text-dark"
+                  ? "bg-white text-slate-900 border border-slate-200"
+                  : "text-slate-500 hover:text-slate-700"
               }`}
             >
               {range}

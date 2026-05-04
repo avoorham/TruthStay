@@ -123,7 +123,7 @@ export default function AnnouncementsPage() {
         description="In-app banners and notifications broadcast to user segments."
         actions={
           <button onClick={() => setShowForm(!showForm)}
-            className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+            className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
             <Plus size={14} /> New announcement
           </button>
         }
@@ -131,13 +131,13 @@ export default function AnnouncementsPage() {
 
       {/* Summary chips */}
       <div className="flex gap-3">
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm">
+        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-4 py-2.5">
           <span className="w-2 h-2 rounded-full bg-green-dark" />
           <span className="text-sm font-semibold text-dark">{active}</span>
           <span className="text-xs text-grey-500">active</span>
         </div>
         {expiring > 0 && (
-          <div className="flex items-center gap-2 bg-white border border-warning/30 rounded-xl px-4 py-2.5 shadow-sm">
+          <div className="flex items-center gap-2 bg-white border border-warning/30 rounded-md px-4 py-2.5">
             <span className="w-2 h-2 rounded-full bg-warning" />
             <span className="text-sm font-semibold text-dark">{expiring}</span>
             <span className="text-xs text-grey-500">expiring soon</span>
@@ -147,7 +147,7 @@ export default function AnnouncementsPage() {
 
       {/* Create form */}
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white border border-grey-300 rounded-xl p-5 space-y-4">
+        <form onSubmit={handleCreate} className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
           <h3 className="font-display font-semibold text-dark text-sm flex items-center gap-2">
             <Bell size={14} /> Create announcement
           </h3>
@@ -155,40 +155,40 @@ export default function AnnouncementsPage() {
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-grey-700 mb-1">Title *</label>
               <input required value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none " />
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-grey-700 mb-1">Body *</label>
               <textarea required rows={3} value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm resize-none focus:outline-none " />
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Priority</label>
               <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none ">
                 {["low", "normal", "high", "urgent"].map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Target segment</label>
               <select value={form.target_segment} onChange={e => setForm(f => ({ ...f, target_segment: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-blue/60">
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none ">
                 {SEGMENTS.map(s => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Starts at</label>
               <input type="datetime-local" value={form.starts_at} onChange={e => setForm(f => ({ ...f, starts_at: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none " />
             </div>
             <div>
               <label className="block text-xs font-semibold text-grey-700 mb-1">Expires at</label>
               <input type="datetime-local" value={form.ends_at} onChange={e => setForm(f => ({ ...f, ends_at: e.target.value }))}
-                className="w-full border border-grey-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue/60" />
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none " />
             </div>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">Publish</button>
+            <button type="submit" className="bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">Publish</button>
             <button type="button" onClick={() => setShowForm(false)} className="text-sm text-grey-700 px-4 py-2 hover:text-dark">Cancel</button>
           </div>
         </form>

@@ -98,8 +98,8 @@ export default function ReferralsPage() {
       id: "actions", header: "",
       cell: () => (
         <div className="flex gap-1">
-          <button className="text-xs px-2 py-1 rounded-lg border border-grey-300 text-grey-700 hover:bg-grey-100 transition">Edit</button>
-          <button className="text-xs px-2 py-1 rounded-lg border border-danger-light text-danger hover:bg-danger-light transition">Deactivate</button>
+          <button className="text-xs px-2 py-1 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition">Edit</button>
+          <button className="text-xs px-2 py-1 rounded-md border border-danger/20 text-danger hover:bg-danger-light transition">Deactivate</button>
         </div>
       ),
     },
@@ -119,7 +119,7 @@ export default function ReferralsPage() {
         description="Referral programme performance and viral trip invitation loop."
         actions={
           tab === "codes" && (
-            <button className="inline-flex items-center gap-1.5 bg-blue text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-dark transition">
+            <button className="inline-flex items-center gap-1.5 bg-teal-500 text-white text-sm font-medium px-4 py-2 rounded-md hover:bg-teal-600 transition">
               <Plus size={14} /> New code
             </button>
           )
@@ -127,11 +127,11 @@ export default function ReferralsPage() {
       />
 
       {/* Tab bar */}
-      <div className="flex gap-0 border-b border-grey-300">
+      <div className="flex gap-0 border-b border-slate-200">
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
-              tab === key ? "border-blue text-blue" : "border-transparent text-grey-700 hover:text-dark"
+              tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}>
             {label}
           </button>
@@ -143,7 +143,7 @@ export default function ReferralsPage() {
         <div className="space-y-6">
           {/* Two programme cards side by side */}
           <div className="grid grid-cols-2 gap-6">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="border border-slate-200 rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Link2 size={16} className="text-blue" />
                 <h3 className="text-sm font-semibold text-dark">Referral Programme</h3>
@@ -158,8 +158,8 @@ export default function ReferralsPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
-              <div className="absolute top-3 right-3 bg-teal text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Power loop</div>
+            <div className="border border-slate-200 rounded-lg p-6 relative overflow-hidden">
+              <div className="absolute top-3 right-3 bg-teal-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Power loop</div>
               <div className="flex items-center gap-2 mb-4">
                 <Users size={16} className="text-teal" />
                 <h3 className="text-sm font-semibold text-dark">Trip Invitations</h3>
@@ -177,7 +177,7 @@ export default function ReferralsPage() {
 
           {/* Donut chart + K-factor */}
           <div className="grid grid-cols-5 gap-6">
-            <div className="col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="col-span-3 border border-slate-200 rounded-lg p-6">
               <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Acquisition source breakdown</h3>
               <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -192,7 +192,7 @@ export default function ReferralsPage() {
               </div>
             </div>
 
-            <div className="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <div className="col-span-2 border border-slate-200 rounded-lg p-6">
               <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Viral metrics</h3>
               <div className="space-y-4">
                 {[
@@ -224,7 +224,7 @@ export default function ReferralsPage() {
       {/* ── Trip Invitations ── */}
       {tab === "invitations" && (
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-grey-100 text-xs text-grey-500 uppercase tracking-wide">
@@ -254,12 +254,12 @@ export default function ReferralsPage() {
           </div>
 
           {/* Viral chain visualisation */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="border border-slate-200 rounded-lg p-6">
             <h3 className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Viral chain example</h3>
             <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {["User signs up", "Plans first trip", "Invites 4 friends", "2 join & plan trips", "Each invites 3 more"].map((step, i) => (
                 <div key={i} className="flex items-center gap-2 shrink-0">
-                  <div className="bg-teal-bg border border-teal/30 rounded-xl px-3 py-2 text-xs text-teal-dark font-medium text-center max-w-[120px]">
+                  <div className="bg-teal-50 border border-teal-200 rounded-md px-3 py-2 text-xs text-teal-700 font-medium text-center max-w-[120px]">
                     {step}
                   </div>
                   {i < 4 && <ArrowRight size={14} className="text-grey-300 shrink-0" />}
@@ -274,7 +274,7 @@ export default function ReferralsPage() {
       {tab === "leaderboard" && (
         <div className="grid grid-cols-2 gap-6">
           {/* Top referrers */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="border border-slate-200 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-5">
               <Trophy size={14} className="text-warning" />
               <h3 className="text-sm font-semibold text-dark">Top referrers</h3>
@@ -304,7 +304,7 @@ export default function ReferralsPage() {
           </div>
 
           {/* Top trip inviters */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div className="border border-slate-200 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-5">
               <Trophy size={14} className="text-teal" />
               <h3 className="text-sm font-semibold text-dark">Top trip inviters</h3>

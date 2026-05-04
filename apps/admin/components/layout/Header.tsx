@@ -5,7 +5,7 @@ interface Crumb { label: string; href?: string }
 
 export function Header({ crumbs, actions }: { crumbs: Crumb[]; actions?: React.ReactNode }) {
   return (
-    <header className="h-14 border-b border-grey-300 bg-white flex items-center justify-between px-6 shrink-0">
+    <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 shrink-0">
       <nav className="flex items-center gap-1.5 text-sm">
         {crumbs.map((crumb, i) => (
           <span key={i} className="flex items-center gap-1.5">

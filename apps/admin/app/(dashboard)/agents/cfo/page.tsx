@@ -142,7 +142,7 @@ function MonthlyPlanTab() {
       )}
 
       {/* ── Budget table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Per-agent budget — May 2026</h2>
           <span className="text-xs text-grey-400">Click proposed budget to edit</span>
@@ -256,7 +256,7 @@ function MonthlyPlanTab() {
 
       {/* ── Last month performance ── */}
       <div className="grid grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="border border-slate-200 rounded-lg p-6">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-5">Last month: budget vs actual</p>
           <div className="h-[200px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +273,7 @@ function MonthlyPlanTab() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <div className="border border-slate-200 rounded-lg p-6 space-y-4">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Revenue forecast — May</p>
           <div className="grid grid-cols-3 gap-4">
             <div>
@@ -310,7 +310,7 @@ function MonthlyPlanTab() {
       </div>
 
       {/* ── Risks & recommendations ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">CFO Risks &amp; Recommendations</p>
         <div className="grid grid-cols-2 gap-6">
           <div>
@@ -345,7 +345,7 @@ function MonthlyPlanTab() {
       </div>
 
       {/* ── Admin notes + action buttons ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+      <div className="border border-slate-200 rounded-lg p-6 space-y-4">
         <div>
           <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-2">Admin notes</label>
           <textarea
@@ -353,25 +353,25 @@ function MonthlyPlanTab() {
             onChange={e => setAdminNotes(e.target.value)}
             placeholder="Add notes or conditions for this plan approval…"
             rows={3}
-            className="w-full text-sm text-dark bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal resize-none"
+            className="w-full text-sm text-dark bg-slate-50 border border-slate-200 rounded-md px-4 py-3 focus:outline-none focus:border-teal-400 resize-none"
           />
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setPlanStatus("approved")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal text-white text-sm font-semibold hover:bg-teal-dark transition-colors shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-md bg-teal-500 text-white text-sm font-medium hover:bg-teal-600 transition-colors"
           >
             <CheckCircle2 size={15} /> Approve Plan
           </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:border-slate-300 hover:bg-slate-50 transition-colors">
+          <button className="flex items-center gap-2 px-5 py-2.5 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors">
             <Edit2 size={14} /> Request Revision
           </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:border-slate-300 hover:bg-slate-50 transition-colors">
+          <button className="flex items-center gap-2 px-5 py-2.5 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors">
             <Edit2 size={14} /> Amend Current
           </button>
           <button
             onClick={() => setPlanStatus("rejected")}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-danger/30 text-sm font-medium text-danger hover:bg-danger-light transition-colors"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-md border border-danger/30 text-sm font-medium text-danger hover:bg-danger-light transition-colors"
           >
             <Trash2 size={14} /> Reject
           </button>
@@ -454,7 +454,7 @@ function WeeklyScenariosTab() {
             <div
               key={key}
               className={cn(
-                "rounded-2xl border-2 shadow-sm p-6 flex flex-col gap-4 transition-all",
+                "rounded-lg border-2 p-6 flex flex-col gap-4 transition-all",
                 isActive
                   ? "border-teal bg-teal-bg"
                   : "border-slate-200 bg-white hover:border-slate-300"
@@ -501,10 +501,10 @@ function WeeklyScenariosTab() {
               <button
                 onClick={() => setActive(key)}
                 className={cn(
-                  "mt-auto w-full py-2 rounded-xl text-sm font-semibold transition-colors",
+                  "mt-auto w-full py-2 rounded-md text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-teal text-white cursor-default"
-                    : "border border-slate-200 text-grey-700 hover:border-teal hover:text-teal bg-white"
+                    ? "bg-teal-500 text-white cursor-default"
+                    : "border border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700 bg-white"
                 )}
               >
                 {isActive ? "Active" : "Select"}
@@ -516,13 +516,13 @@ function WeeklyScenariosTab() {
 
       {/* ── Create custom ── */}
       <div className="flex justify-end">
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:border-teal hover:text-teal transition-colors">
+        <button className="flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:border-teal-400 hover:text-teal-700 transition-colors">
           <Plus size={14} /> Create Custom Scenario
         </button>
       </div>
 
       {/* ── Current week status ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Current week — 28 Apr–4 May</p>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -545,7 +545,7 @@ function WeeklyScenariosTab() {
       </div>
 
       {/* ── History ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Last 4 weeks</p>
         </div>
@@ -633,17 +633,17 @@ function InfrastructureTab() {
     <div className="space-y-8">
       {/* ── KPI bar ── */}
       <div className="grid grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="border border-slate-200 rounded-lg p-6">
           <p className="text-sm text-grey-500 mb-1">Monthly infrastructure burn</p>
           <p className="text-3xl font-bold font-mono text-dark">{formatUsd(totalBurn)}</p>
           <p className="text-xs text-grey-400 mt-1.5">{INFRA_SUBS.length} active subscriptions</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="border border-slate-200 rounded-lg p-6">
           <p className="text-sm text-grey-500 mb-1">Largest line item</p>
           <p className="text-3xl font-bold font-mono text-dark">$89.40</p>
           <p className="text-xs text-grey-400 mt-1.5">Anthropic API · 51% of total</p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="border border-slate-200 rounded-lg p-6">
           <p className="text-sm text-grey-500 mb-1">Next renewal</p>
           <p className="text-3xl font-bold font-mono text-dark">3 May</p>
           <p className="text-xs text-grey-400 mt-1.5">Expo EAS · $29.00</p>
@@ -651,7 +651,7 @@ function InfrastructureTab() {
       </div>
 
       {/* ── Subscriptions table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Active subscriptions</p>
           <button className="flex items-center gap-1.5 text-xs font-semibold text-teal-dark hover:text-teal transition-colors">
@@ -706,7 +706,7 @@ function InfrastructureTab() {
       </div>
 
       {/* ── Renewal calendar ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-4">Upcoming renewals</p>
         <div className="space-y-3">
           {upcoming.map(s => (
@@ -760,7 +760,7 @@ function ForecastsTab() {
           { label: "3-month revenue (proj)", value: formatUsd(FORECAST_DATA.slice(0,3).reduce((s,d) => s+d.revenue, 0)), positive: true },
           { label: "6-month revenue (proj)", value: formatUsd(FORECAST_DATA.reduce((s,d) => s+d.revenue, 0)), positive: true },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div key={s.label} className="border border-slate-200 rounded-lg p-6">
             <p className="text-sm text-grey-500 mb-1">{s.label}</p>
             <p className={cn(
               "text-3xl font-bold font-mono tracking-tight",
@@ -773,7 +773,7 @@ function ForecastsTab() {
       </div>
 
       {/* ── Revenue vs cost chart ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">3-month revenue + cost projection</p>
           <span className="text-xs text-grey-400 bg-slate-50 border border-slate-200 rounded-full px-3 py-1">Linear growth model</span>
@@ -812,7 +812,7 @@ function ForecastsTab() {
       )}
 
       {/* ── Projection table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">6-month projection</p>
         </div>
@@ -884,7 +884,7 @@ function SpendLogTab() {
   return (
     <div className="space-y-8">
       {/* ── Stacked area chart ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest mb-6">Total spend by agent — last 7 days</p>
         <div className="h-[240px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -924,7 +924,7 @@ function SpendLogTab() {
         <select
           value={filterAgent}
           onChange={e => setFilterAgent(e.target.value)}
-          className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 text-dark bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+          className="text-sm border border-slate-200 rounded-md px-3 py-1.5 text-dark bg-white focus:outline-none"
         >
           <option value="all">All agents</option>
           <option value="cfo">CFO</option>
@@ -935,7 +935,7 @@ function SpendLogTab() {
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
-          className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 text-dark bg-white focus:outline-none focus:ring-2 focus:ring-teal/30"
+          className="text-sm border border-slate-200 rounded-md px-3 py-1.5 text-dark bg-white focus:outline-none"
         >
           <option value="all">All statuses</option>
           <option value="approved">Approved</option>
@@ -946,7 +946,7 @@ function SpendLogTab() {
       </div>
 
       {/* ── Audit table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-grey-100">
           <p className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Spend authorisations</p>
         </div>
@@ -1013,7 +1013,7 @@ export default function CFOCommandCentrePage() {
         actions={
           <Link
             href="/agents/cfo/settings"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-md border border-slate-200 text-sm font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
           >
             <Settings size={14} /> CFO Settings
           </Link>
@@ -1029,7 +1029,7 @@ export default function CFOCommandCentrePage() {
             className={cn(
               "px-5 py-3.5 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap",
               tab === key
-                ? "border-teal text-teal"
+                ? "border-slate-900 text-slate-900"
                 : "border-transparent text-grey-500 hover:text-dark hover:border-slate-300"
             )}
           >

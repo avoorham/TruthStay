@@ -14,7 +14,7 @@ export default function FinanceSubscriptionsPage() {
           </Link>
         }
       />
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 flex flex-col items-center justify-center text-center">
+      <div className="border border-slate-200 rounded-lg p-16 flex flex-col items-center justify-center text-center">
         <p className="text-3xl mb-3">💳</p>
         <h2 className="text-lg font-semibold text-dark mb-2">Subscription detail view</h2>
         <p className="text-sm text-grey-500 max-w-sm">Full subscription management is available on the Revenue tab of the Finance overview.</p>

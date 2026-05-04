@@ -103,8 +103,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Signups chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-dark mb-6">Daily signups — last 14 days</h2>
+      <div className="border border-slate-200 rounded-lg p-6">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-6">Daily signups — last 14 days</h2>
         <div className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={signupChartData} barSize={22}>
@@ -121,15 +121,13 @@ export default function AnalyticsPage() {
       {/* Region + agent runs */}
       <div className="grid grid-cols-2 gap-6">
         {/* Region breakdown */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-dark mb-4">Top regions — verified content</h2>
+        <div className="border border-slate-200 rounded-lg p-6">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">Top regions — verified content</h2>
           {regions.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-teal-bg flex items-center justify-center mb-3">
-                <Map className="h-6 w-6 text-teal" />
-              </div>
-              <p className="text-sm font-medium text-dark mb-1">No regions yet</p>
-              <p className="text-xs text-grey-500">Verified content entries will populate this list.</p>
+              <Map className="h-10 w-10 text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-900 mb-1">No regions yet</p>
+              <p className="text-sm text-slate-500">Verified content entries will populate this list.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -156,15 +154,13 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Recent agent runs */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-dark mb-4">Recent agent runs</h2>
+        <div className="border border-slate-200 rounded-lg p-6">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-slate-500 mb-4">Recent agent runs</h2>
           {recentRuns.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-12 h-12 rounded-full bg-teal-bg flex items-center justify-center mb-3">
-                <BarChart3 className="h-6 w-6 text-teal" />
-              </div>
-              <p className="text-sm font-medium text-dark mb-1">No agent runs yet</p>
-              <p className="text-xs text-grey-500">Scout agent runs will appear here once triggered.</p>
+              <BarChart3 className="h-10 w-10 text-slate-300 mb-3" />
+              <p className="text-sm font-medium text-slate-900 mb-1">No agent runs yet</p>
+              <p className="text-sm text-slate-500">Scout agent runs will appear here once triggered.</p>
             </div>
           ) : (
             <div className="space-y-2">

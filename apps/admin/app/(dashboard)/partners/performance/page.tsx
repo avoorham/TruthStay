@@ -68,22 +68,22 @@ export default function PartnerPerformancePage() {
           { label: "Total bookings",       value: totalBookings.toLocaleString() },
           { label: "Commission paid out",  value: formatCurrency(totalCommission), mono: true },
         ].map(({ label, value, mono }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <div key={label} className="border border-slate-200 rounded-lg p-6">
             <p className="text-xs text-grey-500 mb-1">{label}</p>
-            <p className={`text-3xl font-bold text-dark tracking-tight ${mono ? "font-mono" : ""}`}>{value}</p>
+            <p className={`text-2xl font-normal text-slate-900 tracking-tight ${mono ? "font-mono" : ""}`}>{value}</p>
           </div>
         ))}
       </div>
 
       {/* Sort + table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
           <h2 className="text-sm font-semibold text-grey-500 uppercase tracking-widest">Ranked by</h2>
           <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
             {SORT_OPTIONS.map(({ key, label }) => (
               <button key={key} onClick={() => setSortBy(key)}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                  sortBy === key ? "bg-white text-dark shadow-sm" : "text-grey-500 hover:text-dark"
+                  sortBy === key ? "bg-white text-slate-900 border border-slate-200" : "text-grey-500 hover:text-dark"
                 }`}>
                 {label}
               </button>
@@ -151,20 +151,20 @@ export default function PartnerPerformancePage() {
       </div>
 
       {/* Onboarding pipeline stub */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <div className="border border-slate-200 rounded-lg p-6">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp size={14} className="text-teal" />
           <h3 className="text-sm font-semibold text-dark">Onboarding pipeline</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-1">
           {[
-            { stage: "Contacted",   count: 12, color: "bg-grey-100 border-grey-300 text-grey-700" },
+            { stage: "Contacted",   count: 12, color: "bg-slate-100 border-slate-200 text-slate-700" },
             { stage: "Demo booked", count: 7,  color: "bg-blue-light border-blue/20 text-blue" },
             { stage: "In review",   count: 4,  color: "bg-warning-light border-warning/20 text-warning" },
             { stage: "Agreement",   count: 2,  color: "bg-teal-light border-teal/20 text-teal-dark" },
             { stage: "Live",        count: activePartners, color: "bg-green-light border-green/20 text-green-dark" },
           ].map(({ stage, count, color }) => (
-            <div key={stage} className={`shrink-0 border rounded-xl px-4 py-3 min-w-[120px] ${color}`}>
+            <div key={stage} className={`shrink-0 border rounded-md px-4 py-3 min-w-[120px] ${color}`}>
               <p className="text-2xl font-bold tracking-tight">{count}</p>
               <p className="text-xs font-medium mt-0.5 opacity-80">{stage}</p>
             </div>

@@ -94,7 +94,7 @@ export default function SocialPage() {
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
-              tab === key ? "border-slate-900 text-slate-900"
+              tab === key ? "border-slate-900 text-slate-900" : "border-transparent text-slate-500 hover:text-slate-700"
             }`}>
             {label}
           </button>

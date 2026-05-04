@@ -705,6 +705,7 @@ function DataSourcesSection({
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "" });
   const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentSource | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -713,18 +714,24 @@ function DataSourcesSection({
   async function handleAddSource() {
     if (!addForm.url || !addForm.label) return;
     setAdding(true);
+    setAddError(null);
     try {
+      const url = addForm.url.trim().startsWith("http") ? addForm.url.trim() : `https://${addForm.url.trim()}`;
       const res = await fetch("/api/admin/scout/sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...addForm, region: addForm.region || undefined }),
+        body: JSON.stringify({ ...addForm, url, region: addForm.region || undefined }),
       });
+      const data = await res.json();
       if (res.ok) {
-        const newSource = await res.json();
-        setSources(s => [newSource, ...s]);
+        setSources(s => [data, ...s]);
         setShowAddForm(false);
         setAddForm({ url: "", type: "website", label: "", region: "" });
+      } else {
+        setAddError(data.error ?? `Error ${res.status}`);
       }
+    } catch (err: any) {
+      setAddError(err.message ?? "Failed to save source");
     } finally {
       setAdding(false);
     }
@@ -797,10 +804,10 @@ function DataSourcesSection({
               <div>
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">URL <span className="text-danger">*</span></label>
                 <input
-                  type="url"
+                  type="text"
                   value={addForm.url}
-                  onChange={e => setAddForm(f => ({ ...f, url: e.target.value }))}
-                  placeholder="https://myblog.com or https://instagram.com/handle"
+                  onChange={e => { setAddForm(f => ({ ...f, url: e.target.value })); setAddError(null); }}
+                  placeholder="https://myblog.com or instagram.com/handle"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
                   autoFocus
                 />
@@ -848,11 +855,17 @@ function DataSourcesSection({
                 />
               </div>
             </div>
+            {addError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20">
+                <AlertTriangle size={12} className="text-danger shrink-0" />
+                <p className="text-xs text-danger">{addError}</p>
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button onClick={() => { setShowAddForm(false); setAddError(null); }} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
               <button
                 onClick={handleAddSource}
-                disabled={adding || !addForm.url || !addForm.label}
+                disabled={adding || !addForm.url.trim() || !addForm.label.trim()}
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50"
               >
                 {adding ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}

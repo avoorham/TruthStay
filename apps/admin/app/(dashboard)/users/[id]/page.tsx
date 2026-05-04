@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
+import { ArrowLeft, CheckCircle, FileText, Map, MessageSquare, RotateCcw, Shield, ShieldOff } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -18,6 +18,12 @@ type UserDetail = {
   location: string | null;
 };
 
+type Contributions = {
+  content: { id: string; name: string; type: string; verified: boolean; created_at: string }[];
+  adventures: { id: string; title: string; created_at: string }[];
+  posts: { id: string; created_at: string }[];
+};
+
 const STATUS_OPTIONS = ["active", "banned", "onboarding"];
 const ADMIN_ROLES = ["admin", "content_moderator", "analyst", "marketer"];
 
@@ -26,19 +32,24 @@ export default function UserDetailPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserDetail | null>(null);
   const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [contributions, setContributions] = useState<Contributions | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBan, setShowBan] = useState(false);
   const [selectedRole, setSelectedRole] = useState("");
   const [savingRole, setSavingRole] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/users/${id}`).then((r) => r.json()),
       fetch(`/api/admin/users/${id}/admin-role`).then((r) => r.json()),
-    ]).then(([u, ar]) => {
+      fetch(`/api/admin/users/${id}/contributions`).then((r) => r.json()),
+    ]).then(([u, ar, contrib]) => {
       setUser(u);
       setAdminRole(ar?.role ?? null);
       setSelectedRole(ar?.role ?? "");
+      setContributions(contrib);
       setLoading(false);
     });
   }, [id]);
@@ -51,6 +62,14 @@ export default function UserDetailPage() {
     });
     setUser((u) => u ? { ...u, status } : u);
     setShowBan(false);
+  }
+
+  async function handlePasswordReset() {
+    setSendingReset(true);
+    await fetch(`/api/admin/users/${id}/reset-password`, { method: "POST" });
+    setSendingReset(false);
+    setResetSent(true);
+    setTimeout(() => setResetSent(false), 4000);
   }
 
   async function handleRoleSave() {
@@ -84,6 +103,17 @@ export default function UserDetailPage() {
               className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium px-3 py-2 rounded-md hover:bg-slate-50 transition"
             >
               <ArrowLeft size={14} /> Back
+            </button>
+            <button
+              onClick={handlePasswordReset}
+              disabled={sendingReset || resetSent}
+              className="inline-flex items-center gap-1.5 border border-slate-200 text-sm font-medium px-3 py-2 rounded-md hover:bg-slate-50 transition disabled:opacity-60"
+            >
+              {resetSent ? (
+                <><CheckCircle size={14} className="text-green" /> Reset sent</>
+              ) : (
+                <><RotateCcw size={14} /> {sendingReset ? "Sending…" : "Send password reset"}</>
+              )}
             </button>
             {user.status !== "banned" ? (
               <button
@@ -199,6 +229,65 @@ export default function UserDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Contributions */}
+      {contributions && (
+        <div className="mt-5 space-y-4">
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-teal/10 flex items-center justify-center shrink-0">
+                <FileText size={16} className="text-teal" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{contributions.content.length}</p>
+                <p className="text-xs text-grey-500">Places added</p>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue/10 flex items-center justify-center shrink-0">
+                <Map size={16} className="text-blue" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{contributions.adventures.length}</p>
+                <p className="text-xs text-grey-500">Adventures created</p>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-4 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                <MessageSquare size={16} className="text-purple-500" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{contributions.posts.length}</p>
+                <p className="text-xs text-grey-500">Posts</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Content entries detail */}
+          {contributions.content.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="font-display font-semibold text-dark text-sm mb-3">Submitted Places</h2>
+              <div className="divide-y divide-slate-100">
+                {contributions.content.map((c) => (
+                  <div key={c.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{c.name}</p>
+                      <p className="text-xs text-grey-500 capitalize">{c.type}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.verified ? "bg-green/10 text-green" : "bg-slate-100 text-grey-500"}`}>
+                        {c.verified ? "Verified" : "Pending"}
+                      </span>
+                      <span className="text-xs text-grey-400">{formatDateTime(c.created_at)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <ConfirmDialog
         open={showBan}

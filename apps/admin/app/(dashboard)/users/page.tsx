@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { ExternalLink, RefreshCw, Shield, Users } from "lucide-react";
+import { ExternalLink, FileText, RefreshCw, Shield, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -14,6 +14,7 @@ type User = {
   full_name: string | null;
   status: string;
   created_date: string;
+  content_count: number;
   user_subscriptions?: { status: string; subscription_plans?: { name: string } | null }[];
 };
 
@@ -96,6 +97,19 @@ export default function UsersPage() {
             {sub.subscription_plans?.name && (
               <span className="text-xs text-grey-700">{sub.subscription_plans.name}</span>
             )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "content_count",
+      header: "Contributions",
+      cell: ({ getValue }) => {
+        const count = getValue<number>();
+        return (
+          <div className="flex items-center gap-1.5">
+            <FileText size={12} className={count > 0 ? "text-teal" : "text-grey-300"} />
+            <span className={`text-sm font-medium ${count > 0 ? "text-slate-900" : "text-grey-400"}`}>{count}</span>
           </div>
         );
       },

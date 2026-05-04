@@ -5,7 +5,9 @@ import {
   ArrowLeft, MapPin, Play, CheckCircle2, XCircle, Eye,
   ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle,
   Route, Building2, UtensilsCrossed, Clock, ArrowRight,
+  Globe, Instagram, RefreshCw, Trash2, Link as LinkIcon,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn } from "@/lib/utils";
@@ -149,6 +151,26 @@ interface FormState {
   contentTypes: string[];
   maxResults: number;
   focusKeywords: string;
+  includeActiveSources: boolean;
+}
+
+interface ContentSource {
+  id: string;
+  url: string;
+  type: "website" | "instagram";
+  label: string;
+  region: string | null;
+  last_scraped_at: string | null;
+  entry_count: number;
+  status: "active" | "paused" | "error";
+  created_at: string;
+}
+
+interface AddSourceForm {
+  url: string;
+  type: "website" | "instagram";
+  label: string;
+  region: string;
 }
 
 type RunPhase = "idle" | "running" | "fetching" | "done" | "failed";
@@ -667,18 +689,307 @@ function RunHistoryTable({ runs }: { runs: AgentRun[] }) {
   );
 }
 
+// ─── Data Sources Section ─────────────────────────────────────────────────────
+
+function DataSourcesSection({
+  sources,
+  setSources,
+  setStats,
+  effectiveRegion,
+}: {
+  sources: ContentSource[];
+  setSources: React.Dispatch<React.SetStateAction<ContentSource[]>>;
+  setStats: React.Dispatch<React.SetStateAction<ContentStats | null>>;
+  effectiveRegion: string;
+}) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "" });
+  const [adding, setAdding] = useState(false);
+  const [scrapingId, setScrapingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ContentSource | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [scrapeResult, setScrapeResult] = useState<{ sourceId: string; inserted: number } | null>(null);
+
+  async function handleAddSource() {
+    if (!addForm.url || !addForm.label) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/admin/scout/sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...addForm, region: addForm.region || undefined }),
+      });
+      if (res.ok) {
+        const newSource = await res.json();
+        setSources(s => [newSource, ...s]);
+        setShowAddForm(false);
+        setAddForm({ url: "", type: "website", label: "", region: "" });
+      }
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleScrape(id: string) {
+    setScrapingId(id);
+    setScrapeResult(null);
+    try {
+      const res = await fetch(`/api/admin/scout/sources/${id}/scrape`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setSources(s => s.map(src =>
+          src.id === id
+            ? { ...src, last_scraped_at: new Date().toISOString(), entry_count: src.entry_count + (data.inserted ?? 0), status: "active" as const }
+            : src
+        ));
+        setScrapeResult({ sourceId: id, inserted: data.inserted ?? 0 });
+        fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
+      } else {
+        setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
+      }
+    } catch {
+      setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
+    } finally {
+      setScrapingId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await fetch(`/api/admin/scout/sources/${deleteTarget.id}`, { method: "DELETE" });
+    setSources(s => s.filter(src => src.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    setDeleting(false);
+  }
+
+  const matchingCount = sources.filter(s =>
+    s.status === "active" && (!s.region || effectiveRegion.toLowerCase().includes(s.region.toLowerCase()))
+  ).length;
+
+  return (
+    <>
+      <div className="border border-slate-200 rounded-lg overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+              <LinkIcon size={15} className="text-teal-dark" />
+            </div>
+            <h2 className="text-sm font-semibold text-dark">
+              Data sources
+              <span className="ml-1.5 text-xs font-normal text-grey-400">({sources.length})</span>
+            </h2>
+            <p className="text-xs text-grey-400 hidden sm:block">Add websites and Instagram pages for the scout to scrape</p>
+          </div>
+          <button
+            onClick={() => setShowAddForm(s => !s)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition"
+          >
+            <Plus size={12} /> Add source
+          </button>
+        </div>
+
+        {/* Inline add form */}
+        {showAddForm && (
+          <div className="px-6 py-4 border-b border-grey-100 bg-slate-50 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">URL <span className="text-danger">*</span></label>
+                <input
+                  type="url"
+                  value={addForm.url}
+                  onChange={e => setAddForm(f => ({ ...f, url: e.target.value }))}
+                  placeholder="https://myblog.com or https://instagram.com/handle"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Label <span className="text-danger">*</span></label>
+                <input
+                  type="text"
+                  value={addForm.label}
+                  onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
+                  placeholder="e.g. My Cycling Blog"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Type</label>
+                <div className="flex gap-2">
+                  {(["website", "instagram"] as const).map(t => (
+                    <button
+                      key={t}
+                      onClick={() => setAddForm(f => ({ ...f, type: t }))}
+                      className={cn(
+                        "flex items-center gap-1.5 flex-1 px-3 py-2 rounded-lg border-2 text-xs font-medium transition-all",
+                        addForm.type === t
+                          ? "border-teal bg-teal-bg text-teal-dark"
+                          : "border-slate-200 text-grey-500 bg-white hover:border-slate-300"
+                      )}
+                    >
+                      {t === "instagram" ? <Instagram size={12} /> : <Globe size={12} />}
+                      {t === "instagram" ? "Instagram" : "Website"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Region hint <span className="text-grey-400 font-normal normal-case">(optional)</span></label>
+                <input
+                  type="text"
+                  value={addForm.region}
+                  onChange={e => setAddForm(f => ({ ...f, region: e.target.value }))}
+                  placeholder="e.g. Italy, Alps…"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setShowAddForm(false)} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button
+                onClick={handleAddSource}
+                disabled={adding || !addForm.url || !addForm.label}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50"
+              >
+                {adding ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                {adding ? "Saving…" : "Save source"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Sources table */}
+        {sources.length === 0 ? (
+          <div className="px-6 py-10 text-center">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+              <LinkIcon size={16} className="text-grey-400" />
+            </div>
+            <p className="text-sm font-medium text-grey-500">No data sources yet</p>
+            <p className="text-xs text-grey-400 mt-1">Add websites and Instagram pages to scrape content from specific sources.</p>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-grey-100 text-xs text-grey-500 uppercase tracking-wide bg-grey-50">
+                <th className="text-left px-6 py-3">Label</th>
+                <th className="text-left px-6 py-3">URL</th>
+                <th className="text-left px-6 py-3">Type</th>
+                <th className="text-left px-6 py-3">Region</th>
+                <th className="text-left px-6 py-3">Last scraped</th>
+                <th className="text-left px-6 py-3">Entries</th>
+                <th className="text-left px-6 py-3">Status</th>
+                <th className="px-6 py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {sources.map(src => (
+                <tr key={src.id} className="border-b border-grey-50 hover:bg-grey-50/50 transition-colors">
+                  <td className="px-6 py-3 font-medium text-dark text-sm">{src.label}</td>
+                  <td className="px-6 py-3">
+                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-teal-dark hover:underline text-xs font-mono truncate max-w-[200px] block">
+                      {src.url.replace(/^https?:\/\//, "")}
+                    </a>
+                  </td>
+                  <td className="px-6 py-3">
+                    <span className={cn(
+                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                      src.type === "instagram" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                    )}>
+                      {src.type === "instagram" ? <Instagram size={10} /> : <Globe size={10} />}
+                      {src.type}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-xs text-grey-500">{src.region ?? "—"}</td>
+                  <td className="px-6 py-3 text-xs text-grey-500">
+                    {src.last_scraped_at ? formatDate(src.last_scraped_at) : "Never"}
+                  </td>
+                  <td className="px-6 py-3 font-mono text-xs text-dark">{src.entry_count}</td>
+                  <td className="px-6 py-3">
+                    <StatusBadge value={src.status} />
+                  </td>
+                  <td className="px-6 py-3">
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <button
+                        onClick={() => handleScrape(src.id)}
+                        disabled={scrapingId === src.id}
+                        title="Scrape now"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition disabled:opacity-50"
+                      >
+                        {scrapingId === src.id
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <RefreshCw size={11} />}
+                        {scrapingId === src.id ? "Scraping…" : "Scrape"}
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(src)}
+                        title="Delete"
+                        className="p-1.5 rounded-lg border border-transparent text-grey-400 hover:border-danger/20 hover:text-danger hover:bg-danger/5 transition"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Scrape success banner */}
+        {scrapeResult && (
+          <div className="px-6 py-3 border-t border-grey-100 bg-green-light/40 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={13} className="text-green-dark" />
+              <p className="text-xs text-green-dark font-medium">
+                Scrape complete — {scrapeResult.inserted} new {scrapeResult.inserted === 1 ? "entry" : "entries"} added to content library
+              </p>
+            </div>
+            <button onClick={() => setScrapeResult(null)} className="text-grey-400 hover:text-grey-600 transition">
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* "Include in scout" hint */}
+        {sources.length > 0 && effectiveRegion && matchingCount > 0 && (
+          <div className="px-6 py-3 border-t border-grey-100 bg-teal-bg/30">
+            <p className="text-xs text-teal-dark">
+              <strong>{matchingCount}</strong> active {matchingCount === 1 ? "source matches" : "sources match"} the selected region. Check &ldquo;Include active sources&rdquo; below to include {matchingCount === 1 ? "it" : "them"} in the next scout run.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={open => { if (!open) setDeleteTarget(null); }}
+        title={`Delete "${deleteTarget?.label}"?`}
+        description="This removes the source from your list. Content entries already scraped from it will not be deleted."
+        confirmLabel="Delete source"
+        variant="danger"
+        onConfirm={handleDelete}
+      />
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LocationScoutPage() {
   // Form state
   const [form, setForm] = useState<FormState>({
-    region:        "",
-    customRegion:  "",
-    vacationType:  "Active Holiday",
-    activityFocus: "None (general)",
-    contentTypes:  ["route", "accommodation", "restaurant"],
-    maxResults:    10,
-    focusKeywords: "",
+    region:               "",
+    customRegion:         "",
+    vacationType:         "Active Holiday",
+    activityFocus:        "None (general)",
+    contentTypes:         ["route", "accommodation", "restaurant"],
+    maxResults:           10,
+    focusKeywords:        "",
+    includeActiveSources: false,
   });
 
   // Run state
@@ -693,8 +1004,9 @@ export default function LocationScoutPage() {
   });
 
   // Data
-  const [stats, setStats]   = useState<ContentStats | null>(null);
+  const [stats, setStats]     = useState<ContentStats | null>(null);
   const [history, setHistory] = useState<AgentRun[]>([]);
+  const [sources, setSources] = useState<ContentSource[]>([]);
   const [presets, setPresets] = useState(PRESET_PRESETS);
   const [addPreset, setAddPreset] = useState(false);
   const [newPreset, setNewPreset] = useState<NewPreset>({ emoji: "📍", label: "" });
@@ -702,10 +1014,11 @@ export default function LocationScoutPage() {
   // Timer ref for elapsed time
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load stats and history on mount
+  // Load stats, history, and sources on mount
   useEffect(() => {
     fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
     fetch("/api/admin/scout/runs").then(r => r.json()).then(data => setHistory(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch("/api/admin/scout/sources").then(r => r.json()).then(data => setSources(Array.isArray(data) ? data : [])).catch(() => {});
   }, []);
 
   // Elapsed timer during run
@@ -781,11 +1094,12 @@ export default function LocationScoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          region:       effectiveRegion,
-          vacationType: form.vacationType,
+          region:               effectiveRegion,
+          vacationType:         form.vacationType,
           contentTypes,
-          maxResults:   form.maxResults,
+          maxResults:           form.maxResults,
           focusKeywords,
+          includeActiveSources: form.includeActiveSources,
         }),
       });
 
@@ -1015,6 +1329,26 @@ export default function LocationScoutPage() {
               </div>
             </div>
 
+            {/* Include active sources */}
+            {sources.length > 0 && (
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.includeActiveSources}
+                  onChange={e => updateForm("includeActiveSources", e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 accent-teal-500"
+                />
+                <span className="text-xs text-grey-600">
+                  Include active sources for this region
+                  {effectiveRegion && (
+                    <span className="ml-1 text-grey-400">
+                      ({sources.filter(s => s.status === "active" && (!s.region || effectiveRegion.toLowerCase().includes(s.region.toLowerCase()))).length} matching)
+                    </span>
+                  )}
+                </span>
+              </label>
+            )}
+
             {/* Cost estimate + Run button */}
             <div className="flex items-center justify-between pt-2 border-t border-grey-100">
               <div className="flex items-center gap-4 text-xs text-grey-500">
@@ -1043,6 +1377,16 @@ export default function LocationScoutPage() {
         <div className="col-span-1">
           <ContentStatsPanel stats={stats} />
         </div>
+      </div>
+
+      {/* ── Data Sources ── */}
+      <div className="mb-6">
+        <DataSourcesSection
+          sources={sources}
+          setSources={setSources}
+          setStats={setStats}
+          effectiveRegion={effectiveRegion}
+        />
       </div>
 
       {/* ── Loading state ── */}

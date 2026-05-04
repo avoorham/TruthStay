@@ -50,14 +50,15 @@ interface InsertCounts {
 
 const RequestSchema = z.object({
   region: z.string().min(1),
-  // General holiday focus aligned with TruthStay's pivot to community-driven
-  // holiday planning — e.g. "beach holiday", "city break", "cycling", "hiking"
   vacationType: z.string().min(1),
   contentTypes: z
     .array(z.enum(["route", "accommodation", "restaurant"]))
     .default(["route", "accommodation", "restaurant"]),
   maxResults: z.number().min(1).max(50).default(15),
   focusKeywords: z.array(z.string()).default([]),
+  sourceUrls: z.array(z.string().url()).optional(),
+  includeActiveSources: z.boolean().optional(),
+  sourceId: z.string().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -212,11 +213,16 @@ function buildPrompt(
   focusKeywords: string[],
   maxResults: number,
   demandSignals = "",
+  appendedSourceUrls: string[] = [],
 ): string {
   const keywordsLine =
     focusKeywords.length > 0 ? `\nFocus keywords: ${focusKeywords.join(", ")}` : "";
   const signalsSection =
     demandSignals ? `\n\n${demandSignals}` : "";
+  const curatedSection =
+    appendedSourceUrls.length > 0
+      ? `\n\nCURATED SOURCE LIST\nIn addition to your general searches, also visit these specific sources and extract any relevant entries:\n${appendedSourceUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")}`
+      : "";
 
   return `You are a travel research agent for TruthStay — a community-driven holiday planning platform built on authentic, peer-sourced recommendations from real travellers, not sponsored content.
 
@@ -240,7 +246,7 @@ Run multiple targeted web searches such as:
 - "${region} ${vacationType} instagram travel tips"
 - "${region} locals recommend restaurant accommodation"
 - "site:instagram.com ${region} ${vacationType}"
-Cover all requested content types. Aim for variety across sources.
+Cover all requested content types. Aim for variety across sources.${curatedSection}
 
 OUTPUT
 Respond with ONLY a valid JSON array — no prose, no markdown fences, just the raw array:
@@ -266,27 +272,57 @@ Respond with ONLY a valid JSON array — no prose, no markdown fences, just the 
 ]`;
 }
 
-async function discoverLocations(
-  anthropic: Anthropic,
-  region: string,
-  vacationType: string,
-  contentTypes: string[],
-  focusKeywords: string[],
-  maxResults: number,
-  demandSignals = "",
-): Promise<DiscoveryResult> {
-  // web_search_20250305 is not yet in the SDK types — cast to bypass
+function buildSourceScrapingPrompt(sourceUrls: string[], region: string): string {
+  const urlList = sourceUrls.map((u, i) => `${i + 1}. ${u}`).join("\n");
+  return `You are a travel content extraction agent for TruthStay — a community-driven holiday planning platform.
+
+YOUR TASK
+Visit and extract EVERY place, accommodation, restaurant, and route mentioned in these specific sources:
+${urlList}
+
+For EACH entry you find, determine:
+- name: The exact place name as written in the source
+- type: "route" | "accommodation" | "restaurant"
+- region: The specific region/area (default to "${region}" if not explicit)
+- description: 2-3 sentences summarising what the source says about it
+- coordinates: Best estimate of lat/lng — must be real, never 0,0
+- sources: Include the source URL, author name if visible, and a direct excerpt
+- highlights: Up to 3 key features mentioned
+- metadata: Any additional details (price range, cuisine type, difficulty, etc.)
+- confidenceScore: 0.0–1.0 based on how much detail the source provides
+- confidenceReason: Brief note on source quality
+
+RULES
+- Visit each URL directly. Do not search for the URL — retrieve its content using web search.
+- Extract ALL mentioned places, not just the first few.
+- Do not invent entries — only extract explicitly mentioned places.
+- Coordinates must be real. Use your knowledge of the region to estimate if not stated.
+
+OUTPUT
+Respond with ONLY a valid JSON array — no prose, no markdown fences, just the raw array:
+[
+  {
+    "name": "Place name",
+    "type": "accommodation",
+    "region": "${region}",
+    "description": "...",
+    "coordinates": { "lat": 0.0, "lng": 0.0 },
+    "sources": [{ "url": "...", "type": "blog", "author": "...", "excerpt": "..." }],
+    "highlights": [],
+    "metadata": {},
+    "confidenceScore": 0.75,
+    "confidenceReason": "Detailed first-person account"
+  }
+]`;
+}
+
+async function discoverWithPrompt(anthropic: Anthropic, prompt: string): Promise<DiscoveryResult> {
   const response = await (anthropic.messages.create as Function)(
     {
       model: MODEL,
       max_tokens: 8192,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
-      messages: [
-        {
-          role: "user",
-          content: buildPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, demandSignals),
-        },
-      ],
+      messages: [{ role: "user", content: prompt }],
     },
     { headers: { "anthropic-beta": "web-search-2025-03-05" } },
   );
@@ -301,6 +337,22 @@ async function discoverLocations(
     inputTokens: response.usage?.input_tokens ?? 0,
     outputTokens: response.usage?.output_tokens ?? 0,
   };
+}
+
+async function discoverLocations(
+  anthropic: Anthropic,
+  region: string,
+  vacationType: string,
+  contentTypes: string[],
+  focusKeywords: string[],
+  maxResults: number,
+  demandSignals = "",
+  appendedSourceUrls: string[] = [],
+): Promise<DiscoveryResult> {
+  return discoverWithPrompt(
+    anthropic,
+    buildPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, demandSignals, appendedSourceUrls),
+  );
 }
 
 function parseLocations(text: string): DiscoveredLocation[] {
@@ -637,7 +689,8 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: parsed.error.flatten() }), { status: 400 });
   }
 
-  const { region, vacationType, contentTypes, maxResults, focusKeywords } = parsed.data;
+  const { region, vacationType, contentTypes, maxResults, focusKeywords, sourceUrls, includeActiveSources } = parsed.data;
+  const isSourceMode = (sourceUrls?.length ?? 0) > 0;
 
   const db = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -676,28 +729,41 @@ Deno.serve(async (req: Request) => {
       console.warn(`CFO spend check skipped: ${cfoErr}`);
     }
 
-    // ── Demand signals: what users actually want in this region ───────────
+    // ── Demand signals (skipped in source-scrape mode) ────────────────────
     let demandSignals = "";
-    try {
-      const signals = await getRegionDemandSignals(db, region);
-      demandSignals = formatDemandSignals(signals);
-      if (demandSignals) {
-        console.log(`[scout] Demand signals for ${region}:\n${demandSignals}`);
+    let appendedSourceUrls: string[] = [];
+    if (!isSourceMode) {
+      try {
+        const signals = await getRegionDemandSignals(db, region);
+        demandSignals = formatDemandSignals(signals);
+        if (demandSignals) {
+          console.log(`[scout] Demand signals for ${region}:\n${demandSignals}`);
+        }
+      } catch (err) {
+        console.warn(`[scout] Demand signals unavailable: ${err}`);
       }
-    } catch (err) {
-      console.warn(`[scout] Demand signals unavailable: ${err}`);
+
+      if (includeActiveSources) {
+        try {
+          const { data: activeSources } = await db
+            .from("content_sources")
+            .select("url")
+            .eq("status", "active")
+            .or(`region.ilike.%${region}%,region.is.null`);
+          appendedSourceUrls = (activeSources ?? []).map((r: { url: string }) => r.url);
+          if (appendedSourceUrls.length > 0) {
+            console.log(`[scout] Including ${appendedSourceUrls.length} active source(s) for ${region}`);
+          }
+        } catch (err) {
+          console.warn(`[scout] Could not fetch active sources: ${err}`);
+        }
+      }
     }
 
     // ── Phase 1: DISCOVER ──────────────────────────────────────────────────
-    const { locations: discovered, inputTokens, outputTokens } = await discoverLocations(
-      anthropic,
-      region,
-      vacationType,
-      contentTypes,
-      focusKeywords,
-      maxResults,
-      demandSignals,
-    );
+    const { locations: discovered, inputTokens, outputTokens } = isSourceMode
+      ? await discoverWithPrompt(anthropic, buildSourceScrapingPrompt(sourceUrls!, region))
+      : await discoverLocations(anthropic, region, vacationType, contentTypes, focusKeywords, maxResults, demandSignals, appendedSourceUrls);
 
     // ── Phase 2 + 3: EVALUATE + CREATE ────────────────────────────────────
     const counts = await createListings(db, discovered, runId, vacationType);

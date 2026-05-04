@@ -62,6 +62,66 @@ export async function getAgentRuns(limit = 50): Promise<AgentRun[]> {
   return (data ?? []) as AgentRun[];
 }
 
+// ── Content Sources ──────────────────────────────────────────────────────────
+
+export interface ContentSource {
+  id: string;
+  url: string;
+  type: "website" | "instagram";
+  label: string;
+  region: string | null;
+  last_scraped_at: string | null;
+  entry_count: number;
+  status: "active" | "paused" | "error";
+  created_at: string;
+}
+
+export async function getContentSources(): Promise<ContentSource[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("content_sources")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ContentSource[];
+}
+
+export async function addContentSource(input: {
+  url: string;
+  type: "website" | "instagram";
+  label: string;
+  region?: string;
+}): Promise<ContentSource> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("content_sources")
+    .insert({ ...input, region: input.region || null })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ContentSource;
+}
+
+export async function deleteContentSource(id: string): Promise<void> {
+  const db = createAdminClient();
+  const { error } = await db.from("content_sources").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateContentSourceAfterScrape(id: string, count: number): Promise<void> {
+  const db = createAdminClient();
+  const { data: src } = await db.from("content_sources").select("entry_count").eq("id", id).single();
+  const { error } = await db
+    .from("content_sources")
+    .update({
+      last_scraped_at: new Date().toISOString(),
+      entry_count: (src?.entry_count ?? 0) + count,
+      status: "active",
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 export async function getContentStats(): Promise<ContentStats> {
   const db = createAdminClient();
   const { data, error } = await db

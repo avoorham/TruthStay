@@ -2307,27 +2307,6 @@ export default function ExploreScreen() {
   }, [sheetY, impressionsY]);
 
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <Feather name="compass" size={40} color={colors.border} />
-        <Text style={styles.loadingText}>Loading adventures…</Text>
-      </View>
-    );
-  }
-
-  if (loadError) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <Feather name="wifi-off" size={40} color={colors.border} />
-        <Text style={styles.loadingText}>Couldn't load adventures</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={loadAdventures}>
-          <Text style={styles.retryText}>Tap to retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <MapView
@@ -2461,6 +2440,7 @@ export default function ExploreScreen() {
         ))}
       </MapView>
 
+
       {/* Filter button — always visible alongside search bar */}
       <View style={[styles.filterBtnWrap, { top: insets.top + spacing.sm }]}>
         <TouchableOpacity
@@ -2542,30 +2522,6 @@ export default function ExploreScreen() {
       </View>
 
 
-      {/* Category filter pills — always visible */}
-      <View style={[styles.categoryPillsWrap, { top: insets.top + spacing.sm + 46 }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryPillsContent}
-        >
-          {FILTER_CATEGORIES.map(cat => {
-            const isActive = filters.filterCategory === cat.key;
-            return (
-              <TouchableOpacity
-                key={cat.key}
-                style={[styles.categoryPill, isActive && styles.categoryPillActive]}
-                onPress={() => setFilters(f => ({ ...f, filterCategory: cat.key }))}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
 
       <FilterSheet
         visible={filterOpen}
@@ -2721,42 +2677,8 @@ const styles = StyleSheet.create({
   categoryChipText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
   categoryChipTextActive: { color: "#FFFFFF" },
 
-  categoryPillsWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 48,
-  },
-  categoryPillsContent: {
-    paddingHorizontal: spacing.md,
-    gap: spacing.xs,
-    paddingVertical: 2,
-  },
-  categoryPill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.full,
-    backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  categoryPillActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
-  },
-  categoryPillText: {
-    fontFamily: fonts.sansSemiBold,
-    fontSize: fontSize.sm,
-    color: colors.text,
-  },
-  categoryPillTextActive: {
-    color: colors.inverse,
-  },
+
+
   filterBtnWrap: { position: "absolute", right: spacing.md },
   filterBtn: {
     flexDirection: "row",

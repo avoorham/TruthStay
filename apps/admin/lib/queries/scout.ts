@@ -73,7 +73,45 @@ export interface ContentSource {
   last_scraped_at: string | null;
   entry_count: number;
   status: "active" | "paused" | "error";
+  health: "ok" | "broken";
+  last_error_at: string | null;
+  last_error_message: string | null;
   created_at: string;
+}
+
+// ── Scout Jobs ────────────────────────────────────────────────────────────────
+
+export interface ScoutJobProgress {
+  stage?: string;
+  stage_started_at?: string;
+  stages_completed?: string[];
+  extractions_found?: number;
+  extractions_resolved?: number;
+  extractions_matched?: number;
+  entries_queued?: number;
+}
+
+export interface ScoutJob {
+  id: string;
+  job_type: "scrape_source" | "run_scout";
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  source_id: string | null;
+  trigger_payload: Record<string, unknown>;
+  attempt_count: number;
+  max_attempts: number;
+  last_error: string | null;
+  last_error_code: string | null;
+  retryable: boolean;
+  progress: ScoutJobProgress;
+  entries_created: number | null;
+  entries_updated: number | null;
+  result_summary: Record<string, unknown> | null;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  next_attempt_at: string | null;
+  // Joined from content_sources when fetched via the [id] endpoint
+  source?: { id: string; label: string; url: string; type: string } | null;
 }
 
 export async function getContentSources(): Promise<ContentSource[]> {
@@ -106,6 +144,40 @@ export async function deleteContentSource(id: string): Promise<void> {
   const db = createAdminClient();
   const { error } = await db.from("content_sources").delete().eq("id", id);
   if (error) throw error;
+}
+
+export async function getScoutJob(id: string): Promise<ScoutJob | null> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("scout_jobs")
+    .select("*, source:content_sources(id, label, url, type)")
+    .eq("id", id)
+    .single();
+  if (error) return null;
+  return data as ScoutJob;
+}
+
+export async function getScoutJobs(sourceId?: string, limit = 50): Promise<ScoutJob[]> {
+  const db = createAdminClient();
+  let q = db
+    .from("scout_jobs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (sourceId) q = q.eq("source_id", sourceId);
+  const { data, error } = await q;
+  if (error) return [];
+  return (data ?? []) as ScoutJob[];
+}
+
+export async function cancelScoutJob(id: string): Promise<boolean> {
+  const db = createAdminClient();
+  const { error } = await db
+    .from("scout_jobs")
+    .update({ status: "cancelled" })
+    .eq("id", id)
+    .in("status", ["queued", "running"]);
+  return !error;
 }
 
 export async function updateContentSourceAfterScrape(id: string, count: number): Promise<void> {

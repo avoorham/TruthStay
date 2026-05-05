@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function POST(req: NextRequest) {
+  let body: unknown;
+  try { body = await req.json(); } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -11,28 +14,18 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const db = createAdminClient();
 
-  const { data: source, error: sourceErr } = await db
-    .from("content_sources")
-    .select("id")
-    .eq("id", id)
-    .single();
-
-  if (sourceErr || !source) {
-    return NextResponse.json({ error: "Source not found" }, { status: 404 });
-  }
-
-  const { data: job, error: jobErr } = await db
+  const { data: job, error } = await db
     .from("scout_jobs")
     .insert({
-      job_type:        "scrape_source",
-      source_id:       id,
-      trigger_payload: { mode: "standard" },
+      job_type:        "run_scout",
+      source_id:       null,
+      trigger_payload: body,
       created_by:      user.id,
     })
     .select("id")
     .single();
 
-  if (jobErr || !job) {
+  if (error || !job) {
     return NextResponse.json({ error: "Failed to queue job" }, { status: 500 });
   }
 

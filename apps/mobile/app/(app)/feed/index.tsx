@@ -824,7 +824,7 @@ const screenS = StyleSheet.create({
     paddingBottom:     spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor:   colors.card,
+    backgroundColor:   colors.bg,
     flexDirection:     "row",
     alignItems:        "center",
     justifyContent:    "space-between",

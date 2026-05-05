@@ -86,6 +86,7 @@ const NAV_SECTIONS: NavSection[] = [
           { label: "Overview",        href: "/agents" },
           { label: "CFO",             href: "/agents/cfo" },
           { label: "Location Scout",  href: "/agents/location-scout" },
+          { label: "Scout Rubric",    href: "/agents/rubric" },
           { label: "Marketing",       href: "/agents/marketing" },
           { label: "Pricing",         href: "/agents/pricing" },
         ],

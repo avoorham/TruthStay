@@ -6,15 +6,16 @@ import {
   ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle,
   Route, Building2, UtensilsCrossed, Clock, ArrowRight,
   Globe, Instagram, RefreshCw, Trash2, Link as LinkIcon,
+  AlertCircle,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { cn } from "@/lib/utils";
+import type { ScoutJob, ContentSource } from "@/lib/queries/scout";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const SCOUT_URL = "/api/scout"; // proxied server-side to avoid CORS
 const TARGET_ENTRIES = 1000;
 
 const REGION_GROUPS = [
@@ -117,11 +118,19 @@ interface ScoutEntry {
   data: {
     scoutScore?: number;
     scoutReason?: string;
-    sources?: Array<{ url?: string; author?: string; excerpt?: string }>;
+    sources?: Array<{ url?: string; type?: string; author?: string; excerpt?: string }>;
     highlights?: string[];
   } | null;
   created_at: string;
 }
+
+interface BulkParseItem {
+  url: string;
+  type: "website" | "instagram";
+  label: string;
+}
+
+type DraftSaveStatus = "idle" | "saving" | "saved";
 
 interface AgentRun {
   id: string;
@@ -152,18 +161,9 @@ interface FormState {
   maxResults: number;
   focusKeywords: string;
   includeActiveSources: boolean;
-}
-
-interface ContentSource {
-  id: string;
-  url: string;
-  type: "website" | "instagram";
-  label: string;
-  region: string | null;
-  last_scraped_at: string | null;
-  entry_count: number;
-  status: "active" | "paused" | "error";
-  created_at: string;
+  focusType: string;
+  depth: "standard" | "exhaustive";
+  selectedSourceIds: string[];
 }
 
 interface AddSourceForm {
@@ -173,16 +173,13 @@ interface AddSourceForm {
   region: string;
 }
 
-type RunPhase = "idle" | "running" | "fetching" | "done" | "failed";
+// Run state now just tracks the brief enqueue call
+type RunPhase = "idle" | "queuing" | "queued" | "failed";
 
 interface RunState {
   phase: RunPhase;
-  runId: string | null;
-  discovered: number;
-  inserted: number;
+  jobId: string | null;
   error: string | null;
-  entries: ScoutEntry[];
-  elapsed: number;
 }
 
 interface NewPreset {
@@ -211,6 +208,13 @@ function formatDate(iso: string): string {
   });
 }
 
+function relativeTime(iso: string): string {
+  const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (secs < 60)  return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  return `${Math.floor(secs / 3600)}h ago`;
+}
+
 const TYPE_LABEL: Record<string, string> = {
   route: "Routes", accommodation: "Accommodation", restaurant: "Restaurants",
 };
@@ -225,6 +229,316 @@ const TYPE_COLOR: Record<string, string> = {
   restaurant: "text-green-dark bg-green-light",
 };
 
+const TRACKING_PARAMS = ["igsh", "igshid", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "ref", "ref_src"];
+const GENERIC_HOSTS   = ["medium.com", "substack.com", "wordpress.com", "blogspot.com"];
+
+function parseBulkUrls(raw: string): { parsed: BulkParseItem[]; skipped: { line: string; reason: string }[] } {
+  const lines   = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  const parsed: BulkParseItem[] = [];
+  const skipped: { line: string; reason: string }[] = [];
+  const seen    = new Set<string>();
+
+  for (const line of lines) {
+    if (!line.startsWith("http://") && !line.startsWith("https://")) {
+      skipped.push({ line, reason: "invalid format" });
+      continue;
+    }
+    let url: URL;
+    try { url = new URL(line); } catch {
+      skipped.push({ line, reason: "invalid URL" });
+      continue;
+    }
+    for (const p of TRACKING_PARAMS) url.searchParams.delete(p);
+    const dedupKey = (url.hostname + url.pathname).toLowerCase().replace(/\/$/, "");
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+
+    const isInstagram = url.hostname.includes("instagram.com");
+    const type: "website" | "instagram" = isInstagram ? "instagram" : "website";
+
+    let label: string;
+    if (isInstagram) {
+      const handle = url.pathname.replace(/^\//, "").split("/")[0];
+      label = handle ? `@${handle}` : "Instagram";
+    } else {
+      const host = url.hostname.replace(/^www\./, "");
+      const isGeneric = GENERIC_HOSTS.some(g => host === g || host.endsWith(`.${g}`));
+      if (isGeneric) {
+        const seg = url.pathname.split("/").filter(Boolean)[0] ?? host;
+        label = seg.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      } else {
+        const domainBase = host.replace(/\.[^.]+$/, "");
+        label = domainBase.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+      }
+    }
+    parsed.push({ url: url.toString(), type, label });
+  }
+  return { parsed, skipped };
+}
+
+// ─── Job status helpers ───────────────────────────────────────────────────────
+
+type JobBadge = "queued" | "running" | "done" | "failed";
+
+function getJobBadge(status: ScoutJob["status"]): { badge: JobBadge | null; label: string | null } {
+  switch (status) {
+    case "queued":    return { badge: "queued",  label: "Queued…" };
+    case "running":   return { badge: "running", label: "Running" };
+    case "done":      return { badge: "done",    label: "Done" };
+    case "failed":    return { badge: "failed",  label: "Failed" };
+    default:          return { badge: null, label: null };
+  }
+}
+
+function JobStatusBadge({ job, onClick }: { job: ScoutJob; onClick?: () => void }) {
+  const stage = job.progress?.stage;
+
+  if (job.status === "queued") {
+    return (
+      <button onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-grey-500 hover:bg-slate-200 transition">
+        <Clock size={9} />
+        Queued…
+      </button>
+    );
+  }
+
+  if (job.status === "running") {
+    const label = stage && stage !== "starting" ? `Scraping (${stage})` : "Scraping…";
+    return (
+      <button onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-dark animate-pulse hover:bg-teal-200 transition">
+        <Loader2 size={9} className="animate-spin" />
+        {label}
+      </button>
+    );
+  }
+
+  if (job.status === "done") {
+    return (
+      <button onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-light text-green-dark hover:bg-green-100 transition">
+        <CheckCircle2 size={9} />
+        Done — {job.entries_created ?? 0} entries
+      </button>
+    );
+  }
+
+  if (job.status === "failed") {
+    return (
+      <button onClick={onClick}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-danger-light text-danger hover:bg-danger/20 transition">
+        <AlertCircle size={9} />
+        Failed{job.last_error_code ? ` (${job.last_error_code})` : ""}
+      </button>
+    );
+  }
+
+  return null;
+}
+
+// ─── Job Drawer ───────────────────────────────────────────────────────────────
+
+const PIPELINE_STAGES = ["extract", "resolve", "match", "score", "queue"];
+
+function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
+  const completed = job.progress?.stages_completed ?? [];
+  const current   = job.progress?.stage;
+  const p         = job.progress;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-grey-100 shrink-0">
+        <div>
+          <p className="text-sm font-semibold text-dark">
+            {job.job_type === "scrape_source" ? "Scrape job" : "Scout run"}
+          </p>
+          <p className="text-[11px] text-grey-400 font-mono mt-0.5">{job.id}</p>
+        </div>
+        <button onClick={onClose} className="text-grey-400 hover:text-grey-700 p-1.5 rounded-lg transition">
+          <X size={15} />
+        </button>
+      </div>
+
+      {/* Pipeline stage dots */}
+      <div className="px-5 py-4 border-b border-grey-100">
+        <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-3">Pipeline</p>
+        <div className="flex items-start gap-1">
+          {PIPELINE_STAGES.map((stage, i) => {
+            const isDone    = (completed as string[]).includes(stage);
+            const isCurrent = current === stage;
+            return (
+              <div key={stage} className="flex flex-col items-center gap-1 flex-1">
+                <div className={cn(
+                  "w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-all",
+                  isDone    ? "bg-teal-500 border-teal-500 text-white" :
+                  isCurrent ? "bg-teal-100 border-teal text-teal-dark" :
+                              "bg-grey-100 border-grey-200 text-grey-400"
+                )}>
+                  {isDone ? <CheckCircle2 size={12} /> : i + 1}
+                </div>
+                <span className={cn(
+                  "text-[9px] uppercase tracking-wide font-medium text-center leading-tight",
+                  isDone || isCurrent ? "text-teal-dark" : "text-grey-400"
+                )}>{stage}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="px-5 py-4 border-b border-grey-100 space-y-2">
+        <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Timeline</p>
+        {([
+          { label: "Queued",   time: job.created_at },
+          { label: "Started",  time: job.started_at },
+          { label: "Finished", time: job.finished_at },
+        ] as { label: string; time: string | null }[]).filter(({ time }) => time).map(({ label, time }) => (
+          <div key={label} className="flex items-center justify-between text-xs">
+            <span className="text-grey-500">{label}</span>
+            <span className="font-mono text-dark">{formatDate(time!)}</span>
+          </div>
+        ))}
+        {job.started_at && job.finished_at && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-grey-500">Duration</span>
+            <span className="font-mono text-dark">{formatDuration(job.started_at, job.finished_at)}</span>
+          </div>
+        )}
+        {job.attempt_count > 1 && (
+          <div className="text-xs text-amber-600 font-medium">
+            Attempt {job.attempt_count} of {job.max_attempts}
+          </div>
+        )}
+      </div>
+
+      {/* Progress counters */}
+      {(p?.extractions_found != null || p?.entries_queued != null) && (
+        <div className="px-5 py-4 border-b border-grey-100">
+          <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-3">Progress</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { label: "Extracted", value: p.extractions_found },
+              { label: "Resolved",  value: p.extractions_resolved },
+              { label: "New",       value: p.extractions_matched },
+              { label: "Queued",    value: p.entries_queued },
+            ] as { label: string; value: number | undefined }[]).filter(({ value }) => value != null).map(({ label, value }) => (
+              <div key={label} className="bg-slate-50 rounded-lg px-3 py-2">
+                <p className="text-[9px] text-grey-400 uppercase tracking-wide">{label}</p>
+                <p className="text-lg font-bold font-mono text-dark">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Result summary — stages timing */}
+      {job.result_summary?.stages && (
+        <div className="px-5 py-4 border-b border-grey-100">
+          <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Stage timing</p>
+          <div className="space-y-1">
+            {Object.entries(job.result_summary.stages as Record<string, { duration_ms: number }>).map(([stage, data]) => (
+              <div key={stage} className="flex items-center justify-between text-xs">
+                <span className="text-grey-500 capitalize">{stage}</span>
+                <span className="font-mono text-dark">{data.duration_ms}ms</span>
+              </div>
+            ))}
+          </div>
+          {(job.result_summary.warnings as string[] | undefined)?.length ? (
+            <div className="mt-2 space-y-1">
+              {(job.result_summary.warnings as string[]).map((w, i) => (
+                <p key={i} className="text-[10px] text-amber-600 font-mono">{w}</p>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* Done: result + link */}
+      {job.status === "done" && (
+        <div className="px-5 py-4 border-b border-grey-100">
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle2 size={14} className="text-green-dark" />
+            <span className="font-semibold text-dark">{job.entries_created ?? 0} entries</span>
+            <span className="text-grey-400">added to review queue</span>
+          </div>
+          <Link
+            href="/content"
+            className="mt-2 text-xs text-teal-dark hover:text-teal flex items-center gap-1 transition"
+          >
+            View in Review Queue <ArrowRight size={10} />
+          </Link>
+        </div>
+      )}
+
+      {/* Error */}
+      {job.last_error && (
+        <div className="px-5 py-4">
+          <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Error</p>
+          <div className="bg-danger-light/50 border border-danger/20 rounded-lg px-3 py-2.5">
+            <p className="text-xs text-danger font-mono leading-relaxed">{job.last_error}</p>
+            {job.last_error_code && (
+              <p className="text-[10px] text-danger/60 mt-1">Code: {job.last_error_code}</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Run Queued Banner ────────────────────────────────────────────────────────
+
+function RunQueuedBanner({
+  jobId,
+  depth,
+  onViewJob,
+  onDismiss,
+}: {
+  jobId:    string;
+  depth:    "standard" | "exhaustive";
+  onViewJob: () => void;
+  onDismiss: () => void;
+}) {
+  const estimate = depth === "exhaustive" ? "~8 minutes" : "~2 minutes";
+  return (
+    <div className="border border-green-200 bg-green-light/30 rounded-xl p-5 mb-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 size={17} className="text-green-dark shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-dark">Scout run queued</p>
+            <p className="text-xs text-grey-500 mt-1">
+              Estimated time: {estimate}. Results will appear in the Review Queue when ready.
+            </p>
+            <p className="text-[10px] text-grey-400 font-mono mt-1">Job ID: {jobId}</p>
+          </div>
+        </div>
+        <button onClick={onDismiss} className="text-grey-400 hover:text-grey-600 shrink-0 transition">
+          <X size={14} />
+        </button>
+      </div>
+      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-green-200">
+        <button
+          onClick={onViewJob}
+          className="text-xs font-medium text-teal-dark hover:text-teal flex items-center gap-1 transition"
+        >
+          View job status <ArrowRight size={10} />
+        </button>
+        <Link href="/content"
+          className="text-xs font-medium text-grey-500 hover:text-dark flex items-center gap-1 transition">
+          Review Queue <ArrowRight size={10} />
+        </Link>
+        <button onClick={onDismiss} className="text-xs text-grey-400 hover:text-grey-600 ml-auto transition">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Content Stats Sidebar ────────────────────────────────────────────────────
 
 function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
@@ -234,7 +548,6 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
 
   return (
     <div className="space-y-4">
-      {/* Progress toward target */}
       <div className="border border-slate-200 rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
@@ -242,20 +555,14 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
           </div>
           <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest">Content library</p>
         </div>
-
         <div className="flex items-end justify-between mb-1.5">
           <span className="text-2xl font-bold font-mono text-dark">{verified.toLocaleString()}</span>
           <span className="text-xs text-grey-400 mb-1">/ {TARGET_ENTRIES.toLocaleString()} target</span>
         </div>
         <div className="h-2 rounded-full bg-grey-100 overflow-hidden mb-1.5">
-          <div
-            className="h-full rounded-full bg-teal transition-all"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full rounded-full bg-teal transition-all" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-[11px] text-grey-400">{Math.round(pct)}% of target • {total} total entries</p>
-
-        {/* By type */}
         <div className="mt-4 space-y-2 pt-3 border-t border-grey-100">
           {(["route", "accommodation", "restaurant"] as const).map(t => {
             const count = stats?.byType[t] ?? 0;
@@ -275,7 +582,6 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
         </div>
       </div>
 
-      {/* Top regions */}
       {(stats?.topRegions.length ?? 0) > 0 && (
         <div className="border border-slate-200 rounded-lg p-5">
           <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Top regions</p>
@@ -290,7 +596,6 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
         </div>
       )}
 
-      {/* Budget card */}
       <div className="border border-slate-200 rounded-lg p-5">
         <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Scout budget</p>
         <div className="space-y-2.5">
@@ -338,7 +643,7 @@ function EntryCard({
   rejectedIds: Set<string>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const score  = entry.data?.scoutScore ?? 0;
+  const score   = entry.data?.scoutScore ?? 0;
   const sources = entry.data?.sources ?? [];
   const approved = approvedIds.has(entry.id);
   const rejected = rejectedIds.has(entry.id);
@@ -351,15 +656,12 @@ function EntryCard({
                  "border-slate-200"
     )}>
       <div className="flex items-start gap-4 p-4">
-        {/* Score badge */}
         <div className={cn(
           "shrink-0 min-w-[52px] text-center py-1.5 px-2 rounded-lg text-sm font-bold font-mono",
           scoreColor(score)
         )}>
           {score.toFixed(2)}
         </div>
-
-        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -369,10 +671,31 @@ function EntryCard({
                   {entry.description}
                 </p>
               )}
+              {(() => {
+                const src = entry.data?.sources?.[0];
+                if (!src?.url) return null;
+                const isInsta     = src.type === "instagram" || src.type === "instagram_profile" || src.type === "instagram_post";
+                const isWebSearch = src.type === "web_search";
+                let icon: string; let label: string;
+                if (isInsta) {
+                  const handle = src.url.match(/instagram\.com\/([^/?]+)/)?.[1];
+                  icon = "📸"; label = handle ? `@${handle}` : "Instagram";
+                } else if (isWebSearch) {
+                  icon = "🔍"; label = "web search";
+                } else {
+                  icon = "🌐";
+                  try { label = new URL(src.url).hostname.replace(/^www\./, ""); } catch { label = src.url; }
+                }
+                return (
+                  <a href={src.url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-grey-400 hover:text-teal-dark transition-colors">
+                    <span>{icon}</span>
+                    <span className="font-mono">{label}</span>
+                  </a>
+                );
+              })()}
             </div>
           </div>
-
-          {/* Sources summary */}
           {sources.length > 0 && (
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span className="text-[10px] font-semibold text-grey-400 uppercase tracking-wide">
@@ -385,8 +708,6 @@ function EntryCard({
               ))}
             </div>
           )}
-
-          {/* Expanded: scout reason + sources */}
           {expanded && (
             <div className="mt-3 pt-3 border-t border-grey-100 space-y-3">
               {entry.data?.scoutReason && (
@@ -399,12 +720,8 @@ function EntryCard({
                       <p className="font-medium text-dark mb-0.5">{s.author ?? "Unknown author"}</p>
                       {s.excerpt && <p className="text-grey-500 line-clamp-2 italic">"{s.excerpt}"</p>}
                       {s.url && (
-                        <a
-                          href={s.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-teal-dark hover:underline mt-1 block truncate"
-                        >
+                        <a href={s.url} target="_blank" rel="noopener noreferrer"
+                          className="text-teal-dark hover:underline mt-1 block truncate">
                           {s.url}
                         </a>
                       )}
@@ -415,187 +732,27 @@ function EntryCard({
             </div>
           )}
         </div>
-
-        {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setExpanded(e => !e)}
+          <button onClick={() => setExpanded(e => !e)}
             className="p-1.5 rounded-lg border border-slate-200 text-grey-400 hover:text-grey-700 hover:border-slate-300 transition-colors"
-            title="View detail"
-          >
+            title="View detail">
             {expanded ? <ChevronUp size={13} /> : <Eye size={13} />}
           </button>
-
           {!approved && !rejected && (
             <>
-              <button
-                onClick={() => onReject(entry.id)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-500 hover:border-danger hover:text-danger transition-colors"
-              >
+              <button onClick={() => onReject(entry.id)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-500 hover:border-danger hover:text-danger transition-colors">
                 <X size={11} /> Reject
               </button>
-              <button
-                onClick={() => onApprove(entry.id)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors"
-              >
+              <button onClick={() => onApprove(entry.id)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition-colors">
                 <CheckCircle2 size={11} /> Approve
               </button>
             </>
           )}
-          {approved && (
-            <span className="flex items-center gap-1 text-xs font-semibold text-green-dark">
-              <CheckCircle2 size={13} /> Approved
-            </span>
-          )}
-          {rejected && (
-            <span className="flex items-center gap-1 text-xs font-semibold text-danger">
-              <XCircle size={13} /> Rejected
-            </span>
-          )}
+          {approved && <span className="flex items-center gap-1 text-xs font-semibold text-green-dark"><CheckCircle2 size={13} /> Approved</span>}
+          {rejected && <span className="flex items-center gap-1 text-xs font-semibold text-danger"><XCircle size={13} /> Rejected</span>}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Run Results Section ──────────────────────────────────────────────────────
-
-function RunResultsSection({
-  run,
-  onClose,
-}: {
-  run: RunState;
-  onClose: () => void;
-}) {
-  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set());
-  const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
-  const [bulkWorking, setBulkWorking] = useState(false);
-
-  const grouped = {
-    route:         run.entries.filter(e => e.type === "route"),
-    accommodation: run.entries.filter(e => e.type === "accommodation"),
-    restaurant:    run.entries.filter(e => e.type === "restaurant"),
-  };
-
-  const highScoreIds = run.entries
-    .filter(e => (e.data?.scoutScore ?? 0) >= 0.8 && !approvedIds.has(e.id) && !rejectedIds.has(e.id))
-    .map(e => e.id);
-
-  async function handleApprove(id: string) {
-    await fetch(`/api/admin/content/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ verified: true }),
-    });
-    setApprovedIds(s => new Set([...s, id]));
-  }
-
-  async function handleReject(id: string) {
-    await fetch(`/api/admin/content/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ verified: false }),
-    });
-    setRejectedIds(s => new Set([...s, id]));
-  }
-
-  async function handleBulkApprove() {
-    setBulkWorking(true);
-    await Promise.all(highScoreIds.map(id => handleApprove(id)));
-    setBulkWorking(false);
-  }
-
-  if (run.entries.length === 0) {
-    return (
-      <div className="border border-slate-200 rounded-lg p-10 text-center">
-        <div className="w-14 h-14 rounded-full bg-grey-100 flex items-center justify-center mx-auto mb-3">
-          <MapPin size={20} className="text-grey-400" />
-        </div>
-        <p className="text-sm font-semibold text-dark">No entries in results</p>
-        <p className="text-xs text-grey-500 mt-1">
-          The scout ran successfully but no new entries passed the quality threshold.
-        </p>
-        <button onClick={onClose} className="mt-4 text-xs text-teal-dark hover:text-teal font-medium">
-          Run again with different parameters
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border border-slate-200 rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
-            <CheckCircle2 size={15} className="text-green-dark" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-dark">
-              Latest run results
-              <span className="ml-2 text-xs font-normal text-grey-400">
-                ({run.inserted} entries catalogued)
-              </span>
-            </h2>
-            <p className="text-xs text-grey-400 mt-0.5">Run ID: <span className="font-mono">{run.runId}</span></p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {highScoreIds.length > 0 && (
-            <button
-              onClick={handleBulkApprove}
-              disabled={bulkWorking}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600/10 text-green-dark text-xs font-semibold hover:bg-green-600/20 transition-colors disabled:opacity-60"
-            >
-              {bulkWorking
-                ? <Loader2 size={12} className="animate-spin" />
-                : <CheckCircle2 size={12} />}
-              Approve all (score ≥ 0.80) · {highScoreIds.length}
-            </button>
-          )}
-          <Link
-            href="/content"
-            className="flex items-center gap-1 text-xs font-semibold text-teal-dark hover:text-teal transition-colors"
-          >
-            View in Content Manager <ArrowRight size={11} />
-          </Link>
-          <button onClick={onClose} className="text-grey-400 hover:text-grey-700 transition-colors ml-1">
-            <X size={16} />
-          </button>
-        </div>
-      </div>
-
-      {/* Groups */}
-      <div className="p-6 space-y-8">
-        {(["route", "accommodation", "restaurant"] as const).map(type => {
-          const items = grouped[type];
-          if (items.length === 0) return null;
-          const Icon  = TYPE_ICON[type] as React.ElementType;
-          return (
-            <div key={type}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className={cn("w-6 h-6 rounded flex items-center justify-center", TYPE_COLOR[type])}>
-                  <Icon size={13} />
-                </span>
-                <h3 className="text-xs font-semibold text-grey-500 uppercase tracking-widest">
-                  {TYPE_LABEL[type]} · {items.length}
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {items.map(entry => (
-                  <EntryCard
-                    key={entry.id}
-                    entry={entry}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                    approvedIds={approvedIds}
-                    rejectedIds={rejectedIds}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -638,22 +795,15 @@ function RunHistoryTable({ runs }: { runs: AgentRun[] }) {
         </thead>
         <tbody>
           {runs.map(run => {
-            const found = (run.routes_found ?? 0) + (run.accommodations_found ?? 0) + (run.restaurants_found ?? 0);
+            const found      = (run.routes_found ?? 0) + (run.accommodations_found ?? 0) + (run.restaurants_found ?? 0);
             const isExpanded = expandedId === run.id;
             return (
               <>
-                <tr
-                  key={run.id}
-                  className="border-b border-grey-50 hover:bg-slate-50 transition-colors"
-                >
-                  <td className="px-6 py-3 text-xs text-grey-500 whitespace-nowrap">
-                    {formatDate(run.created_at)}
-                  </td>
+                <tr key={run.id} className="border-b border-grey-50 hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-3 text-xs text-grey-500 whitespace-nowrap">{formatDate(run.created_at)}</td>
                   <td className="px-6 py-3 text-xs font-medium text-dark">{run.region}</td>
                   <td className="px-6 py-3 text-xs text-grey-600">{run.activity_type}</td>
-                  <td className="px-6 py-3 text-center">
-                    <StatusBadge value={run.status} />
-                  </td>
+                  <td className="px-6 py-3 text-center"><StatusBadge value={run.status} /></td>
                   <td className="px-6 py-3 text-right font-mono font-semibold text-dark">{found}</td>
                   <td className="px-6 py-3 text-right font-mono text-xs text-grey-500">~$3.00</td>
                   <td className="px-6 py-3 text-right font-mono text-xs text-grey-500">
@@ -661,10 +811,8 @@ function RunHistoryTable({ runs }: { runs: AgentRun[] }) {
                   </td>
                   <td className="px-4 py-3">
                     {run.status === "failed" && run.error_message && (
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : run.id)}
-                        className="text-grey-400 hover:text-grey-700 transition-colors"
-                      >
+                      <button onClick={() => setExpandedId(isExpanded ? null : run.id)}
+                        className="text-grey-400 hover:text-grey-700 transition-colors">
                         {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       </button>
                     )}
@@ -696,20 +844,64 @@ function DataSourcesSection({
   setSources,
   setStats,
   effectiveRegion,
+  draftSaveStatus,
+  activeJobs,
+  onScrapeQueued,
+  onJobDrawerOpen,
 }: {
   sources: ContentSource[];
   setSources: React.Dispatch<React.SetStateAction<ContentSource[]>>;
   setStats: React.Dispatch<React.SetStateAction<ContentStats | null>>;
   effectiveRegion: string;
+  draftSaveStatus: DraftSaveStatus;
+  activeJobs: Record<string, ScoutJob>;
+  onScrapeQueued: (sourceId: string, jobId: string) => void;
+  onJobDrawerOpen: (job: ScoutJob) => void;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "" });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
-  const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ContentSource | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [scrapeResult, setScrapeResult] = useState<{ sourceId: string; inserted: number } | null>(null);
+
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkStep, setBulkStep] = useState<"paste" | "review">("paste");
+  const [bulkRaw, setBulkRaw] = useState("");
+  const [bulkParsed, setBulkParsed] = useState<BulkParseItem[]>([]);
+  const [bulkSkipped, setBulkSkipped] = useState<{ line: string; reason: string }[]>([]);
+  const [bulkAdding, setBulkAdding] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  function openBulk() { setBulkOpen(true); setBulkStep("paste"); setBulkRaw(""); setBulkParsed([]); setBulkSkipped([]); setShowAddForm(false); }
+  function closeBulk() { setBulkOpen(false); }
+
+  function handleBulkParse() {
+    const { parsed, skipped } = parseBulkUrls(bulkRaw);
+    setBulkParsed(parsed);
+    setBulkSkipped(skipped);
+    setBulkStep("review");
+  }
+
+  async function handleBulkAdd() {
+    if (bulkParsed.length === 0) return;
+    setBulkAdding(true);
+    const results = await Promise.allSettled(
+      bulkParsed.map(item =>
+        fetch("/api/admin/scout/sources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: item.url, type: item.type, label: item.label }),
+        }).then(r => r.json())
+      )
+    );
+    const added = results
+      .filter((r): r is PromiseFulfilledResult<ContentSource> => r.status === "fulfilled" && !r.value.error)
+      .map(r => r.value);
+    if (added.length > 0) setSources(s => [...added, ...s]);
+    setBulkAdding(false);
+    closeBulk();
+  }
 
   async function handleAddSource() {
     if (!addForm.url || !addForm.label) return;
@@ -738,26 +930,16 @@ function DataSourcesSection({
   }
 
   async function handleScrape(id: string) {
-    setScrapingId(id);
-    setScrapeResult(null);
     try {
-      const res = await fetch(`/api/admin/scout/sources/${id}/scrape`, { method: "POST" });
+      const res  = await fetch(`/api/admin/scout/sources/${id}/scrape`, { method: "POST" });
       const data = await res.json();
-      if (res.ok) {
-        setSources(s => s.map(src =>
-          src.id === id
-            ? { ...src, last_scraped_at: new Date().toISOString(), entry_count: src.entry_count + (data.inserted ?? 0), status: "active" as const }
-            : src
-        ));
-        setScrapeResult({ sourceId: id, inserted: data.inserted ?? 0 });
-        fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
+      if (res.ok && data.job_id) {
+        onScrapeQueued(id, data.job_id);
       } else {
         setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
       }
     } catch {
       setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
-    } finally {
-      setScrapingId(null);
     }
   }
 
@@ -789,12 +971,27 @@ function DataSourcesSection({
             </h2>
             <p className="text-xs text-grey-400 hidden sm:block">Add websites and Instagram pages for the scout to scrape</p>
           </div>
-          <button
-            onClick={() => setShowAddForm(s => !s)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition"
-          >
-            <Plus size={12} /> Add source
-          </button>
+          <div className="flex items-center gap-2">
+            {draftSaveStatus !== "idle" && (
+              <span className="text-[11px] text-grey-400 select-none">
+                {draftSaveStatus === "saving" ? "Saving…" : "Saved"}
+              </span>
+            )}
+            {sources.length > 0 && (
+              <button onClick={() => setClearConfirmOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-500 hover:border-danger/40 hover:text-danger hover:bg-danger/5 transition">
+                <Trash2 size={12} /> Clear all
+              </button>
+            )}
+            <button onClick={openBulk}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition">
+              📋 Bulk paste
+            </button>
+            <button onClick={() => { setShowAddForm(s => !s); setBulkOpen(false); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition">
+              <Plus size={12} /> Add source
+            </button>
+          </div>
         </div>
 
         {/* Inline add form */}
@@ -803,24 +1000,18 @@ function DataSourcesSection({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">URL <span className="text-danger">*</span></label>
-                <input
-                  type="text"
-                  value={addForm.url}
+                <input type="text" value={addForm.url}
                   onChange={e => { setAddForm(f => ({ ...f, url: e.target.value })); setAddError(null); }}
                   placeholder="https://myblog.com or instagram.com/handle"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
-                  autoFocus
-                />
+                  autoFocus />
               </div>
               <div>
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Label <span className="text-danger">*</span></label>
-                <input
-                  type="text"
-                  value={addForm.label}
+                <input type="text" value={addForm.label}
                   onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
                   placeholder="e.g. My Cycling Blog"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
-                />
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -828,16 +1019,11 @@ function DataSourcesSection({
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Type</label>
                 <div className="flex gap-2">
                   {(["website", "instagram"] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setAddForm(f => ({ ...f, type: t }))}
+                    <button key={t} onClick={() => setAddForm(f => ({ ...f, type: t }))}
                       className={cn(
                         "flex items-center gap-1.5 flex-1 px-3 py-2 rounded-lg border-2 text-xs font-medium transition-all",
-                        addForm.type === t
-                          ? "border-teal bg-teal-bg text-teal-dark"
-                          : "border-slate-200 text-grey-500 bg-white hover:border-slate-300"
-                      )}
-                    >
+                        addForm.type === t ? "border-teal bg-teal-bg text-teal-dark" : "border-slate-200 text-grey-500 bg-white hover:border-slate-300"
+                      )}>
                       {t === "instagram" ? <Instagram size={12} /> : <Globe size={12} />}
                       {t === "instagram" ? "Instagram" : "Website"}
                     </button>
@@ -846,13 +1032,10 @@ function DataSourcesSection({
               </div>
               <div>
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Region hint <span className="text-grey-400 font-normal normal-case">(optional)</span></label>
-                <input
-                  type="text"
-                  value={addForm.region}
+                <input type="text" value={addForm.region}
                   onChange={e => setAddForm(f => ({ ...f, region: e.target.value }))}
                   placeholder="e.g. Italy, Alps…"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400"
-                />
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400" />
               </div>
             </div>
             {addError && (
@@ -863,13 +1046,83 @@ function DataSourcesSection({
             )}
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setShowAddForm(false); setAddError(null); }} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
-              <button
-                onClick={handleAddSource}
-                disabled={adding || !addForm.url.trim() || !addForm.label.trim()}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50"
-              >
+              <button onClick={handleAddSource} disabled={adding || !addForm.url.trim() || !addForm.label.trim()}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50">
                 {adding ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
                 {adding ? "Saving…" : "Save source"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk paste */}
+        {bulkOpen && bulkStep === "paste" && (
+          <div className="px-6 py-4 border-b border-grey-100 bg-slate-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-dark">📋 Bulk paste sources</p>
+              <button onClick={closeBulk} className="text-grey-400 hover:text-grey-700 transition"><X size={14} /></button>
+            </div>
+            <p className="text-xs text-grey-500">Paste URLs, one per line. We'll auto-detect type and suggest labels.</p>
+            <textarea value={bulkRaw} onChange={e => setBulkRaw(e.target.value)} rows={6}
+              placeholder={"https://www.instagram.com/visitalgarve\nhttps://thecyclingnomad.com/dolomites"}
+              className="w-full text-sm font-mono border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400 resize-none"
+              autoFocus />
+            <div className="flex justify-end gap-2">
+              <button onClick={closeBulk} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button onClick={handleBulkParse} disabled={!bulkRaw.trim()}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50">
+                Parse {bulkRaw.trim().split("\n").filter(l => l.trim()).length} URLs →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {bulkOpen && bulkStep === "review" && (
+          <div className="px-6 py-4 border-b border-grey-100 bg-slate-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-dark">Review {bulkParsed.length} {bulkParsed.length === 1 ? "source" : "sources"}</p>
+              <button onClick={closeBulk} className="text-grey-400 hover:text-grey-700 transition"><X size={14} /></button>
+            </div>
+            {bulkParsed.length > 0 && (
+              <div className="space-y-2">
+                {bulkParsed.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2.5 bg-white border border-slate-200 rounded-lg px-3 py-2">
+                    <button
+                      onClick={() => setBulkParsed(prev => prev.map((p, j) => j === i ? { ...p, type: p.type === "instagram" ? "website" : "instagram" } : p))}
+                      className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0 transition",
+                        item.type === "instagram" ? "bg-purple-100 text-purple-700 hover:bg-purple-200" : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      )}
+                      title="Click to toggle type">
+                      {item.type === "instagram" ? <Instagram size={10} /> : <Globe size={10} />}
+                      {item.type === "instagram" ? "Instagram" : "Website"}
+                    </button>
+                    <input value={item.label}
+                      onChange={e => setBulkParsed(prev => prev.map((p, j) => j === i ? { ...p, label: e.target.value } : p))}
+                      className="flex-1 min-w-0 text-xs font-medium text-dark bg-transparent border-b border-transparent focus:border-teal-400 focus:outline-none py-0.5" />
+                    <span className="text-[10px] text-grey-400 font-mono truncate max-w-[180px] shrink-0">
+                      {item.url.replace(/^https?:\/\//, "")}
+                    </span>
+                    <button onClick={() => setBulkParsed(prev => prev.filter((_, j) => j !== i))}
+                      className="text-grey-300 hover:text-danger transition shrink-0"><X size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {bulkSkipped.length > 0 && (
+              <div className="text-xs text-grey-400 space-y-0.5">
+                <p className="font-semibold text-grey-500">Skipped:</p>
+                {bulkSkipped.map((s, i) => (
+                  <p key={i} className="font-mono">• &ldquo;{s.line.slice(0, 60)}{s.line.length > 60 ? "…" : ""}&rdquo; — {s.reason}</p>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setBulkStep("paste")} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">← Back</button>
+              <button onClick={closeBulk} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button onClick={handleBulkAdd} disabled={bulkAdding || bulkParsed.length === 0}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50">
+                {bulkAdding ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                {bulkAdding ? "Adding…" : `Add ${bulkParsed.length} ${bulkParsed.length === 1 ? "source" : "sources"}`}
               </button>
             </div>
           </div>
@@ -899,75 +1152,73 @@ function DataSourcesSection({
               </tr>
             </thead>
             <tbody>
-              {sources.map(src => (
-                <tr key={src.id} className="border-b border-grey-50 hover:bg-grey-50/50 transition-colors">
-                  <td className="px-6 py-3 font-medium text-dark text-sm">{src.label}</td>
-                  <td className="px-6 py-3">
-                    <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-teal-dark hover:underline text-xs font-mono truncate max-w-[200px] block">
-                      {src.url.replace(/^https?:\/\//, "")}
-                    </a>
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className={cn(
-                      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                      src.type === "instagram" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
-                    )}>
-                      {src.type === "instagram" ? <Instagram size={10} /> : <Globe size={10} />}
-                      {src.type}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-xs text-grey-500">{src.region ?? "—"}</td>
-                  <td className="px-6 py-3 text-xs text-grey-500">
-                    {src.last_scraped_at ? formatDate(src.last_scraped_at) : "Never"}
-                  </td>
-                  <td className="px-6 py-3 font-mono text-xs text-dark">{src.entry_count}</td>
-                  <td className="px-6 py-3">
-                    <StatusBadge value={src.status} />
-                  </td>
-                  <td className="px-6 py-3">
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <button
-                        onClick={() => handleScrape(src.id)}
-                        disabled={scrapingId === src.id}
-                        title="Scrape now"
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition disabled:opacity-50"
-                      >
-                        {scrapingId === src.id
-                          ? <Loader2 size={11} className="animate-spin" />
-                          : <RefreshCw size={11} />}
-                        {scrapingId === src.id ? "Scraping…" : "Scrape"}
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(src)}
-                        title="Delete"
-                        className="p-1.5 rounded-lg border border-transparent text-grey-400 hover:border-danger/20 hover:text-danger hover:bg-danger/5 transition"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {sources.map(src => {
+                const activeJob = activeJobs[src.id];
+                const hasActiveJob = activeJob && (activeJob.status === "queued" || activeJob.status === "running");
+                const isBroken  = src.health === "broken";
+                return (
+                  <tr key={src.id} className="border-b border-grey-50 hover:bg-grey-50/50 transition-colors">
+                    <td className="px-6 py-3 font-medium text-dark text-sm">
+                      <div className="flex items-center gap-1.5">
+                        {isBroken && (
+                          <span title={src.last_error_message ?? "Source broken"}>
+                            <AlertCircle size={12} className="text-danger shrink-0" />
+                          </span>
+                        )}
+                        {src.label}
+                      </div>
+                    </td>
+                    <td className="px-6 py-3">
+                      <a href={src.url} target="_blank" rel="noopener noreferrer"
+                        className="text-teal-dark hover:underline text-xs font-mono truncate max-w-[200px] block">
+                        {src.url.replace(/^https?:\/\//, "")}
+                      </a>
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={cn(
+                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                        src.type === "instagram" ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+                      )}>
+                        {src.type === "instagram" ? <Instagram size={10} /> : <Globe size={10} />}
+                        {src.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-xs text-grey-500">{src.region ?? "—"}</td>
+                    <td className="px-6 py-3 text-xs text-grey-500">
+                      {src.last_scraped_at ? formatDate(src.last_scraped_at) : "Never"}
+                    </td>
+                    <td className="px-6 py-3 font-mono text-xs text-dark">{src.entry_count}</td>
+                    <td className="px-6 py-3">
+                      {activeJob && (activeJob.status === "queued" || activeJob.status === "running" || activeJob.status === "done" || activeJob.status === "failed") ? (
+                        <JobStatusBadge job={activeJob} onClick={() => onJobDrawerOpen(activeJob)} />
+                      ) : (
+                        <StatusBadge value={src.status} />
+                      )}
+                    </td>
+                    <td className="px-6 py-3">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <button
+                          onClick={() => handleScrape(src.id)}
+                          disabled={hasActiveJob}
+                          title="Scrape now"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                          <RefreshCw size={11} />
+                          Scrape
+                        </button>
+                        <button onClick={() => setDeleteTarget(src)} title="Delete"
+                          className="p-1.5 rounded-lg border border-transparent text-grey-400 hover:border-danger/20 hover:text-danger hover:bg-danger/5 transition">
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
 
-        {/* Scrape success banner */}
-        {scrapeResult && (
-          <div className="px-6 py-3 border-t border-grey-100 bg-green-light/40 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={13} className="text-green-dark" />
-              <p className="text-xs text-green-dark font-medium">
-                Scrape complete — {scrapeResult.inserted} new {scrapeResult.inserted === 1 ? "entry" : "entries"} added to content library
-              </p>
-            </div>
-            <button onClick={() => setScrapeResult(null)} className="text-grey-400 hover:text-grey-600 transition">
-              <X size={13} />
-            </button>
-          </div>
-        )}
-
-        {/* "Include in scout" hint */}
+        {/* Include-in-scout hint */}
         {sources.length > 0 && effectiveRegion && matchingCount > 0 && (
           <div className="px-6 py-3 border-t border-grey-100 bg-teal-bg/30">
             <p className="text-xs text-teal-dark">
@@ -986,6 +1237,16 @@ function DataSourcesSection({
         variant="danger"
         onConfirm={handleDelete}
       />
+
+      <ConfirmDialog
+        open={clearConfirmOpen}
+        onOpenChange={open => { if (!open) setClearConfirmOpen(false); }}
+        title={`Clear all ${sources.length} ${sources.length === 1 ? "source" : "sources"}?`}
+        description="This can't be undone."
+        confirmLabel="Clear all"
+        variant="danger"
+        onConfirm={() => { setSources([]); setClearConfirmOpen(false); }}
+      />
     </>
   );
 }
@@ -993,7 +1254,6 @@ function DataSourcesSection({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function LocationScoutPage() {
-  // Form state
   const [form, setForm] = useState<FormState>({
     region:               "",
     customRegion:         "",
@@ -1003,20 +1263,13 @@ export default function LocationScoutPage() {
     maxResults:           10,
     focusKeywords:        "",
     includeActiveSources: false,
+    focusType:            "all",
+    depth:                "standard",
+    selectedSourceIds:    [],
   });
 
-  // Run state
-  const [run, setRun] = useState<RunState>({
-    phase:      "idle",
-    runId:      null,
-    discovered: 0,
-    inserted:   0,
-    error:      null,
-    entries:    [],
-    elapsed:    0,
-  });
+  const [run, setRun] = useState<RunState>({ phase: "idle", jobId: null, error: null });
 
-  // Data
   const [stats, setStats]     = useState<ContentStats | null>(null);
   const [history, setHistory] = useState<AgentRun[]>([]);
   const [sources, setSources] = useState<ContentSource[]>([]);
@@ -1024,27 +1277,94 @@ export default function LocationScoutPage() {
   const [addPreset, setAddPreset] = useState(false);
   const [newPreset, setNewPreset] = useState<NewPreset>({ emoji: "📍", label: "" });
 
-  // Timer ref for elapsed time
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [restrictToSources, setRestrictToSources] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus]      = useState<DraftSaveStatus>("idle");
+  const draftSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialMountRef = useRef(true);
 
-  // Load stats, history, and sources on mount
+  // Job tracking: source_id → latest job for that source
+  const [activeJobs, setActiveJobs]       = useState<Record<string, ScoutJob>>({});
+  const [jobDrawerJob, setJobDrawerJob]   = useState<ScoutJob | null>(null);
+
+  // Load data on mount
   useEffect(() => {
     fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
     fetch("/api/admin/scout/runs").then(r => r.json()).then(data => setHistory(Array.isArray(data) ? data : [])).catch(() => {});
-    fetch("/api/admin/scout/sources").then(r => r.json()).then(data => setSources(Array.isArray(data) ? data : [])).catch(() => {});
+    fetch("/api/admin/scout/drafts")
+      .then(r => r.ok ? r.json() : null)
+      .then(draft => {
+        if (draft?.sources?.length > 0) {
+          setSources(draft.sources);
+          setRestrictToSources(draft.restrict_to_sources ?? false);
+        } else {
+          fetch("/api/admin/scout/sources").then(r => r.json()).then(data => setSources(Array.isArray(data) ? data : [])).catch(() => {});
+        }
+      })
+      .catch(() => {
+        fetch("/api/admin/scout/sources").then(r => r.json()).then(data => setSources(Array.isArray(data) ? data : [])).catch(() => {});
+      });
   }, []);
 
-  // Elapsed timer during run
+  // Debounced draft save
   useEffect(() => {
-    if (run.phase === "running") {
-      timerRef.current = setInterval(() => {
-        setRun(r => ({ ...r, elapsed: r.elapsed + 1 }));
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [run.phase]);
+    if (isInitialMountRef.current) { isInitialMountRef.current = false; return; }
+    if (draftSaveTimerRef.current) clearTimeout(draftSaveTimerRef.current);
+    setDraftSaveStatus("saving");
+    draftSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await fetch("/api/admin/scout/drafts", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sources, restrict_to_sources: restrictToSources }),
+        });
+        setDraftSaveStatus("saved");
+      } catch { setDraftSaveStatus("idle"); }
+    }, 500);
+  }, [sources, restrictToSources]);
+
+  // Poll active jobs every 3s
+  useEffect(() => {
+    const active = Object.entries(activeJobs).filter(
+      ([, j]) => j.status === "queued" || j.status === "running"
+    );
+    if (active.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const [sourceId, job] of active) {
+        try {
+          const res = await fetch(`/api/admin/scout/jobs/${job.id}`);
+          if (!res.ok) continue;
+          const updated: ScoutJob = await res.json();
+
+          setActiveJobs(prev => ({ ...prev, [sourceId]: updated }));
+
+          // Keep drawer in sync if it's showing this job
+          setJobDrawerJob(prev => prev?.id === job.id ? updated : prev);
+
+          if (updated.status === "done") {
+            setSources(s => s.map(src =>
+              src.id === sourceId
+                ? {
+                    ...src,
+                    last_scraped_at: updated.finished_at ?? new Date().toISOString(),
+                    entry_count:     src.entry_count + (updated.entries_created ?? 0),
+                    status:          "active" as const,
+                    health:          "ok" as const,
+                  }
+                : src
+            ));
+            fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
+          } else if (updated.status === "failed") {
+            setSources(s => s.map(src =>
+              src.id === sourceId ? { ...src, status: "error" as const } : src
+            ));
+          }
+        } catch { /* ignore fetch errors in poller */ }
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [activeJobs]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -1086,128 +1406,142 @@ export default function LocationScoutPage() {
     setNewPreset({ emoji: "📍", label: "" });
   }
 
+  function onScrapeQueued(sourceId: string, jobId: string) {
+    const stub: ScoutJob = {
+      id: jobId, job_type: "scrape_source", status: "queued",
+      source_id: sourceId, trigger_payload: {}, attempt_count: 0, max_attempts: 3,
+      last_error: null, last_error_code: null, retryable: true, progress: {},
+      entries_created: null, entries_updated: null, result_summary: null,
+      created_at: new Date().toISOString(), started_at: null, finished_at: null,
+      next_attempt_at: null,
+    };
+    setActiveJobs(prev => ({ ...prev, [sourceId]: stub }));
+  }
+
   const effectiveRegion = form.region === "custom" ? form.customRegion : form.region;
 
   async function handleRun() {
     if (!effectiveRegion) return;
+    setRun({ phase: "queuing", jobId: null, error: null });
 
-    setRun({ phase: "running", runId: null, discovered: 0, inserted: 0, error: null, entries: [], elapsed: 0 });
+    const effectiveSourceList = form.selectedSourceIds.length > 0
+      ? sources.filter(s => form.selectedSourceIds.includes(s.id))
+      : sources;
 
-    const contentTypes = form.contentTypes.filter(t => ["route", "accommodation", "restaurant"].includes(t));
+    const contentTypes  = form.focusType !== "all"
+      ? [form.focusType]
+      : form.contentTypes.filter(t => ["route", "accommodation", "restaurant", "activity"].includes(t));
+
     const focusKeywords: string[] = [];
-    if (form.activityFocus && form.activityFocus !== "None (general)") {
-      focusKeywords.push(form.activityFocus);
-    }
-    if (form.focusKeywords.trim()) {
-      focusKeywords.push(...form.focusKeywords.split(",").map(k => k.trim()).filter(Boolean));
+    if (form.activityFocus && form.activityFocus !== "None (general)") focusKeywords.push(form.activityFocus);
+    if (form.focusKeywords.trim()) focusKeywords.push(...form.focusKeywords.split(",").map(k => k.trim()).filter(Boolean));
+
+    const body: Record<string, unknown> = {
+      region:               effectiveRegion,
+      vacationType:         form.vacationType,
+      contentTypes,
+      maxResults:           form.maxResults,
+      focusKeywords,
+      includeActiveSources: form.includeActiveSources,
+      depth:                form.depth,
+    };
+    if (form.focusType !== "all") body.focusType = form.focusType;
+    if (effectiveSourceList.length > 0) {
+      body.sourceUrls        = effectiveSourceList.map(s => s.url);
+      body.restrictToSources = restrictToSources;
     }
 
     try {
-      const res = await fetch(SCOUT_URL, {
+      const res = await fetch("/api/admin/scout/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          region:               effectiveRegion,
-          vacationType:         form.vacationType,
-          contentTypes,
-          maxResults:           form.maxResults,
-          focusKeywords,
-          includeActiveSources: form.includeActiveSources,
-        }),
+        body: JSON.stringify(body),
       });
-
       const payload = await res.json();
-
-      if (!res.ok) {
-        throw new Error(payload.error ?? `HTTP ${res.status}`);
-      }
-
-      const { runId, discovered, inserted } = payload;
-
-      // Fetch the actual entries from DB
-      setRun(r => ({ ...r, phase: "fetching", runId, discovered, inserted }));
-
-      const entriesRes = await fetch(`/api/admin/scout/run-results?runId=${runId}`);
-      const entries: ScoutEntry[] = entriesRes.ok ? await entriesRes.json() : [];
-
-      setRun(r => ({ ...r, phase: "done", entries }));
-
-      // Refresh history and stats
-      fetch("/api/admin/scout/runs").then(r => r.json()).then(data => setHistory(Array.isArray(data) ? data : [])).catch(() => {});
-      fetch("/api/admin/scout/stats").then(r => r.json()).then(setStats).catch(() => {});
+      if (!res.ok) throw new Error(payload.error ?? `HTTP ${res.status}`);
+      setRun({ phase: "queued", jobId: payload.job_id, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setRun(r => ({ ...r, phase: "failed", error: message }));
+      setRun({ phase: "failed", jobId: null, error: message });
     }
   }
 
-  const canRun = !!effectiveRegion && run.phase !== "running" && run.phase !== "fetching";
+  const runningJobCount = Object.values(activeJobs).filter(j => j.status === "queued" || j.status === "running").length;
+  const canRun = !!effectiveRegion && run.phase !== "queuing"
+    && !(restrictToSources && sources.length === 0);
 
   return (
     <div>
+      {/* Close overlay for job drawer */}
+      {jobDrawerJob && (
+        <div
+          className="fixed inset-0 bg-black/20 z-40"
+          onClick={() => setJobDrawerJob(null)}
+        />
+      )}
+      {jobDrawerJob && (
+        <JobDrawer job={jobDrawerJob} onClose={() => setJobDrawerJob(null)} />
+      )}
+
       <PageHeader
         title="Location Scout"
         description="Trigger the AI scout to discover new destinations, accommodation, and restaurants from authentic travel sources."
         actions={
-          <Link
-            href="/agents"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft size={14} /> All agents
-          </Link>
+          <div className="flex items-center gap-2">
+            {runningJobCount > 0 && (
+              <button
+                onClick={() => {
+                  const first = Object.values(activeJobs).find(j => j.status === "queued" || j.status === "running");
+                  if (first) setJobDrawerJob(first);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-100 text-teal-dark text-xs font-semibold border border-teal-200 hover:bg-teal-200 transition"
+              >
+                <Loader2 size={11} className="animate-spin" />
+                {runningJobCount} job{runningJobCount !== 1 ? "s" : ""} running
+              </button>
+            )}
+            <Link
+              href="/agents"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-grey-700 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft size={14} /> All agents
+            </Link>
+          </div>
         }
       />
 
-      {/* ── Quick Presets ── */}
+      {/* Quick Presets */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         <span className="text-xs text-grey-400 font-medium mr-1">Quick start:</span>
         {presets.map((p, i) => (
-          <button
-            key={i}
-            onClick={() => applyPreset(p)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-sm hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50 transition-colors text-grey-700 bg-white"
-          >
+          <button key={i} onClick={() => applyPreset(p)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200 text-sm hover:border-teal-400 hover:text-teal-700 hover:bg-teal-50 transition-colors text-grey-700 bg-white">
             <span>{p.emoji}</span>
             <span className="text-xs font-medium">{p.label}</span>
           </button>
         ))}
         {!addPreset ? (
-          <button
-            onClick={() => setAddPreset(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-slate-300 text-xs text-grey-400 hover:border-teal hover:text-teal-dark transition-colors bg-white"
-          >
+          <button onClick={() => setAddPreset(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-slate-300 text-xs text-grey-400 hover:border-teal hover:text-teal-dark transition-colors bg-white">
             <Plus size={11} /> Add preset
           </button>
         ) : (
           <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-2 py-1">
-            <input
-              value={newPreset.emoji}
-              onChange={e => setNewPreset(p => ({ ...p, emoji: e.target.value }))}
-              className="w-8 text-center text-sm bg-transparent outline-none"
-              maxLength={2}
-            />
-            <input
-              value={newPreset.label}
-              onChange={e => setNewPreset(p => ({ ...p, label: e.target.value }))}
+            <input value={newPreset.emoji} onChange={e => setNewPreset(p => ({ ...p, emoji: e.target.value }))}
+              className="w-8 text-center text-sm bg-transparent outline-none" maxLength={2} />
+            <input value={newPreset.label} onChange={e => setNewPreset(p => ({ ...p, label: e.target.value }))}
               placeholder="Preset name…"
               className="text-xs bg-transparent outline-none text-dark placeholder:text-grey-300 w-28"
-              onKeyDown={e => { if (e.key === "Enter") addNewPreset(); }}
-              autoFocus
-            />
-            <button onClick={addNewPreset} className="text-teal hover:text-teal-dark transition-colors">
-              <CheckCircle2 size={14} />
-            </button>
-            <button onClick={() => setAddPreset(false)} className="text-grey-400 hover:text-grey-700 transition-colors">
-              <X size={14} />
-            </button>
+              onKeyDown={e => { if (e.key === "Enter") addNewPreset(); }} autoFocus />
+            <button onClick={addNewPreset} className="text-teal hover:text-teal-dark transition-colors"><CheckCircle2 size={14} /></button>
+            <button onClick={() => setAddPreset(false)} className="text-grey-400 hover:text-grey-700 transition-colors"><X size={14} /></button>
           </div>
         )}
       </div>
 
-      {/* ── Main grid: Form + Sidebar ── */}
+      {/* Main grid */}
       <div className="grid grid-cols-3 gap-6 mb-6">
-
-        {/* ─ Scout Trigger Form ─ */}
+        {/* Scout Trigger Form */}
         <div className="col-span-2 border border-slate-200 rounded-lg overflow-hidden">
           <div className="flex items-center gap-2.5 px-6 py-4 border-b border-grey-100">
             <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
@@ -1217,263 +1551,218 @@ export default function LocationScoutPage() {
           </div>
 
           <div className="p-6 space-y-5">
-            {/* Region */}
+            {/* Sources */}
             <div>
-              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">
-                Region <span className="text-danger">*</span>
-              </label>
-              <select
-                value={form.region}
-                onChange={e => updateForm("region", e.target.value)}
-                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
-              >
-                <option value="" disabled>Select a region…</option>
-                {REGION_GROUPS.map(group => (
-                  <optgroup key={group.label} label={group.label}>
-                    {group.regions.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </optgroup>
-                ))}
-                <optgroup label="Custom">
-                  <option value="custom">Custom region…</option>
-                </optgroup>
-              </select>
-              {form.region === "custom" && (
-                <input
-                  type="text"
-                  value={form.customRegion}
-                  onChange={e => updateForm("customRegion", e.target.value)}
-                  placeholder="e.g. Azores, Portugal"
-                  className="mt-2 w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2.5 bg-white focus:outline-none focus:border-teal-400"
-                  autoFocus
-                />
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Sources</label>
+              {sources.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">No sources added yet — add them below, or leave empty for general web search.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {sources.map(s => {
+                      const selected = form.selectedSourceIds.length === 0 || form.selectedSourceIds.includes(s.id);
+                      return (
+                        <button key={s.id} type="button"
+                          onClick={() => {
+                            setForm(prev => {
+                              if (prev.selectedSourceIds.length === 0) {
+                                return { ...prev, selectedSourceIds: sources.filter(x => x.id !== s.id).map(x => x.id) };
+                              }
+                              const next = prev.selectedSourceIds.includes(s.id)
+                                ? prev.selectedSourceIds.filter(id => id !== s.id)
+                                : [...prev.selectedSourceIds, s.id];
+                              return { ...prev, selectedSourceIds: next.length === sources.length ? [] : next };
+                            });
+                          }}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all",
+                            selected ? "bg-teal-50 border-teal-300 text-teal-700" : "bg-slate-50 border-slate-200 text-slate-400 line-through"
+                          )}>
+                          <span>{s.type === "instagram" ? "📸" : "🌐"}</span>
+                          <span className="font-mono truncate max-w-[140px]">{s.label || s.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {form.selectedSourceIds.length > 0 && form.selectedSourceIds.length < sources.length && (
+                    <button type="button" onClick={() => updateForm("selectedSourceIds", [])}
+                      className="text-[10px] text-teal-600 hover:text-teal-800 underline">
+                      Select all {sources.length}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Vacation Type + Activity Focus */}
+            {sources.length > 0 && (
+              <label className="flex items-center gap-2.5 cursor-pointer -mt-1">
+                <input type="checkbox" checked={restrictToSources} onChange={e => setRestrictToSources(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 accent-teal-500" />
+                <span className="text-xs text-grey-600">
+                  Restrict to selected sources only <span className="text-grey-400">(skip general web search)</span>
+                </span>
+              </label>
+            )}
+            {restrictToSources && sources.length === 0 && (
+              <p className="flex items-center gap-1.5 text-xs text-amber-600">
+                <AlertTriangle size={11} /> Add at least one source or uncheck Restrict.
+              </p>
+            )}
+
+            {/* Region */}
+            <div>
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Region <span className="text-danger">*</span></label>
+              <select value={form.region} onChange={e => updateForm("region", e.target.value)}
+                className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal">
+                <option value="" disabled>Select a region…</option>
+                {REGION_GROUPS.map(group => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.regions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </optgroup>
+                ))}
+                <optgroup label="Custom"><option value="custom">Custom region…</option></optgroup>
+              </select>
+              {form.region === "custom" && (
+                <input type="text" value={form.customRegion} onChange={e => updateForm("customRegion", e.target.value)}
+                  placeholder="e.g. Azores, Portugal"
+                  className="mt-2 w-full text-sm text-dark border border-slate-200 rounded-md px-3 py-2.5 bg-white focus:outline-none focus:border-teal-400"
+                  autoFocus />
+              )}
+            </div>
+
+            {/* Focus Type + Depth */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">
-                  Vacation type
-                </label>
-                <select
-                  value={form.vacationType}
-                  onChange={e => updateForm("vacationType", e.target.value)}
-                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
-                >
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Focus type</label>
+                <select value={form.focusType} onChange={e => updateForm("focusType", e.target.value)}
+                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal">
+                  <option value="all">All types</option>
+                  <option value="route">Routes only</option>
+                  <option value="accommodation">Accommodation only</option>
+                  <option value="restaurant">Restaurants only</option>
+                  <option value="activity">Activities only</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Depth</label>
+                <div className="flex gap-2">
+                  {(["standard", "exhaustive"] as const).map(d => (
+                    <button key={d} type="button" onClick={() => updateForm("depth", d)}
+                      className={cn(
+                        "flex-1 text-xs font-medium py-2.5 px-3 rounded-xl border-2 transition-all capitalize",
+                        form.depth === d ? "border-teal bg-teal-bg text-teal-dark" : "border-slate-200 text-grey-500 hover:border-slate-300 bg-white"
+                      )}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Vacation Type + Max Results */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Vacation type</label>
+                <select value={form.vacationType} onChange={e => updateForm("vacationType", e.target.value)}
+                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal">
                   {VACATION_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">
-                  Activity focus
-                </label>
-                <select
-                  value={form.activityFocus}
-                  onChange={e => updateForm("activityFocus", e.target.value)}
-                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
-                >
-                  {ACTIVITY_FOCUS_OPTIONS.map(t => <option key={t}>{t}</option>)}
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Max results</label>
+                <select value={form.maxResults} onChange={e => updateForm("maxResults", Number(e.target.value))}
+                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal">
+                  {[5, 10, 15, 20, 25].map(n => <option key={n} value={n}>{n}{n === 10 ? " (default)" : ""}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Content Types */}
-            <div>
-              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-2">
-                Content types
-              </label>
-              <div className="flex gap-4">
-                {CONTENT_TYPE_OPTIONS.map(opt => {
-                  const checked = form.contentTypes.includes(opt.id);
-                  const Icon = opt.icon;
-                  return (
-                    <label
-                      key={opt.id}
-                      className={cn(
-                        "flex items-center gap-2.5 flex-1 px-3 py-2.5 rounded-xl border-2 cursor-pointer transition-all",
-                        checked
-                          ? "border-teal bg-teal-bg text-teal-dark"
-                          : "border-slate-200 text-grey-500 hover:border-slate-300 bg-white"
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleContentType(opt.id)}
-                        className="sr-only"
-                      />
-                      <Icon size={14} className="shrink-0" />
-                      <span className="text-xs font-medium">{opt.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Max Results + Focus Keywords */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">
-                  Max results
-                </label>
-                <select
-                  value={form.maxResults}
-                  onChange={e => updateForm("maxResults", Number(e.target.value))}
-                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal"
-                >
-                  {[5, 10, 15, 20, 30].map(n => (
-                    <option key={n} value={n}>{n}{n === 10 ? " (default)" : ""}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">
-                  Focus keywords <span className="text-grey-400 font-normal normal-case">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.focusKeywords}
-                  onChange={e => updateForm("focusKeywords", e.target.value)}
-                  placeholder="hidden gems, local, authentic…"
-                  className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal placeholder:text-grey-300"
-                />
-              </div>
-            </div>
-
-            {/* Include active sources */}
-            {sources.length > 0 && (
+            {sources.length > 0 && !restrictToSources && (
               <label className="flex items-center gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.includeActiveSources}
-                  onChange={e => updateForm("includeActiveSources", e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 accent-teal-500"
-                />
-                <span className="text-xs text-grey-600">
-                  Include active sources for this region
-                  {effectiveRegion && (
-                    <span className="ml-1 text-grey-400">
-                      ({sources.filter(s => s.status === "active" && (!s.region || effectiveRegion.toLowerCase().includes(s.region.toLowerCase()))).length} matching)
-                    </span>
-                  )}
-                </span>
+                <input type="checkbox" checked={form.includeActiveSources} onChange={e => updateForm("includeActiveSources", e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-300 accent-teal-500" />
+                <span className="text-xs text-grey-600">Also include active sources for this region in general search</span>
               </label>
             )}
 
-            {/* Cost estimate + Run button */}
+            {/* Run button */}
             <div className="flex items-center justify-between pt-2 border-t border-grey-100">
-              <div className="flex items-center gap-4 text-xs text-grey-500">
+              <div className="text-xs text-grey-500">
                 <span>Estimated cost: <strong className="text-dark font-mono">~€0.50</strong></span>
-                <span className="text-grey-300">·</span>
-                <span>Budget remaining: <strong className="text-dark font-mono">$48.50</strong></span>
+                {form.depth === "exhaustive" && (
+                  <span className="ml-2 text-amber-600 text-[10px]">exhaustive runs cost ~2×</span>
+                )}
               </div>
-              <button
-                onClick={handleRun}
-                disabled={!canRun}
+              <button onClick={handleRun} disabled={!canRun}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  canRun
-                    ? "bg-teal-500 text-white hover:bg-teal-600"
-                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                )}
-              >
-                <Play size={14} />
-                Run Scout
+                  canRun ? "bg-teal-500 text-white hover:bg-teal-600" : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                )}>
+                {run.phase === "queuing" ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                {run.phase === "queuing" ? "Queuing…" : "Run Scout"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* ─ Content Library Stats ─ */}
+        {/* Sidebar */}
         <div className="col-span-1">
           <ContentStatsPanel stats={stats} />
         </div>
       </div>
 
-      {/* ── Data Sources ── */}
+      {/* Run queued banner */}
+      {run.phase === "queued" && run.jobId && (
+        <RunQueuedBanner
+          jobId={run.jobId}
+          depth={form.depth}
+          onViewJob={() => {
+            // Show a minimal job stub in the drawer (will update when polled)
+            const stub: ScoutJob = {
+              id: run.jobId!, job_type: "run_scout", status: "queued",
+              source_id: null, trigger_payload: {}, attempt_count: 0, max_attempts: 3,
+              last_error: null, last_error_code: null, retryable: true, progress: {},
+              entries_created: null, entries_updated: null, result_summary: null,
+              created_at: new Date().toISOString(), started_at: null, finished_at: null,
+              next_attempt_at: null,
+            };
+            setJobDrawerJob(stub);
+          }}
+          onDismiss={() => setRun({ phase: "idle", jobId: null, error: null })}
+        />
+      )}
+
+      {/* Run failed banner */}
+      {run.phase === "failed" && (
+        <div className="border-l-4 border-danger bg-danger-light rounded-r-xl p-5 mb-6 flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={17} className="text-danger shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-dark">Failed to queue scout run</p>
+              <p className="text-xs text-grey-500 mt-1 font-mono">{run.error}</p>
+            </div>
+          </div>
+          <button onClick={() => setRun({ phase: "idle", jobId: null, error: null })} className="text-grey-400 hover:text-grey-700 shrink-0">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Data Sources */}
       <div className="mb-6">
         <DataSourcesSection
           sources={sources}
           setSources={setSources}
           setStats={setStats}
           effectiveRegion={effectiveRegion}
+          draftSaveStatus={draftSaveStatus}
+          activeJobs={activeJobs}
+          onScrapeQueued={onScrapeQueued}
+          onJobDrawerOpen={setJobDrawerJob}
         />
       </div>
 
-      {/* ── Loading state ── */}
-      {(run.phase === "running" || run.phase === "fetching") && (
-        <div className="border border-slate-200 rounded-lg p-10 mb-6 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
-                <MapPin size={24} className="text-teal-dark" />
-              </div>
-              <Loader2
-                size={64}
-                className="animate-spin text-teal/30 absolute inset-0"
-                strokeWidth={1}
-              />
-            </div>
-            <div>
-              <p className="text-base font-semibold text-dark">
-                {run.phase === "fetching" ? "Loading results…" : "Scout is searching…"}
-              </p>
-              <p className="text-sm text-grey-500 mt-1">
-                {run.phase === "fetching"
-                  ? "Fetching entries from the content library"
-                  : "This may take 60–90 seconds while the AI researches authentic sources"}
-              </p>
-            </div>
-            {run.phase === "running" && (
-              <div className="flex items-center gap-2 text-xs text-grey-400 font-mono bg-slate-50 px-4 py-2 rounded-full">
-                <Clock size={12} />
-                {run.elapsed}s elapsed
-              </div>
-            )}
-            {run.phase === "running" && (
-              <div className="w-64 h-1.5 rounded-full bg-grey-100 overflow-hidden">
-                <div
-                  className="h-full bg-teal rounded-full transition-all"
-                  style={{ width: `${Math.min((run.elapsed / 90) * 100, 95)}%` }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Error state ── */}
-      {run.phase === "failed" && (
-        <div className="border-l-4 border-danger bg-danger-light rounded-r-xl p-5 mb-6 flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={17} className="text-danger shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-dark">Scout run failed</p>
-              <p className="text-xs text-grey-500 mt-1 font-mono">{run.error}</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setRun(r => ({ ...r, phase: "idle", error: null }))}
-            className="text-grey-400 hover:text-grey-700 shrink-0"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* ── Results ── */}
-      {run.phase === "done" && (
-        <div className="mb-6">
-          <RunResultsSection
-            run={run}
-            onClose={() => setRun(r => ({ ...r, phase: "idle" }))}
-          />
-        </div>
-      )}
-
-      {/* ── Run History ── */}
+      {/* Run History */}
       <RunHistoryTable runs={history} />
     </div>
   );

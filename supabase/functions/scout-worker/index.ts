@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import Anthropic from "npm:@anthropic-ai/sdk";
+// Pinned to avoid SDK version drift across deploys.
+// Last reviewed: 2026-05-05. Bump deliberately when SDK has needed changes.
+import Anthropic from "npm:@anthropic-ai/sdk@0.93.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -61,12 +63,24 @@ interface StageSummary {
   [key: string]: unknown;
 }
 
+interface CostSummary {
+  scrapingbee_calls:          number;
+  scrapingbee_usd:            number;
+  anthropic_input_tokens:     number;
+  anthropic_output_tokens:    number;
+  anthropic_usd_estimate:     number;
+  google_places_calls:        number;
+  google_places_usd_estimate: number;
+  total_usd_estimate:         number;
+}
+
 interface ResultSummary {
   stages:              Record<string, StageSummary>;
   total_duration_ms:   number;
   claude_calls:        number;
   google_places_calls: number;
   warnings:            string[];
+  costs:               CostSummary;
 }
 
 type DB = ReturnType<typeof createClient>;
@@ -75,11 +89,94 @@ type DB = ReturnType<typeof createClient>;
 
 const MODEL               = "claude-sonnet-4-6";
 const MIN_SCOUT_SCORE     = 0.5;
-const JOB_BUDGET_MS       = 120_000;  // bail before Supabase edge fn hard cap (~150s)
+const JOB_BUDGET_MS       = 120_000; // bail before Supabase edge fn hard cap (~150s)
 const MAX_EXTRACTIONS_STD = 25;
 const MAX_EXTRACTIONS_EXH = 100;
 const MAX_SUBPAGES        = 5;
-const MAX_HTML_KB         = 50;
+
+// Pricing constants — Last verified: 2026-05-05. Update when vendors change pricing.
+const ANTHROPIC_INPUT_COST_PER_1M   = 3.00;   // $/1M input tokens  — claude-sonnet-4-6
+const ANTHROPIC_OUTPUT_COST_PER_1M  = 15.00;  // $/1M output tokens — claude-sonnet-4-6
+const GOOGLE_PLACES_COST_PER_CALL   = 0.017;  // Text Search call
+const SCRAPINGBEE_CREDITS_PER_JS    = 5;       // credits per JS-rendered request
+const SCRAPINGBEE_COST_PER_JS       = 0.005;   // $/request on smallest paid plan
+
+type FocusType = ContentType;
+
+const LOCALE_KEYWORDS: Record<FocusType, Record<string, string[]>> = {
+  accommodation: {
+    en: ["hotel", "stay", "accommodat", "lodging", "guesthouse", "villa", "resort", "apartment"],
+    nl: ["hotel", "overnachten", "accommodatie", "verblijf", "vakantiehuis", "appartement", "pension", "logies"],
+    de: ["hotel", "unterkunft", "pension", "ferienwohnung", "gasthaus", "herberge", "apartment"],
+    fr: ["hotel", "hébergement", "logement", "gîte", "chambre", "appartement", "auberge"],
+    es: ["hotel", "alojamiento", "hospedaje", "apartamento", "hostal", "pension", "casa"],
+    it: ["hotel", "alloggio", "albergo", "pensione", "agriturismo", "appartamento", "soggiorno"],
+    pt: ["hotel", "alojamento", "hospedagem", "pousada", "apartamento", "quinta", "casa"],
+  },
+  restaurant: {
+    en: ["restaurant", "eat", "dining", "cafe", "food", "cuisine"],
+    nl: ["restaurant", "eten", "cafe", "eetcafe", "bistro"],
+    de: ["restaurant", "essen", "gaststätte", "lokal", "café"],
+    fr: ["restaurant", "manger", "café", "bistro", "cuisine"],
+    es: ["restaurante", "comer", "café", "bar", "cocina"],
+    it: ["ristorante", "mangiare", "trattoria", "osteria", "cucina"],
+    pt: ["restaurante", "comer", "café", "cozinha"],
+  },
+  activity: {
+    en: ["activity", "thing-to-do", "tour", "experience", "visit"],
+    nl: ["activiteit", "bezienswaardigheden", "doen", "tour", "excursie", "bezoek"],
+    de: ["aktivität", "sehenswürdigkeit", "tour", "erlebnis", "besuch"],
+    fr: ["activité", "visite", "tour", "expérience", "excursion"],
+    es: ["actividad", "visita", "tour", "experiencia", "excursión"],
+    it: ["attività", "visita", "tour", "esperienza", "escursione"],
+    pt: ["atividade", "visita", "tour", "experiência", "excursão"],
+  },
+  route: {
+    en: ["route", "trail", "ride", "cycling", "hike", "walk"],
+    nl: ["route", "wandeling", "fietsen", "wandelpad", "fietsroute"],
+    de: ["route", "wanderung", "radweg", "wanderweg", "tour"],
+    fr: ["route", "sentier", "randonnée", "piste", "circuit"],
+    es: ["ruta", "sendero", "senderismo", "ciclismo", "camino"],
+    it: ["percorso", "sentiero", "ciclabile", "escursione", "cammino"],
+    pt: ["rota", "trilha", "caminhada", "ciclismo", "caminho"],
+  },
+};
+
+function getLocaleFromUrl(url: string): string {
+  // Path segment: /en, /en/, /en?, /en# — all match (no trailing slash required)
+  const pathMatch = url.match(/\/(en|nl|de|fr|es|it|pt)(?:\/|$|\?|#)/i);
+  if (pathMatch) return pathMatch[1].toLowerCase();
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname.endsWith(".nl")) return "nl";
+    if (hostname.endsWith(".de")) return "de";
+    if (hostname.endsWith(".fr")) return "fr";
+    if (hostname.endsWith(".es")) return "es";
+    if (hostname.endsWith(".it")) return "it";
+    if (hostname.endsWith(".pt")) return "pt";
+    if (hostname.endsWith(".be")) return "nl";  // Belgium: default Dutch
+    if (hostname.endsWith(".at")) return "de";
+    if (hostname.endsWith(".ch")) return "de";  // imperfect but reasonable
+  } catch { /* ignore */ }
+
+  return "en";
+}
+
+function getLocale(url: string, html?: string): string {
+  // URL path segment is the strongest signal
+  const fromUrl = getLocaleFromUrl(url);
+  // If URL gave a non-English locale, or explicitly contained /en/, trust it
+  if (fromUrl !== "en" || /\/en(?:\/|$|\?|#)/i.test(url)) return fromUrl;
+
+  // Fall back to <html lang="..."> if HTML is available
+  if (html) {
+    const langMatch = html.match(/<html[^>]+lang=["']([a-z]{2})/i);
+    if (langMatch) return langMatch[1].toLowerCase();
+  }
+
+  return fromUrl;
+}
 
 const CREDIBILITY: Record<string, number> = {
   blog:               1.0,
@@ -89,7 +186,7 @@ const CREDIBILITY: Record<string, number> = {
 };
 
 const RETRYABLE_HTTP_CODES  = [408, 429, 502, 503, 504];
-const RETRYABLE_ERROR_NAMES = ["TimeoutError", "NetworkError", "AbortError"];
+const RETRYABLE_ERROR_NAMES = ["NetworkError", "TimeoutError"];
 
 // ── Module-level progress state (reset per invocation) ────────────────────────
 
@@ -138,51 +235,456 @@ async function fetchRubric(db: DB): Promise<string> {
   }
 }
 
-// ── Stage 1: Extract — build prompts ─────────────────────────────────────────
+// ── HTML utilities (regex-based, no external deps) ────────────────────────────
 
-function buildSourceScrapingPrompt(
-  sourceUrls:        string[],
-  region:            string,
-  restrictToSources: boolean,
-  rubric:            string,
-  maxResults:        number,
-  maxSubpages:       number,
-  depth:             "standard" | "exhaustive",
-): string {
-  const urlList        = sourceUrls.map((u, i) => `${i + 1}. ${u}`).join("\n");
-  const restrictClause = restrictToSources
-    ? `\nDO NOT perform general web searches. Use ONLY the sources listed above.\n`
-    : "";
-  const rubricSection  = rubric ? `\nQUALITY RUBRIC (reject mentions that fail these rules):\n${rubric}\n` : "";
-  const depthLine      = depth === "exhaustive"
-    ? "DEPTH: Exhaustive — visit the main URL and up to 10 linked sub-pages."
-    : `DEPTH: Standard — visit the main URL and up to ${maxSubpages} linked sub-pages.`;
-
-  return `You are a travel content extraction agent for TruthStay.
-
-Visit and extract EVERY place, accommodation, restaurant, and route mentioned in these sources:
-${urlList}
-${restrictClause}${rubricSection}
-${depthLine}
-Content limit: read at most ${MAX_HTML_KB}KB of content per URL; ignore footers and sidebars.
-Return at most ${maxResults} entries total.
-
-For each entry extract:
-- name, type (route|accommodation|restaurant|activity), region (default "${region}"), description (2–3 sentences)
-- coordinates (real lat/lng, never 0,0), sources (url, type: blog|instagram_profile|instagram_post|web_search, author, excerpt)
-- highlights (up to 3), metadata (price range, cuisine, difficulty, etc.)
-- confidenceScore (0.0–1.0), confidenceReason
-
-OUTPUT — ONLY a valid JSON array, no prose:
-[
-  {
-    "name": "Place name", "type": "accommodation", "region": "${region}",
-    "description": "...", "coordinates": { "lat": 0.0, "lng": 0.0 },
-    "sources": [{ "url": "...", "type": "blog", "author": "...", "excerpt": "..." }],
-    "highlights": [], "metadata": {}, "confidenceScore": 0.75, "confidenceReason": "..."
-  }
-]`;
+interface ExtractedLink {
+  url:        string;
+  anchorText: string;
+  title?:     string;
 }
+
+function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
+  const clean = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "");
+
+  // Match full <a> tags to capture href, title attribute, and inner text
+  const aTagRe  = /<a\s([^>]*)>([\s\S]*?)<\/a>/gi;
+  const hrefRe  = /href=["']([^"']+)["']/i;
+  const titleRe = /title=["']([^"']*)["']/i;
+  const seen    = new Map<string, ExtractedLink>();
+  let match: RegExpExecArray | null;
+
+  while ((match = aTagRe.exec(clean)) !== null) {
+    const attrs      = match[1];
+    const inner      = match[2];
+    const hrefMatch  = hrefRe.exec(attrs);
+    if (!hrefMatch) continue;
+    if (hrefMatch[1].startsWith("#")) continue;
+    try {
+      const url = new URL(hrefMatch[1], baseUrl).href;
+      if (seen.has(url)) continue;
+      const titleMatch = titleRe.exec(attrs);
+      const anchorText = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+      seen.set(url, { url, anchorText, title: titleMatch?.[1] });
+    } catch { /* skip malformed */ }
+  }
+  return [...seen.values()];
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g,  "&")
+    .replace(/&lt;/g,   "<")
+    .replace(/&gt;/g,   ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// ── Stage 1A: Fetch source page ───────────────────────────────────────────────
+
+interface FetchedPage {
+  html:                string;
+  finalUrl:            string;
+  contentType:         string;
+  status:              number;
+  fetchMethod:         "static" | "headless";
+  spaDetectionReason?: string;
+  costEstimateUsd:     number;
+}
+
+interface SpaMethodCache {
+  method: "static" | "headless" | null;
+}
+
+function isLikelySPA(html: string): { isSPA: boolean; reason: string } {
+  if (/<div\s+id=["'](?:root|app|__next)["']>\s*<\/div>/i.test(html)) {
+    return { isSPA: true, reason: "empty SPA root container" };
+  }
+  const linkCount = (html.match(/<a\s+[^>]*href=/gi) ?? []).length;
+  if (linkCount < 5) {
+    return { isSPA: true, reason: `only ${linkCount} <a> tags in static HTML` };
+  }
+  const visibleText = htmlToText(html);
+  if (visibleText.length < 500) {
+    return { isSPA: true, reason: `only ${visibleText.length} chars of visible text` };
+  }
+  if (/<noscript>[^<]*javascript/i.test(html)) {
+    return { isSPA: true, reason: "noscript JS warning present" };
+  }
+  return { isSPA: false, reason: "static HTML viable" };
+}
+
+async function assertWithinScrapingBudget(db: DB): Promise<void> {
+  const budget = parseFloat(Deno.env.get("SCRAPINGBEE_MONTHLY_BUDGET_USD") ?? "5");
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const { data } = await db
+    .from("scrapingbee_usage")
+    .select("cost_usd")
+    .eq("month_start", monthStart.toISOString().split("T")[0])
+    .maybeSingle();
+  const spent = parseFloat(String(data?.cost_usd ?? "0"));
+  if (spent >= budget) {
+    throw Object.assign(
+      new Error(`SCRAPING_BUDGET_EXCEEDED: $${spent.toFixed(4)} of $${budget} used this month`),
+      { name: "BudgetError", code: "SCRAPING_BUDGET_EXCEEDED" },
+    );
+  }
+}
+
+async function recordScrapingBeeUsage(db: DB, calls: number, costUsd: number): Promise<void> {
+  try {
+    await db.rpc("increment_scrapingbee_usage", { p_calls: calls, p_cost: costUsd });
+  } catch (e) {
+    console.warn("[worker] failed to record ScrapingBee usage:", (e as Error).message);
+  }
+}
+
+async function fetchViaScrapingBee(
+  url:    string,
+  db:     DB,
+  signal: AbortSignal,
+): Promise<{ html: string; costEstimateUsd: number }> {
+  const apiKey = Deno.env.get("SCRAPINGBEE_API_KEY");
+  if (!apiKey) throw new Error("SCRAPINGBEE_API_KEY not configured");
+
+  await assertWithinScrapingBudget(db);
+
+  const params = new URLSearchParams({
+    api_key:         apiKey,
+    url:             url,
+    render_js:       "true",
+    wait:            "2000",
+    block_resources: "true",
+    timeout:         "20000",
+  });
+
+  const controller    = new AbortController();
+  const timer         = setTimeout(() => controller.abort(), 30_000);
+  const onParentAbort = () => controller.abort();
+  signal.addEventListener("abort", onParentAbort, { once: true });
+
+  try {
+    const response = await fetch(
+      `https://app.scrapingbee.com/api/v1/?${params.toString()}`,
+      { signal: controller.signal },
+    );
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`ScrapingBee fetch failed (${response.status}): ${errText.slice(0, 200)}`);
+    }
+    const html            = await response.text();
+    const costEstimateUsd = SCRAPINGBEE_COST_PER_JS;
+    await recordScrapingBeeUsage(db, SCRAPINGBEE_CREDITS_PER_JS, costEstimateUsd);
+    return { html: html.slice(0, 500_000), costEstimateUsd };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", onParentAbort);
+  }
+}
+
+async function fetchStaticHtml(url: string, signal: AbortSignal): Promise<Omit<FetchedPage, "fetchMethod" | "spaDetectionReason" | "costEstimateUsd">> {
+  const controller    = new AbortController();
+  const timer         = setTimeout(() => controller.abort(), 10_000);
+  const onParentAbort = () => controller.abort();
+  signal.addEventListener("abort", onParentAbort, { once: true });
+
+  try {
+    const response = await fetch(url, {
+      signal:   controller.signal,
+      headers:  {
+        "User-Agent": "TruthStayBot/1.0 (+https://truth-stay.com)",
+        "Accept":     "text/html,application/xhtml+xml,*/*",
+      },
+      redirect: "follow",
+    });
+    if (!response.ok) {
+      throw Object.assign(new Error(`HTTP ${response.status} fetching ${url}`), { status: response.status });
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/html")) {
+      throw new Error(`non-HTML content type (${contentType}) for ${url}`);
+    }
+    const html = await response.text();
+    return { html: html.slice(0, 500_000), finalUrl: response.url, contentType, status: response.status };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", onParentAbort);
+  }
+}
+
+async function fetchSourcePage(
+  url:       string,
+  db:        DB,
+  signal:    AbortSignal,
+  spaCache?: SpaMethodCache,
+): Promise<FetchedPage> {
+  // Fast path: SPA method already known from first page on this run
+  if (spaCache?.method === "headless") {
+    const headless = await fetchViaScrapingBee(url, db, signal);
+    return { ...headless, finalUrl: url, contentType: "text/html", status: 200, fetchMethod: "headless" };
+  }
+  if (spaCache?.method === "static") {
+    const stat = await fetchStaticHtml(url, signal);
+    return { ...stat, fetchMethod: "static", costEstimateUsd: 0 };
+  }
+
+  // Auto-detect: try static first, fall back to headless if SPA
+  const stat = await fetchStaticHtml(url, signal);
+  if (stat.contentType.includes("text/html")) {
+    const spa = isLikelySPA(stat.html);
+    if (!spa.isSPA) {
+      if (spaCache) spaCache.method = "static";
+      return { ...stat, fetchMethod: "static", costEstimateUsd: 0 };
+    }
+    const headless = await fetchViaScrapingBee(url, db, signal);
+    if (spaCache) spaCache.method = "headless";
+    return {
+      ...headless, finalUrl: url, contentType: "text/html", status: 200,
+      fetchMethod: "headless", spaDetectionReason: spa.reason,
+    };
+  }
+  return { ...stat, fetchMethod: "static", costEstimateUsd: 0 };
+}
+
+// ── Stage 1B: Discover sub-pages ─────────────────────────────────────────────
+
+interface DiscoverResult {
+  sub_pages:             string[];
+  candidate_links_total: number;
+  locale_used:           string;
+  top_candidates:        Array<{ url: string; score: number; matched_keywords: string[] }>;
+}
+
+function scoreLink(
+  link:     ExtractedLink,
+  keywords: string[],
+): { score: number; matched_keywords: string[] } {
+  const urlLc  = link.url.toLowerCase();
+  const textLc = (link.anchorText + " " + (link.title ?? "")).toLowerCase();
+  const matched: string[] = [];
+  for (const kw of keywords) {
+    if (urlLc.includes(kw))  matched.push(kw + "@url");
+    if (textLc.includes(kw)) matched.push(kw + "@text");
+  }
+  // URL matches score 2 (more reliable), anchor-text matches score 1
+  const score =
+    matched.filter(m => m.endsWith("@url")).length  * 2 +
+    matched.filter(m => m.endsWith("@text")).length * 1;
+  return { score, matched_keywords: matched };
+}
+
+function discoverSubPages(html: string, baseUrl: string, focusType: ContentType): DiscoverResult {
+  let baseHostname = "";
+  try { baseHostname = new URL(baseUrl).hostname; } catch { /* ignore */ }
+
+  const locale     = getLocale(baseUrl, html);
+  const localeKws  = LOCALE_KEYWORDS[focusType]?.[locale] ?? [];
+  const englishKws = LOCALE_KEYWORDS[focusType]?.["en"] ?? [];
+  const keywords   = [...new Set([...englishKws, ...localeKws])];
+
+  const allLinks   = extractLinks(html, baseUrl);
+  const sameDomain = allLinks.filter(l => {
+    try { return new URL(l.url).hostname === baseHostname; } catch { return false; }
+  });
+
+  const scored = sameDomain.map(link => {
+    const { score, matched_keywords } = scoreLink(link, keywords);
+    return { url: link.url, score, matched_keywords };
+  });
+
+  const withScore = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  // Fallback: if nothing scored, use first 4 same-domain links by discovery order
+  const candidates = withScore.length > 0
+    ? withScore
+    : sameDomain.slice(0, MAX_SUBPAGES).map(l => ({ url: l.url, score: 0, matched_keywords: [] as string[] }));
+
+  const top_candidates = candidates.slice(0, 5);
+
+  const picked = candidates
+    .map(s => s.url)
+    .filter((u, i, arr) => arr.indexOf(u) === i)  // dedupe
+    .filter(u => u !== baseUrl)
+    .slice(0, MAX_SUBPAGES - 1);                   // reserve slot 0 for baseUrl
+
+  return {
+    sub_pages:             [baseUrl, ...picked],
+    candidate_links_total: sameDomain.length,
+    locale_used:           locale,
+    top_candidates,
+  };
+}
+
+// ── Stage 1C: Per-page extraction (bounded Claude call, no web_search) ────────
+
+async function extractFromPage(
+  anthropic:     Anthropic,
+  pageUrl:       string,
+  pageHtml:      string,
+  focusType:     ContentType,
+  rubric:        string,
+  defaultRegion: string,
+  signal:        AbortSignal,
+): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number }> {
+  const text          = htmlToText(pageHtml).slice(0, 30_000);
+  const rubricSection = rubric
+    ? `\nQUALITY RUBRIC (skip entries that fail these rules):\n${rubric}\n`
+    : "";
+
+  const prompt = `You are extracting ${focusType} entries from a single web page.
+
+Source URL: ${pageUrl}
+Focus type: ${focusType}
+Default region: ${defaultRegion}
+${rubricSection}
+PAGE TEXT:
+${text}
+
+Return a JSON array of up to 15 specifically-named ${focusType} places found on this page.
+Return [] if the page contains no ${focusType} entries.
+
+Each entry must follow this exact shape:
+{
+  "name": "Exact place name",
+  "type": "${focusType}",
+  "region": "city or region mentioned (default to '${defaultRegion}' if unspecified)",
+  "description": "1-2 sentences from the page text about this place",
+  "coordinates": {"lat": 0, "lng": 0},
+  "sources": [{"url": "${pageUrl}", "type": "blog", "author": "", "excerpt": "sentence that mentions this place"}],
+  "highlights": [],
+  "metadata": {},
+  "confidenceScore": 0.65,
+  "confidenceReason": "Named in page content"
+}
+
+OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
+
+  const response = await anthropic.messages.create({
+    model:      MODEL,
+    max_tokens: 4096,
+    messages:   [{ role: "user", content: prompt }],
+  }, { signal });
+
+  const raw = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map(b => b.text)
+    .join("\n");
+
+  const inputTokens  = response.usage?.input_tokens  ?? 0;
+  const outputTokens = response.usage?.output_tokens ?? 0;
+
+  const match = raw.match(/\[[\s\S]*\]/);
+  if (!match) return { locations: [], inputTokens, outputTokens };
+  try {
+    const parsed = JSON.parse(match[0]);
+    return {
+      locations:    Array.isArray(parsed) ? (parsed as DiscoveredLocation[]) : [],
+      inputTokens,
+      outputTokens,
+    };
+  } catch {
+    return { locations: [], inputTokens, outputTokens };
+  }
+}
+
+// ── Instagram strategy: bounded web_search via discoverWithPrompt ─────────────
+
+async function runInstagramScrape(
+  anthropic:     Anthropic,
+  sourceUrl:     string,
+  focusType:     ContentType,
+  rubric:        string,
+  region:        string,
+  signal:        AbortSignal,
+  db:            DB,
+  jobId:         string,
+  summary:       ResultSummary,
+): Promise<DiscoveredLocation[]> {
+  // Extract handle (e.g. instagram.com/visitalgarve -> "visitalgarve")
+  const handle = sourceUrl
+    .replace(/^https?:\/\/(www\.)?instagram\.com\/?/, "")
+    .replace(/\/.*$/, "")
+    .replace(/[^a-zA-Z0-9_.]/g, "")
+    || "unknown";
+
+  await updateProgress(db, jobId, { stage: "extract", stage_started_at: new Date().toISOString() });
+
+  const rubricSection = rubric ? `\nQUALITY RUBRIC:\n${rubric}\n` : "";
+
+  // TODO: Instagram extraction quality needs tuning. Tourism captions
+  // rarely contain literal focus_type words like "accommodation".
+  // Consider broadening query terms (e.g. "stayed at", "hotel", "villa"
+  // for accommodation focus) or relaxing the extraction schema.
+  // See update-8 smoke test A for context.
+
+  // One bounded web_search: find Instagram posts, extract from snippets only
+  const prompt = `You are finding ${focusType} recommendations from the Instagram account @${handle}.
+
+Search for: site:instagram.com "${handle}" ${focusType} ${region}
+
+Instructions:
+- Run ONE web_search with the query above.
+- Extract ${focusType} entries ONLY from the search result snippets (~200 chars each). Do not follow any links.
+- Maximum 8 entries total.
+- Only include specifically named places that are clearly ${focusType} type.${rubricSection}
+
+Return a JSON array:
+[{
+  "name": "Place name",
+  "type": "${focusType}",
+  "region": "${region}",
+  "description": "What the snippet says about this place",
+  "coordinates": {"lat": 0, "lng": 0},
+  "sources": [{"url": "https://instagram.com/${handle}", "type": "instagram_profile", "author": "@${handle}", "excerpt": "..."}],
+  "highlights": [],
+  "metadata": {},
+  "confidenceScore": 0.65,
+  "confidenceReason": "From Instagram search snippets"
+}]
+
+OUTPUT — ONLY a valid JSON array, no prose.`;
+
+  const extractStart = Date.now();
+  const { locations, inputTokens, outputTokens } = await discoverWithPrompt(anthropic, prompt, signal);
+
+  summary.stages.extract = {
+    duration_ms:   Date.now() - extractStart,
+    extractions:   locations.length,
+    strategy:      "instagram_web_search",
+    input_tokens:  inputTokens,
+    output_tokens: outputTokens,
+  };
+  summary.claude_calls                    = 1;
+  summary.costs.anthropic_input_tokens  += inputTokens;
+  summary.costs.anthropic_output_tokens += outputTokens;
+
+  const stagesCompleted = ["extract"];
+  await updateProgress(db, jobId, {
+    stages_completed:  stagesCompleted,
+    extractions_found: locations.length,
+    extractions:       locations,
+    sub_pages_total:   1,
+    sub_pages_done:    1,
+  });
+
+  return locations;
+}
+
+// ── Stage 1 for run_scout jobs: build prompt + fat Claude call ────────────────
+// Kept for run_scout pipeline only. scrape_source now uses 1A/1B/1C above.
 
 function buildGeneralSearchPrompt(
   region:           string,
@@ -219,7 +721,7 @@ RULES
 - Prioritise hidden gems, locally-loved spots, and honest traveller finds.
 - Each result MUST have at least one real source URL you actually visited.
 - Coordinates must be real and specific (not 0,0 and not a country centroid).
-- Content limit: read at most ${MAX_HTML_KB}KB per URL; ignore footers and sidebars.${curatedSection}
+- Content limit: read at most 50KB per URL; ignore footers and sidebars.${curatedSection}
 
 OUTPUT — ONLY a valid JSON array, no prose:
 [
@@ -238,11 +740,10 @@ OUTPUT — ONLY a valid JSON array, no prose:
 ]`;
 }
 
-// ── Stage 1: Extract — call Claude ────────────────────────────────────────────
-
 async function discoverWithPrompt(
   anthropic: Anthropic,
   prompt:    string,
+  signal?:   AbortSignal,
 ): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number }> {
   const response = await (anthropic.messages.create as Function)(
     {
@@ -251,7 +752,7 @@ async function discoverWithPrompt(
       tools:      [{ type: "web_search_20250305", name: "web_search" }],
       messages:   [{ role: "user", content: prompt }],
     },
-    { headers: { "anthropic-beta": "web-search-2025-03-05" } },
+    { headers: { "anthropic-beta": "web-search-2025-03-05" }, signal },
   );
 
   const text = (response.content as Array<{ type: string; text?: string }>)
@@ -318,7 +819,7 @@ async function findExistingMatch(db: DB, type: string, name: string, region: str
   }
 }
 
-// ── Stage 4: Score — heuristic (no Claude call; see update-7 clarification) ───
+// ── Stage 4: Score — heuristic ────────────────────────────────────────────────
 
 function buildSourceUrls(rawSources: RawSource[]): SourceUrl[] {
   const seen   = new Set<string>();
@@ -381,12 +882,12 @@ function computeFeatures(loc: DiscoveredLocation, coords: { lat: number; lng: nu
 
 function computeQualityScore(features: Record<string, unknown>): number {
   let score = 0;
-  if ((features.description_length as number) >= 120)  score += 0.30;
+  if ((features.description_length as number) >= 120)     score += 0.30;
   else if ((features.description_length as number) >= 60) score += 0.15;
-  if (features.has_price)       score += 0.20;
-  if (features.has_coordinates) score += 0.25;
-  if (features.has_address)     score += 0.15;
-  if ((features.highlights_count as number) >= 2) score += 0.10;
+  if (features.has_price)                                  score += 0.20;
+  if (features.has_coordinates)                            score += 0.25;
+  if (features.has_address)                                score += 0.15;
+  if ((features.highlights_count as number) >= 2)         score += 0.10;
   return Math.min(1.0, score);
 }
 
@@ -486,14 +987,14 @@ async function runResolveMatchScoreQueue(
   jobId:         string,
   summary:       ResultSummary,
   jobStart:      number,
+  signal:        AbortSignal,
 ): Promise<number> {
   const stagesCompleted: string[] = (progressState.stages_completed as string[] ?? []).slice();
 
-  // ── Stage 2: RESOLVE ─────────────────────────────────────────────────────────
-  // Budget check: bail with requeue if < 10s left
-  if (Date.now() - jobStart > JOB_BUDGET_MS - 10_000) {
+  // Budget check before Stage 2
+  if (signal.aborted || Date.now() - jobStart > JOB_BUDGET_MS - 10_000) {
     console.warn("[worker] approaching timeout budget before Stage 2 — requeuing");
-    return -1;  // signal timeout to caller
+    return -1;
   }
 
   await updateProgress(db, jobId, { stage: "resolve", stage_started_at: new Date().toISOString(), stages_completed: stagesCompleted });
@@ -514,7 +1015,6 @@ async function runResolveMatchScoreQueue(
       coords = await resolveCoordinates(loc.name, loc.region ?? defaultRegion);
       googleCalls++;
       if (!coords) {
-        // Per Step 5c cap: skip if Google Places returns 0 results
         summary.warnings.push(`Stage 2: no coordinates for "${loc.name}" — skipped`);
         continue;
       }
@@ -524,25 +1024,18 @@ async function runResolveMatchScoreQueue(
     toStage3.push({ loc: { ...loc, region: loc.region ?? defaultRegion }, coords });
   }
 
-  summary.stages.resolve = {
-    duration_ms: Date.now() - resolveStart,
-    resolved:    resolvedCnt,
-    skipped:     skippedCnt,
-  };
+  summary.stages.resolve = { duration_ms: Date.now() - resolveStart, resolved: resolvedCnt, skipped: skippedCnt };
   summary.google_places_calls += googleCalls;
 
   stagesCompleted.push("resolve");
-  await updateProgress(db, jobId, {
-    stages_completed:       stagesCompleted,
-    extractions_resolved:   toStage3.length,
-  });
+  await updateProgress(db, jobId, { stages_completed: stagesCompleted, extractions_resolved: toStage3.length });
 
-  // ── Stage 3: MATCH ───────────────────────────────────────────────────────────
+  // Stage 3: MATCH
   await updateProgress(db, jobId, { stage: "match", stage_started_at: new Date().toISOString() });
 
-  const matchStart = Date.now();
-  const toScore:   Array<{ loc: DiscoveredLocation; coords: { lat: number; lng: number } }> = [];
-  let duplicateCnt = 0;
+  const matchStart  = Date.now();
+  const toScore: Array<{ loc: DiscoveredLocation; coords: { lat: number; lng: number } }> = [];
+  let duplicateCnt  = 0;
 
   for (const { loc, coords } of toStage3) {
     const isDuplicate = await findExistingMatch(db, loc.type ?? "activity", loc.name, loc.region);
@@ -550,19 +1043,12 @@ async function runResolveMatchScoreQueue(
     toScore.push({ loc, coords });
   }
 
-  summary.stages.match = {
-    duration_ms: Date.now() - matchStart,
-    new:         toScore.length,
-    duplicates:  duplicateCnt,
-  };
+  summary.stages.match = { duration_ms: Date.now() - matchStart, new: toScore.length, duplicates: duplicateCnt };
 
   stagesCompleted.push("match");
-  await updateProgress(db, jobId, {
-    stages_completed:       stagesCompleted,
-    extractions_matched:    toScore.length,
-  });
+  await updateProgress(db, jobId, { stages_completed: stagesCompleted, extractions_matched: toScore.length });
 
-  // ── Stage 4: SCORE ───────────────────────────────────────────────────────────
+  // Stage 4: SCORE
   await updateProgress(db, jobId, { stage: "score", stage_started_at: new Date().toISOString() });
 
   const scoreStart = Date.now();
@@ -573,7 +1059,7 @@ async function runResolveMatchScoreQueue(
   stagesCompleted.push("score");
   await updateProgress(db, jobId, { stages_completed: stagesCompleted });
 
-  // ── Stage 5: QUEUE ───────────────────────────────────────────────────────────
+  // Stage 5: QUEUE
   await updateProgress(db, jobId, { stage: "queue", stage_started_at: new Date().toISOString() });
 
   const queueStart = Date.now();
@@ -586,23 +1072,20 @@ async function runResolveMatchScoreQueue(
   summary.stages.queue = { duration_ms: Date.now() - queueStart, queued };
 
   stagesCompleted.push("queue");
-  await updateProgress(db, jobId, {
-    stage:             "done",
-    stages_completed:  stagesCompleted,
-    entries_queued:    queued,
-  });
+  await updateProgress(db, jobId, { stage: "done", stages_completed: stagesCompleted, entries_queued: queued });
 
   return queued;
 }
 
-// ── Pipeline: scrape_source ───────────────────────────────────────────────────
+// ── Pipeline: scrape_source (decomposed Stage 1) ──────────────────────────────
 
 async function runScrapePipeline(
-  db:       DB,
+  db:        DB,
   anthropic: Anthropic,
-  job:      ScoutJob,
-  summary:  ResultSummary,
-  jobStart: number,
+  job:       ScoutJob,
+  summary:   ResultSummary,
+  jobStart:  number,
+  signal:    AbortSignal,
 ): Promise<number> {
   const { data: source } = await db
     .from("content_sources")
@@ -612,58 +1095,181 @@ async function runScrapePipeline(
 
   if (!source) throw new Error(`Source ${job.source_id} not found`);
 
-  const depth      = (job.trigger_payload.mode === "exhaustive") ? "exhaustive" : "standard";
+  const region    = source.region ?? "Europe";
+  const rubric    = await fetchRubric(db);
+  const focusType = (job.trigger_payload.focus_type as ContentType | undefined) ?? "accommodation";
+  const depth     = job.trigger_payload.mode === "exhaustive" ? "exhaustive" : "standard";
   const maxResults = depth === "exhaustive" ? MAX_EXTRACTIONS_EXH : MAX_EXTRACTIONS_STD;
-  const region     = source.region ?? "Europe";
-  const rubric     = await fetchRubric(db);
 
-  // Stage 1: Extract — with checkpoint re-entrancy
-  let discovered: DiscoveredLocation[];
+  const isInstagram = source.type === "instagram" || source.url.includes("instagram.com");
 
-  const cached = job.progress?.extractions;
-  if (Array.isArray(cached) && cached.length > 0) {
-    // Re-entry after timeout: skip Stage 1, use checkpointed extractions
-    discovered = cached as DiscoveredLocation[];
-    console.log(`[worker] Stage 1 skipped (re-entry) — using ${discovered.length} cached extractions`);
-    summary.stages.extract = { duration_ms: 0, extractions: discovered.length, cached: true };
-    summary.claude_calls   = 0;
-  } else {
-    await updateProgress(db, job.id, { stage: "extract", stage_started_at: new Date().toISOString() });
+  // ── Resume-state detection ────────────────────────────────────────────────────
+  const cachedSubPages  = Array.isArray(job.progress?.sub_pages)   ? job.progress.sub_pages  as string[]             : null;
+  const cachedExtracts  = Array.isArray(job.progress?.extractions)  ? job.progress.extractions as DiscoveredLocation[] : [];
+  const subPagesDone    = Number(job.progress?.sub_pages_done   ?? 0);
+  const subPagesTotal   = Number(job.progress?.sub_pages_total  ?? 0);
 
-    const { result, durationMs } = await timed(() =>
-      discoverWithPrompt(anthropic, buildSourceScrapingPrompt(
-        [source.url], region, false, rubric, maxResults, MAX_SUBPAGES, depth,
-      ))
+  const isStage1Complete = cachedSubPages !== null && subPagesDone >= subPagesTotal && subPagesTotal > 0;
+  const isPartialResume  = cachedSubPages !== null && !isStage1Complete;
+
+  let allExtractions: DiscoveredLocation[];
+  const spaCache: SpaMethodCache = { method: null }; // filled after Stage 1A; null = auto-detect
+
+  if (isStage1Complete) {
+    // All sub-pages processed — skip straight to Stages 2–5
+    allExtractions             = cachedExtracts;
+    summary.stages.extract     = { duration_ms: 0, extractions: allExtractions.length, cached: true };
+    summary.claude_calls       = 0;
+    console.log(`[worker] Stage 1 complete (checkpoint) — ${allExtractions.length} extractions, skipping to Stage 2`);
+
+  } else if (isInstagram) {
+    allExtractions = await runInstagramScrape(
+      anthropic, source.url, focusType, rubric, region, signal, db, job.id, summary,
     );
 
-    let locations = result.locations;
-    const capped  = locations.length > maxResults;
-    if (capped) {
-      summary.warnings.push(`Stage 1: capped at ${maxResults} (found ${locations.length})`);
-      locations = locations.slice(0, maxResults);
+  } else {
+    // Website: Stage 1A → 1B → 1C  (or resume from partial 1C)
+    let subPages:  string[];
+    let startPage: number;
+
+    if (isPartialResume) {
+      subPages   = cachedSubPages!;
+      startPage  = subPagesDone;
+      allExtractions = [...cachedExtracts];
+      console.log(`[worker] Stage 1C resuming at page ${startPage}/${subPages.length}`);
+      await updateProgress(db, job.id, { stage: "extract", stage_started_at: new Date().toISOString() });
+
+    } else {
+      // Stage 1A — fetch (hybrid: static first, headless fallback for SPAs)
+      await updateProgress(db, job.id, { stage: "fetch", stage_started_at: new Date().toISOString() });
+      const fetchStart  = Date.now();
+      const homePage    = await fetchSourcePage(source.url, db, signal);
+      summary.stages.fetch = {
+        duration_ms:           Date.now() - fetchStart,
+        fetch_method:          homePage.fetchMethod,
+        cost_estimate_usd:     homePage.costEstimateUsd,
+        ...(homePage.spaDetectionReason ? { spa_detection_reason: homePage.spaDetectionReason } : {}),
+      };
+      summary.costs.scrapingbee_usd += homePage.costEstimateUsd;
+      if (homePage.fetchMethod === "headless") summary.costs.scrapingbee_calls++;
+
+      // Stage 1B — discover sub-pages
+      await updateProgress(db, job.id, { stage: "discover", stage_started_at: new Date().toISOString() });
+      const discoverStart  = Date.now();
+      const discoverResult = discoverSubPages(homePage.html, homePage.finalUrl, focusType);
+      subPages = discoverResult.sub_pages;
+      summary.stages.discover = {
+        duration_ms:           Date.now() - discoverStart,
+        sub_pages:             subPages.length,
+        candidate_links_total: discoverResult.candidate_links_total,
+        locale_used:           discoverResult.locale_used,
+        top_candidates:        discoverResult.top_candidates,
+      };
+
+      startPage      = 0;
+      allExtractions = [];
+
+      // Cache the SPA method detected on the homepage; Stage 1C sub-page fetches inherit it
+      spaCache.method = homePage.fetchMethod;
+
+      await updateProgress(db, job.id, {
+        stage:           "extract",
+        stage_started_at: new Date().toISOString(),
+        sub_pages:        subPages,
+        sub_pages_total:  subPages.length,
+        sub_pages_done:   0,
+        extractions:      [],
+      });
+    }
+    // For partial resumes, spaCache.method stays null → auto-detect on first sub-page
+
+    // Stage 1C — per-page extraction loop
+    const extractStart     = Date.now();
+    let extractInputTokens  = 0;
+    let extractOutputTokens = 0;
+
+    for (let i = startPage; i < subPages.length; i++) {
+      if (signal.aborted) {
+        await updateProgress(db, job.id, { sub_pages_done: i, extractions: allExtractions });
+        throw Object.assign(new Error(`Worker budget reached after ${i}/${subPages.length} pages`), { name: "AbortError" });
+      }
+
+      // Fetch page — uses cached SPA method after first page
+      let pageHtml: string;
+      try {
+        const fetched = await fetchSourcePage(subPages[i], db, signal, spaCache);
+        pageHtml = fetched.html;
+        summary.costs.scrapingbee_usd += fetched.costEstimateUsd;
+        if (fetched.fetchMethod === "headless") summary.costs.scrapingbee_calls++;
+      } catch (e) {
+        if ((e as Error).name === "AbortError") {
+          await updateProgress(db, job.id, { sub_pages_done: i, extractions: allExtractions });
+          throw e;
+        }
+        summary.warnings.push(`Page ${i + 1} fetch failed (${subPages[i]}): ${(e as Error).message}`);
+        await updateProgress(db, job.id, { sub_pages_done: i + 1, extractions: allExtractions });
+        continue;
+      }
+
+      // Extract
+      let pageExtractions: DiscoveredLocation[] = [];
+      try {
+        const result = await extractFromPage(
+          anthropic, subPages[i], pageHtml, focusType, rubric, region, signal,
+        );
+        pageExtractions          = result.locations;
+        extractInputTokens      += result.inputTokens;
+        extractOutputTokens     += result.outputTokens;
+        summary.costs.anthropic_input_tokens  += result.inputTokens;
+        summary.costs.anthropic_output_tokens += result.outputTokens;
+      } catch (e) {
+        if ((e as Error).name === "AbortError") {
+          await updateProgress(db, job.id, { sub_pages_done: i, extractions: allExtractions });
+          throw e;
+        }
+        summary.warnings.push(`Page ${i + 1} extract failed (${subPages[i]}): ${(e as Error).message}`);
+      }
+
+      // Cap total extractions
+      const remaining = maxResults - allExtractions.length;
+      allExtractions.push(...pageExtractions.slice(0, remaining));
+
+      // Checkpoint after each page
+      await updateProgress(db, job.id, { sub_pages_done: i + 1, extractions: allExtractions });
+      console.log(`[worker] page ${i + 1}/${subPages.length}: ${pageExtractions.length} extractions (total ${allExtractions.length})`);
+
+      if (allExtractions.length >= maxResults) break;
     }
 
-    discovered             = locations;
-    summary.stages.extract = { duration_ms: durationMs, extractions: discovered.length, capped };
-    summary.claude_calls   = 1;
+    summary.stages.extract = {
+      duration_ms:   Date.now() - extractStart,
+      extractions:   allExtractions.length,
+      pages:         subPages.length,
+      input_tokens:  extractInputTokens,
+      output_tokens: extractOutputTokens,
+      claude_calls:  subPages.length,
+    };
+    summary.claude_calls = subPages.length;
 
-    // Checkpoint after Stage 1 so a timeout resumption can skip straight to Stage 2
-    const stagesCompleted = ["extract"];
+    const stagesCompleted = [
+      ...(summary.stages.fetch   ? ["fetch"]   : []),
+      ...(summary.stages.discover ? ["discover"] : []),
+      "extract",
+    ];
     await updateProgress(db, job.id, {
       stages_completed:  stagesCompleted,
-      extractions_found: discovered.length,
-      extractions:       discovered,   // checkpoint data
+      extractions_found: allExtractions.length,
     });
   }
 
-  const runId    = crypto.randomUUID();
-  const queued   = await runResolveMatchScoreQueue(
-    db, discovered, region, `source_scrape:${job.source_id}`, runId, job.id, summary, jobStart,
+  const runId  = crypto.randomUUID();
+  const queued = await runResolveMatchScoreQueue(
+    db, allExtractions, region, `source_scrape:${job.source_id}`,
+    runId, job.id, summary, jobStart, signal,
   );
 
   if (queued === -1) {
-    // Timeout signal: caller handles requeue
-    throw Object.assign(new Error("Soft timeout at stage boundary"), { name: "TimeoutError" });
+    throw Object.assign(new Error("Soft timeout at stage boundary"), { name: "AbortError" });
   }
 
   return queued;
@@ -672,27 +1278,28 @@ async function runScrapePipeline(
 // ── Pipeline: run_scout ───────────────────────────────────────────────────────
 
 async function runScoutPipeline(
-  db:       DB,
+  db:        DB,
   anthropic: Anthropic,
-  job:      ScoutJob,
-  summary:  ResultSummary,
-  jobStart: number,
+  job:       ScoutJob,
+  summary:   ResultSummary,
+  jobStart:  number,
+  signal:    AbortSignal,
 ): Promise<number> {
   const p = job.trigger_payload;
 
-  const region           = String(p.region ?? "Europe");
-  const vacationType     = String(p.vacationType ?? "Active Holiday");
-  const contentTypes     = (p.contentTypes as string[] | undefined) ?? ["route", "accommodation", "restaurant"];
-  const maxResults       = Math.min(Number(p.maxResults ?? 15), MAX_EXTRACTIONS_STD);
-  const focusKeywords    = (p.focusKeywords as string[] | undefined) ?? [];
+  const region            = String(p.region ?? "Europe");
+  const vacationType      = String(p.vacationType ?? "Active Holiday");
+  const contentTypes      = (p.contentTypes as string[] | undefined) ?? ["route", "accommodation", "restaurant"];
+  const maxResults        = Math.min(Number(p.maxResults ?? 15), MAX_EXTRACTIONS_STD);
+  const focusKeywords     = (p.focusKeywords as string[] | undefined) ?? [];
   const includeActiveSrcs = Boolean(p.includeActiveSources);
-  const depth            = (p.depth === "exhaustive") ? "exhaustive" : "standard";
-  const sourceUrls       = (p.sourceUrls as string[] | undefined) ?? [];
-  const restrictToSrcs   = Boolean(p.restrictToSources);
-  const isSourceMode     = sourceUrls.length > 0;
+  const depth             = p.depth === "exhaustive" ? "exhaustive" : "standard";
+  const sourceUrls        = (p.sourceUrls as string[] | undefined) ?? [];
+  const restrictToSrcs    = Boolean(p.restrictToSources);
+  const isSourceMode      = sourceUrls.length > 0;
 
-  const rubric     = await fetchRubric(db);
-  let demandSignals = "";
+  const rubric          = await fetchRubric(db);
+  let demandSignals     = "";
   let appendedUrls: string[] = [];
 
   if (!isSourceMode) {
@@ -709,7 +1316,7 @@ async function runScoutPipeline(
     }
   }
 
-  // Stage 1: Extract — with checkpoint
+  // Stage 1: Extract — with checkpoint for re-entry
   let discovered: DiscoveredLocation[];
 
   const cached = job.progress?.extractions;
@@ -722,14 +1329,14 @@ async function runScoutPipeline(
     await updateProgress(db, job.id, { stage: "extract", stage_started_at: new Date().toISOString() });
 
     const prompt = isSourceMode
-      ? buildSourceScrapingPrompt(sourceUrls, region, restrictToSrcs, rubric, maxResults, MAX_SUBPAGES, depth)
+      ? buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, rubric, demandSignals, sourceUrls, depth)
       : buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, rubric, demandSignals, appendedUrls, depth);
 
-    const { result, durationMs } = await timed(() => discoverWithPrompt(anthropic, prompt));
+    const { result, durationMs } = await timed(() => discoverWithPrompt(anthropic, prompt, signal));
 
-    let locations = result.locations;
-    const cap     = depth === "exhaustive" ? MAX_EXTRACTIONS_EXH : MAX_EXTRACTIONS_STD;
-    const capped  = locations.length > cap;
+    let locations  = result.locations;
+    const cap      = depth === "exhaustive" ? MAX_EXTRACTIONS_EXH : MAX_EXTRACTIONS_STD;
+    const capped   = locations.length > cap;
     if (capped) {
       summary.warnings.push(`Stage 1: capped at ${cap} (found ${locations.length})`);
       locations = locations.slice(0, cap);
@@ -749,11 +1356,11 @@ async function runScoutPipeline(
 
   const runId  = crypto.randomUUID();
   const queued = await runResolveMatchScoreQueue(
-    db, discovered, region, vacationType, runId, job.id, summary, jobStart,
+    db, discovered, region, vacationType, runId, job.id, summary, jobStart, signal,
   );
 
   if (queued === -1) {
-    throw Object.assign(new Error("Soft timeout at stage boundary"), { name: "TimeoutError" });
+    throw Object.assign(new Error("Soft timeout at stage boundary"), { name: "AbortError" });
   }
 
   return queued;
@@ -808,7 +1415,6 @@ async function handleFailure(
       progress:        progressState,
     }).eq("id", job.id);
 
-    // Permanent failure: update source error tracking
     if (job.source_id) {
       await updateSourceOnFailure(db, job.source_id, message);
     }
@@ -823,7 +1429,6 @@ async function updateSourceOnFailure(db: DB, sourceId: string, errorMessage: str
     last_error_message: errorMessage,
   }).eq("id", sourceId);
 
-  // If 3 most-recent scrape_source jobs are all failed → mark broken
   const { data: recent } = await db
     .from("scout_jobs")
     .select("status")
@@ -845,7 +1450,7 @@ async function updateSourceAfterSuccess(db: DB, sourceId: string, entriesCreated
     last_scraped_at:    new Date().toISOString(),
     entry_count:        (src?.entry_count ?? 0) + entriesCreated,
     status:             "active",
-    health:             "ok",   // reset health on success
+    health:             "ok",
     last_error_at:      null,
     last_error_message: null,
   }).eq("id", sourceId);
@@ -854,21 +1459,18 @@ async function updateSourceAfterSuccess(db: DB, sourceId: string, entriesCreated
 // ── Main handler ──────────────────────────────────────────────────────────────
 
 Deno.serve(async (_req: Request) => {
-  // Reset per-invocation state
   progressState = {};
 
   const db        = makeDb();
   const anthropic = makeAnthropic();
   const jobStart  = Date.now();
 
-  // Claim one job atomically
   const { data: claimed, error: claimError } = await db.rpc("claim_next_scout_job");
   if (claimError) {
     console.error(`[worker] claim error: ${claimError.message}`);
     return new Response("claim error", { status: 500 });
   }
 
-  // Handle both null and empty-array return forms from the Supabase client
   const job: ScoutJob | null = Array.isArray(claimed)
     ? (claimed[0] ?? null)
     : (claimed ?? null);
@@ -877,7 +1479,6 @@ Deno.serve(async (_req: Request) => {
     return new Response("no jobs", { status: 200 });
   }
 
-  // Inherit any prior progress for re-entry checkpoint
   progressState = { ...(job.progress ?? {}) };
 
   const summary: ResultSummary = {
@@ -886,25 +1487,53 @@ Deno.serve(async (_req: Request) => {
     claude_calls:        0,
     google_places_calls: 0,
     warnings:            [],
+    costs: {
+      scrapingbee_calls:          0,
+      scrapingbee_usd:            0,
+      anthropic_input_tokens:     0,
+      anthropic_output_tokens:    0,
+      anthropic_usd_estimate:     0,
+      google_places_calls:        0,
+      google_places_usd_estimate: 0,
+      total_usd_estimate:         0,
+    },
   };
 
   console.log(`[worker] claiming job ${job.id} (type=${job.job_type}, attempt=${job.attempt_count})`);
   await updateProgress(db, job.id, {
-    stage:             "starting",
+    stage:            "starting",
     stage_started_at:  new Date().toISOString(),
     stages_completed:  progressState.stages_completed ?? [],
   });
+
+  // Step 4: AbortController for the 120s worker budget
+  const workerAbort = new AbortController();
+  const budgetTimer = setTimeout(() => {
+    console.warn(`[worker] budget timer fired (${JOB_BUDGET_MS}ms) — aborting job ${job.id}`);
+    workerAbort.abort("budget");
+  }, JOB_BUDGET_MS);
 
   try {
     let entriesCreated = 0;
 
     if (job.job_type === "scrape_source") {
-      entriesCreated = await runScrapePipeline(db, anthropic, job, summary, jobStart);
+      entriesCreated = await runScrapePipeline(db, anthropic, job, summary, jobStart, workerAbort.signal);
     } else if (job.job_type === "run_scout") {
-      entriesCreated = await runScoutPipeline(db, anthropic, job, summary, jobStart);
+      entriesCreated = await runScoutPipeline(db, anthropic, job, summary, jobStart, workerAbort.signal);
     }
 
     summary.total_duration_ms = Date.now() - jobStart;
+
+    // Finalize derived cost fields
+    summary.costs.anthropic_usd_estimate =
+      (summary.costs.anthropic_input_tokens  / 1_000_000) * ANTHROPIC_INPUT_COST_PER_1M +
+      (summary.costs.anthropic_output_tokens / 1_000_000) * ANTHROPIC_OUTPUT_COST_PER_1M;
+    summary.costs.google_places_calls        = summary.google_places_calls;
+    summary.costs.google_places_usd_estimate = summary.google_places_calls * GOOGLE_PLACES_COST_PER_CALL;
+    summary.costs.total_usd_estimate =
+      summary.costs.scrapingbee_usd +
+      summary.costs.anthropic_usd_estimate +
+      summary.costs.google_places_usd_estimate;
 
     await db.from("scout_jobs").update({
       status:          "done",
@@ -914,17 +1543,34 @@ Deno.serve(async (_req: Request) => {
       progress:        progressState,
     }).eq("id", job.id);
 
-    // Update source stats on successful scrape
     if (job.job_type === "scrape_source" && job.source_id) {
       await updateSourceAfterSuccess(db, job.source_id, entriesCreated);
     }
 
-    console.log(`[worker] job ${job.id} done — ${entriesCreated} entries queued (${summary.total_duration_ms}ms)`);
+    console.log(`[worker] job ${job.id} done — ${entriesCreated} entries (${summary.total_duration_ms}ms)`);
     return new Response("ok", { status: 200 });
 
   } catch (err) {
-    await handleFailure(db, job, err, summary, jobStart);
-    // Always return 200 to the cron caller — job-level errors are tracked in the DB
+    const e = err as { name?: string; message?: string };
+
+    if (e.name === "AbortError") {
+      // Budget exhausted or explicit abort: checkpoint already written by pipeline.
+      // Requeue immediately (5s) so the next cron tick picks it up.
+      await db.from("scout_jobs").update({
+        status:          "queued",
+        next_attempt_at:  new Date(Date.now() + 5_000).toISOString(),
+        last_error:       `Checkpoint: ${e.message ?? "worker budget exceeded"}`,
+        last_error_code:  "BUDGET_CHECKPOINT",
+        progress:         progressState,
+      }).eq("id", job.id);
+      console.log(`[worker] job ${job.id} checkpointed and requeued (${e.message})`);
+    } else {
+      await handleFailure(db, job, err, summary, jobStart);
+    }
+
     return new Response("ok", { status: 200 });
+
+  } finally {
+    clearTimeout(budgetTimer);
   }
 });

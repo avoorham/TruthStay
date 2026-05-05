@@ -150,6 +150,7 @@ interface ContentStats {
   verified: number;
   byType: { route: number; accommodation: number; restaurant: number };
   topRegions: Array<{ region: string; count: number }>;
+  monthlyCosts?: { totalUsd: number; completedJobs: number };
 }
 
 interface FormState {
@@ -590,31 +591,19 @@ function ContentStatsPanel({ stats }: { stats: ContentStats | null }) {
       )}
 
       <div className="border border-slate-200 rounded-lg p-5">
-        <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Scout budget</p>
-        <div className="space-y-2.5">
+        <p className="text-xs font-semibold text-grey-500 uppercase tracking-widest mb-3">Costs this month</p>
+        {stats?.monthlyCosts != null ? (
           <div>
-            <div className="flex items-center justify-between mb-1 text-xs">
-              <span className="text-grey-500">Monthly</span>
-              <span className="font-mono text-dark">$31.50 <span className="text-grey-400">/ $80.00</span></span>
-            </div>
-            <div className="h-1.5 rounded-full bg-grey-100 overflow-hidden">
-              <div className="h-full rounded-full bg-teal" style={{ width: "39%" }} />
-            </div>
+            <p className="text-2xl font-bold font-mono text-dark">
+              ${stats.monthlyCosts.totalUsd.toFixed(2)}
+            </p>
+            <p className="text-[11px] text-grey-400 mt-1">
+              across {stats.monthlyCosts.completedJobs} completed job{stats.monthlyCosts.completedJobs !== 1 ? "s" : ""} this month
+            </p>
           </div>
-          <div>
-            <div className="flex items-center justify-between mb-1 text-xs">
-              <span className="text-grey-500">Weekly</span>
-              <span className="font-mono text-dark">$8.10 <span className="text-grey-400">/ $20.00</span></span>
-            </div>
-            <div className="h-1.5 rounded-full bg-grey-100 overflow-hidden">
-              <div className="h-full rounded-full bg-teal" style={{ width: "41%" }} />
-            </div>
-          </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-grey-100 flex items-center justify-between text-xs">
-          <span className="text-grey-500">Est. cost per run</span>
-          <span className="font-mono font-semibold text-dark">~€0.50</span>
-        </div>
+        ) : (
+          <p className="text-xs text-grey-400">No jobs completed this month</p>
+        )}
       </div>
     </div>
   );
@@ -865,6 +854,31 @@ function DataSourcesSection({
   const [bulkSkipped, setBulkSkipped] = useState<{ line: string; reason: string }[]>([]);
   const [bulkAdding, setBulkAdding] = useState(false);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  // Test-fetch modal state
+  const [testFetchTarget, setTestFetchTarget] = useState<ContentSource | null>(null);
+  const [testFetching, setTestFetching] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [testFetchResult, setTestFetchResult] = useState<Record<string, any> | null>(null);
+
+  async function handleTestFetch(src: ContentSource) {
+    setTestFetchTarget(src);
+    setTestFetchResult(null);
+    setTestFetching(true);
+    try {
+      const res = await fetch(`/api/admin/scout/sources/${src.id}/test-fetch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ focus_type: "accommodation" }),
+      });
+      const data = await res.json();
+      setTestFetchResult(data);
+    } catch (e: unknown) {
+      setTestFetchResult({ error: (e as Error).message });
+    } finally {
+      setTestFetching(false);
+    }
+  }
 
   function openBulk() { setBulkOpen(true); setBulkStep("paste"); setBulkRaw(""); setBulkParsed([]); setBulkSkipped([]); setShowAddForm(false); }
   function closeBulk() { setBulkOpen(false); }
@@ -1191,6 +1205,13 @@ function DataSourcesSection({
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-1.5 justify-end">
                         <button
+                          onClick={() => handleTestFetch(src)}
+                          title="Test fetch"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-grey-700 hover:bg-slate-50 transition">
+                          <Eye size={11} />
+                          Test
+                        </button>
+                        <button
                           onClick={() => handleScrape(src.id)}
                           disabled={hasActiveJob}
                           title="Scrape now"
@@ -1240,6 +1261,104 @@ function DataSourcesSection({
         variant="danger"
         onConfirm={() => { setSources([]); setClearConfirmOpen(false); }}
       />
+
+      {/* Test Fetch Modal */}
+      {testFetchTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setTestFetchTarget(null); setTestFetchResult(null); }}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-dark">Test fetch — {testFetchTarget.label}</h3>
+              <button onClick={() => { setTestFetchTarget(null); setTestFetchResult(null); }} className="text-grey-400 hover:text-grey-700">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-xs text-grey-500 mb-4 font-mono break-all">{testFetchTarget.url}</p>
+
+            {testFetching && (
+              <div className="flex items-center gap-2 text-xs text-grey-500">
+                <Loader2 size={14} className="animate-spin" />
+                Fetching…
+              </div>
+            )}
+
+            {!testFetching && !testFetchResult && (
+              <p className="text-xs text-grey-400">Loading result…</p>
+            )}
+
+            {testFetchResult && !testFetching && (
+              <div className="space-y-3 text-xs">
+                {testFetchResult.error ? (
+                  <div className="flex items-start gap-2 text-danger">
+                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                    <span>{testFetchResult.error}</span>
+                  </div>
+                ) : testFetchResult.fetch_method === "instagram" ? (
+                  <p className="text-grey-500">{testFetchResult.note}</p>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      {testFetchResult.spa_detected ? (
+                        <AlertTriangle size={14} className="text-amber-500 shrink-0" />
+                      ) : (
+                        <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                      )}
+                      <span className={testFetchResult.spa_detected ? "text-amber-700 font-medium" : "text-emerald-700 font-medium"}>
+                        {testFetchResult.spa_detected
+                          ? `SPA detected — headless required (${testFetchResult.spa_reason})`
+                          : "Static HTML viable"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-grey-600">
+                      <span className="text-grey-400">Fetch method</span>
+                      <span className="font-mono">{testFetchResult.fetch_method}</span>
+                      <span className="text-grey-400">Visible text</span>
+                      <span>{testFetchResult.visible_text_chars?.toLocaleString()} chars</span>
+                      <span className="text-grey-400">Cost estimate</span>
+                      <span>{testFetchResult.cost_estimate_usd === 0 ? "free" : `$${testFetchResult.cost_estimate_usd}/page`}</span>
+                    </div>
+
+                    {testFetchResult.note && (
+                      <p className="text-amber-700 bg-amber-50 rounded-lg px-3 py-2">{testFetchResult.note}</p>
+                    )}
+
+                    {testFetchResult.discover && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center gap-3 text-grey-500">
+                          <span>Locale: <span className="font-mono font-medium text-dark">{testFetchResult.discover.locale_used}</span></span>
+                          <span>·</span>
+                          <span>{testFetchResult.discover.candidate_links_total} same-domain links found</span>
+                          <span>·</span>
+                          <span>{testFetchResult.discover.sub_pages?.length ?? 0} sub-pages selected</span>
+                        </div>
+
+                        {testFetchResult.discover.top_candidates?.length > 0 ? (
+                          <div>
+                            <p className="text-grey-400 mb-1">Top scored candidates:</p>
+                            <div className="space-y-1">
+                              {testFetchResult.discover.top_candidates.map((c: { url: string; score: number; matched_keywords: string[] }, i: number) => (
+                                <div key={i} className="flex items-start gap-2 bg-slate-50 rounded px-2 py-1.5">
+                                  <span className="font-mono text-slate-400 w-5 shrink-0">[{c.score}]</span>
+                                  <div className="min-w-0">
+                                    <p className="font-mono text-slate-700 break-all truncate">{c.url}</p>
+                                    <p className="text-slate-400 text-[10px]">{c.matched_keywords.join(", ")}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-amber-600">No keyword-scored candidates found. The worker will fall back to top same-domain links.</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

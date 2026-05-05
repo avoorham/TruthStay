@@ -38,6 +38,7 @@ export interface ContentStats {
   verified: number;
   byType: { route: number; accommodation: number; restaurant: number };
   topRegions: Array<{ region: string; count: number }>;
+  monthlyCosts: { totalUsd: number; completedJobs: number };
 }
 
 export async function getRunResults(runId: string): Promise<ScoutEntry[]> {
@@ -196,11 +197,16 @@ export async function updateContentSourceAfterScrape(id: string, count: number):
 
 export async function getContentStats(): Promise<ContentStats> {
   const db = createAdminClient();
-  const { data, error } = await db
-    .from("content_entries")
-    .select("type, region, verified");
-  if (error) throw error;
-  const entries = data ?? [];
+  const [entriesResult, jobsResult] = await Promise.all([
+    db.from("content_entries").select("type, region, verified"),
+    db.from("scout_jobs")
+      .select("result_summary")
+      .eq("status", "done")
+      .gte("finished_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+  ]);
+
+  if (entriesResult.error) throw entriesResult.error;
+  const entries = entriesResult.data ?? [];
   const byType = { route: 0, accommodation: 0, restaurant: 0 };
   const regionCounts: Record<string, number> = {};
   let verified = 0;
@@ -215,5 +221,15 @@ export async function getContentStats(): Promise<ContentStats> {
     .map(([region, count]) => ({ region, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
-  return { total: entries.length, verified, byType, topRegions };
+
+  const jobs = jobsResult.data ?? [];
+  let totalUsd = 0;
+  for (const j of jobs) {
+    const cost = (j.result_summary as Record<string, unknown> | null)?.costs as Record<string, unknown> | undefined;
+    const v = cost?.total_usd_estimate;
+    if (typeof v === "number") totalUsd += v;
+  }
+  const monthlyCosts = { totalUsd, completedJobs: jobs.length };
+
+  return { total: entries.length, verified, byType, topRegions, monthlyCosts };
 }

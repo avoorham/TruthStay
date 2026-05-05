@@ -20,10 +20,12 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
   while ((match = aTagRe.exec(clean)) !== null) {
     const attrs     = match[1];
     const inner     = match[2];
+    if (!attrs || !inner) continue;
     const hrefMatch = hrefRe.exec(attrs);
-    if (!hrefMatch || hrefMatch[1].startsWith("#")) continue;
+    const href      = hrefMatch?.[1];
+    if (!href || href.startsWith("#")) continue;
     try {
-      const url        = new URL(hrefMatch[1], baseUrl).href;
+      const url        = new URL(href, baseUrl).href;
       if (seen.has(url)) continue;
       const titleMatch = titleRe.exec(attrs);
       const anchorText = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -59,7 +61,7 @@ function isLikelySPA(html: string): { isSPA: boolean; reason: string } {
 
 function getLocale(url: string, html?: string): string {
   const pathMatch = url.match(/\/(en|nl|de|fr|es|it|pt)(?:\/|$|\?|#)/i);
-  if (pathMatch) return pathMatch[1].toLowerCase();
+  if (pathMatch?.[1]) return pathMatch[1].toLowerCase();
   try {
     const hostname = new URL(url).hostname.toLowerCase();
     if (hostname.endsWith(".nl")) return "nl";
@@ -73,7 +75,7 @@ function getLocale(url: string, html?: string): string {
   } catch { /* ignore */ }
   if (html) {
     const m = html.match(/<html[^>]+lang=["']([a-z]{2})/i);
-    if (m) return m[1].toLowerCase();
+    if (m?.[1]) return m[1].toLowerCase();
   }
   return "en";
 }

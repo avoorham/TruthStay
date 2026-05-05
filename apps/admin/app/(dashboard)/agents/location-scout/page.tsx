@@ -348,7 +348,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
 
   return (
     <div className="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col overflow-y-auto">
-      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-grey-100 shrink-0">
         <div>
           <p className="text-sm font-semibold text-dark">
@@ -361,7 +360,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         </button>
       </div>
 
-      {/* Pipeline stage dots */}
       <div className="px-5 py-4 border-b border-grey-100">
         <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-3">Pipeline</p>
         <div className="flex items-start gap-1">
@@ -388,7 +386,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         </div>
       </div>
 
-      {/* Timeline */}
       <div className="px-5 py-4 border-b border-grey-100 space-y-2">
         <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Timeline</p>
         {([
@@ -414,7 +411,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         )}
       </div>
 
-      {/* Progress counters */}
       {(p?.extractions_found != null || p?.entries_queued != null) && (
         <div className="px-5 py-4 border-b border-grey-100">
           <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-3">Progress</p>
@@ -434,8 +430,7 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         </div>
       )}
 
-      {/* Result summary — stages timing */}
-      {job.result_summary?.stages && (
+      {!!job.result_summary?.stages && (
         <div className="px-5 py-4 border-b border-grey-100">
           <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Stage timing</p>
           <div className="space-y-1">
@@ -456,7 +451,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         </div>
       )}
 
-      {/* Done: result + link */}
       {job.status === "done" && (
         <div className="px-5 py-4 border-b border-grey-100">
           <div className="flex items-center gap-2 text-sm">
@@ -473,7 +467,6 @@ function JobDrawer({ job, onClose }: { job: ScoutJob; onClose: () => void }) {
         </div>
       )}
 
-      {/* Error */}
       {job.last_error && (
         <div className="px-5 py-4">
           <p className="text-[10px] font-semibold text-grey-500 uppercase tracking-widest mb-2">Error</p>

@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, Plus, X, Loader2, AlertTriangle,
   Route, Building2, UtensilsCrossed, Clock, ArrowRight,
   Globe, Instagram, RefreshCw, Trash2, Link as LinkIcon,
-  AlertCircle,
+  AlertCircle, Pencil,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -172,6 +172,7 @@ interface AddSourceForm {
   type: "website" | "instagram";
   label: string;
   region: string;
+  seedUrlsRaw: string;
 }
 
 // Run state now just tracks the brief enqueue call
@@ -275,6 +276,30 @@ function parseBulkUrls(raw: string): { parsed: BulkParseItem[]; skipped: { line:
     parsed.push({ url: url.toString(), type, label });
   }
   return { parsed, skipped };
+}
+
+function parseSeedUrls(raw: string): { urls: string[]; warnings: string[] } {
+  const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+  const urls: string[] = [];
+  const warnings: string[] = [];
+  for (const line of lines) {
+    if (!line.startsWith("http://") && !line.startsWith("https://")) {
+      warnings.push(`Skipped (not a URL): ${line.slice(0, 60)}`);
+      continue;
+    }
+    try {
+      const u = new URL(line);
+      for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+      urls.push(u.toString());
+    } catch {
+      warnings.push(`Skipped (invalid URL): ${line.slice(0, 60)}`);
+    }
+  }
+  if (urls.length > 20) {
+    warnings.push(`Capped at 20 URLs (${urls.length - 20} dropped)`);
+    return { urls: urls.slice(0, 20), warnings };
+  }
+  return { urls, warnings };
 }
 
 // ─── Job status helpers ───────────────────────────────────────────────────────
@@ -841,11 +866,18 @@ function DataSourcesSection({
   onJobDrawerOpen: (job: ScoutJob) => void;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "" });
+  const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "", seedUrlsRaw: "" });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [addSeedWarnings, setAddSeedWarnings] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<ContentSource | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [editTarget, setEditTarget] = useState<ContentSource | null>(null);
+  const [editForm, setEditForm] = useState<{ label: string; region: string; seedUrlsRaw: string }>({ label: "", region: "", seedUrlsRaw: "" });
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSeedWarnings, setEditSeedWarnings] = useState<string[]>([]);
 
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStep, setBulkStep] = useState<"paste" | "review">("paste");
@@ -914,18 +946,22 @@ function DataSourcesSection({
     if (!addForm.url || !addForm.label) return;
     setAdding(true);
     setAddError(null);
+    setAddSeedWarnings([]);
     try {
       const url = addForm.url.trim().startsWith("http") ? addForm.url.trim() : `https://${addForm.url.trim()}`;
+      const { urls: seedUrls, warnings } = parseSeedUrls(addForm.seedUrlsRaw);
+      setAddSeedWarnings(warnings);
       const res = await fetch("/api/admin/scout/sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...addForm, url, region: addForm.region || undefined }),
+        body: JSON.stringify({ url, type: addForm.type, label: addForm.label, region: addForm.region || undefined, seed_urls: seedUrls }),
       });
       const data = await res.json();
       if (res.ok) {
         setSources(s => [data, ...s]);
         setShowAddForm(false);
-        setAddForm({ url: "", type: "website", label: "", region: "" });
+        setAddForm({ url: "", type: "website", label: "", region: "", seedUrlsRaw: "" });
+        setAddSeedWarnings([]);
       } else {
         setAddError(data.error ?? `Error ${res.status}`);
       }
@@ -933,6 +969,46 @@ function DataSourcesSection({
       setAddError(err.message ?? "Failed to save source");
     } finally {
       setAdding(false);
+    }
+  }
+
+  function handleOpenEdit(src: ContentSource) {
+    setEditTarget(src);
+    setEditForm({
+      label:       src.label,
+      region:      src.region ?? "",
+      seedUrlsRaw: (src.seed_urls ?? []).join("\n"),
+    });
+    setEditError(null);
+    setEditSeedWarnings([]);
+    setShowAddForm(false);
+    setBulkOpen(false);
+  }
+
+  async function handleSaveEdit() {
+    if (!editTarget) return;
+    setSaving(true);
+    setEditError(null);
+    setEditSeedWarnings([]);
+    try {
+      const { urls: seedUrls, warnings } = parseSeedUrls(editForm.seedUrlsRaw);
+      setEditSeedWarnings(warnings);
+      const res = await fetch(`/api/admin/scout/sources/${editTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: editForm.label, region: editForm.region || null, seed_urls: seedUrls }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSources(s => s.map(src => src.id === editTarget.id ? data : src));
+        setEditTarget(null);
+      } else {
+        setEditError(data.error ?? `Error ${res.status}`);
+      }
+    } catch (err: any) {
+      setEditError(err.message ?? "Failed to save");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1045,6 +1121,26 @@ function DataSourcesSection({
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400" />
               </div>
             </div>
+            <div>
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">
+                Seed URLs <span className="text-grey-400 font-normal normal-case">(optional — one per line, cap 20)</span>
+              </label>
+              <textarea
+                value={addForm.seedUrlsRaw}
+                onChange={e => setAddForm(f => ({ ...f, seedUrlsRaw: e.target.value }))}
+                rows={4}
+                placeholder={"https://example.com/en/accommodation\nhttps://example.com/en/hotels"}
+                className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400 resize-none"
+              />
+              <p className="text-[11px] text-grey-400 mt-1">When provided, the scout uses these directly and skips homepage discovery. First 5 are fetched per run.</p>
+            </div>
+            {addSeedWarnings.length > 0 && (
+              <div className="space-y-0.5">
+                {addSeedWarnings.map((w, i) => (
+                  <p key={i} className="text-[11px] text-warning font-mono">{w}</p>
+                ))}
+              </div>
+            )}
             {addError && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20">
                 <AlertTriangle size={12} className="text-danger shrink-0" />
@@ -1052,7 +1148,7 @@ function DataSourcesSection({
               </div>
             )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setShowAddForm(false); setAddError(null); }} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button onClick={() => { setShowAddForm(false); setAddError(null); setAddSeedWarnings([]); }} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
               <button onClick={handleAddSource} disabled={adding || !addForm.url.trim() || !addForm.label.trim()}
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50">
                 {adding ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
@@ -1135,6 +1231,65 @@ function DataSourcesSection({
           </div>
         )}
 
+        {/* Inline edit panel */}
+        {editTarget && (
+          <div className="px-6 py-4 border-b border-grey-100 bg-amber-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-dark">Edit: <span className="font-mono text-grey-500">{editTarget.url}</span></p>
+              <button onClick={() => setEditTarget(null)} className="text-grey-400 hover:text-grey-700 transition"><X size={14} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Label <span className="text-danger">*</span></label>
+                <input type="text" value={editForm.label}
+                  onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Region hint <span className="text-grey-400 font-normal normal-case">(optional)</span></label>
+                <input type="text" value={editForm.region}
+                  onChange={e => setEditForm(f => ({ ...f, region: e.target.value }))}
+                  placeholder="e.g. Portugal, Algarve…"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">
+                Seed URLs <span className="text-grey-400 font-normal normal-case">(optional — one per line, cap 20)</span>
+              </label>
+              <textarea
+                value={editForm.seedUrlsRaw}
+                onChange={e => setEditForm(f => ({ ...f, seedUrlsRaw: e.target.value }))}
+                rows={5}
+                placeholder={"https://example.com/en/accommodation\nhttps://example.com/en/hotels"}
+                className="w-full text-xs font-mono border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400 resize-none"
+              />
+              <p className="text-[11px] text-grey-400 mt-1">When provided, the scout uses these directly and skips homepage discovery. First 5 are fetched per run.</p>
+            </div>
+            {editSeedWarnings.length > 0 && (
+              <div className="space-y-0.5">
+                {editSeedWarnings.map((w, i) => (
+                  <p key={i} className="text-[11px] text-warning font-mono">{w}</p>
+                ))}
+              </div>
+            )}
+            {editError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-danger/10 border border-danger/20">
+                <AlertTriangle size={12} className="text-danger shrink-0" />
+                <p className="text-xs text-danger">{editError}</p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setEditTarget(null)} className="px-3 py-1.5 text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
+              <button onClick={handleSaveEdit} disabled={saving || !editForm.label.trim()}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-teal-500 text-white text-xs font-medium hover:bg-teal-600 transition disabled:opacity-50">
+                {saving ? <Loader2 size={11} className="animate-spin" /> : null}
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Sources table */}
         {sources.length === 0 ? (
           <div className="px-6 py-10 text-center">
@@ -1204,6 +1359,12 @@ function DataSourcesSection({
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-1.5 justify-end">
+                        <button
+                          onClick={() => handleOpenEdit(src)}
+                          title="Edit source"
+                          className="p-1.5 rounded-lg border border-transparent text-grey-400 hover:border-slate-200 hover:text-grey-700 hover:bg-slate-50 transition">
+                          <Pencil size={12} />
+                        </button>
                         <button
                           onClick={() => handleTestFetch(src)}
                           title="Test fetch"

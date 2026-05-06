@@ -178,6 +178,68 @@ function getLocale(url: string, html?: string): string {
   return fromUrl;
 }
 
+function getPathLocale(url: string): string | null {
+  const m = url.match(/\/(en|nl|de|fr|es|it|pt)(?:\/|$|\?|#)/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function getTldLocale(url: string): string | null {
+  try {
+    const h = new URL(url).hostname.toLowerCase();
+    if (h.endsWith(".nl")) return "nl";
+    if (h.endsWith(".de")) return "de";
+    if (h.endsWith(".fr")) return "fr";
+    if (h.endsWith(".es")) return "es";
+    if (h.endsWith(".it")) return "it";
+    if (h.endsWith(".pt")) return "pt";
+    if (h.endsWith(".be")) return "nl";
+    if (h.endsWith(".at")) return "de";
+    if (h.endsWith(".ch")) return "de";
+  } catch { /* ignore */ }
+  return null;
+}
+
+function getEffectiveKeywords(
+  url:       string,
+  html:      string | undefined,
+  focusType: FocusType,
+): { keywords: string[]; sources: string[] } {
+  const sources: string[] = [];
+  const merged = new Set<string>();
+
+  // 1. Always include English
+  for (const kw of LOCALE_KEYWORDS[focusType]["en"] ?? []) merged.add(kw);
+  sources.push("en");
+
+  // 2. Path-based locale (page content language)
+  const pathLocale = getPathLocale(url);
+  if (pathLocale && pathLocale !== "en" && LOCALE_KEYWORDS[focusType][pathLocale]) {
+    for (const kw of LOCALE_KEYWORDS[focusType][pathLocale]) merged.add(kw);
+    sources.push(pathLocale);
+  }
+
+  // 3. TLD-based locale (site's underlying language — often differs from path)
+  const tldLocale = getTldLocale(url);
+  if (tldLocale && tldLocale !== "en" && tldLocale !== pathLocale && LOCALE_KEYWORDS[focusType][tldLocale]) {
+    for (const kw of LOCALE_KEYWORDS[focusType][tldLocale]) merged.add(kw);
+    sources.push(tldLocale);
+  }
+
+  // 4. <html lang> as tiebreaker
+  if (html) {
+    const langMatch = html.match(/<html[^>]+lang=["']([a-z]{2})/i);
+    if (langMatch) {
+      const htmlLang = langMatch[1].toLowerCase();
+      if (LOCALE_KEYWORDS[focusType][htmlLang]) {
+        for (const kw of LOCALE_KEYWORDS[focusType][htmlLang]) merged.add(kw);
+        sources.push(`html-lang:${htmlLang}`);
+      }
+    }
+  }
+
+  return { keywords: Array.from(merged), sources };
+}
+
 const CREDIBILITY: Record<string, number> = {
   blog:               1.0,
   instagram_profile:  0.85,
@@ -249,8 +311,8 @@ function extractLinks(html: string, baseUrl: string): ExtractedLink[] {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "");
 
-  // Match full <a> tags to capture href, title attribute, and inner text
-  const aTagRe  = /<a\s([^>]*)>([\s\S]*?)<\/a>/gi;
+  // Match full <a> tags — allow > inside quoted attribute values before the closing >
+  const aTagRe  = /<a\s+((?:[^>"']|"[^"]*"|'[^']*')*?)>([\s\S]*?)<\/a>/gi;
   const hrefRe  = /href=["']([^"']+)["']/i;
   const titleRe = /title=["']([^"']*)["']/i;
   const seen    = new Map<string, ExtractedLink>();
@@ -360,17 +422,25 @@ async function fetchViaScrapingBee(
 
   await assertWithinScrapingBudget(db);
 
+  // 8s wait: many React tourism SPAs do staged rendering
+  // (initial shell → API fetch → second render). 8s covers the
+  // common case. Verified against visitalgarve.pt/en 2026-05-05.
+  // block_resources=false: JS bundles must be able to fetch dependencies
+  // or the second render stage won't complete (also verified 2026-05-05).
+  // timeout=30000 + wait=8000 = 38s max ScrapingBee wall time.
+  // Local AbortController set to 45s to ensure we never cut ScrapingBee
+  // off mid-render (previous 30s fired before 33s ScrapingBee limit).
   const params = new URLSearchParams({
     api_key:         apiKey,
     url:             url,
     render_js:       "true",
-    wait:            "2000",
-    block_resources: "true",
-    timeout:         "20000",
+    wait:            "8000",
+    block_resources: "false",
+    timeout:         "30000",
   });
 
   const controller    = new AbortController();
-  const timer         = setTimeout(() => controller.abort(), 30_000);
+  const timer         = setTimeout(() => controller.abort(), 45_000);
   const onParentAbort = () => controller.abort();
   signal.addEventListener("abort", onParentAbort, { once: true });
 
@@ -423,6 +493,25 @@ async function fetchStaticHtml(url: string, signal: AbortSignal): Promise<Omit<F
   }
 }
 
+async function fetchRawText(url: string, signal: AbortSignal): Promise<{ text: string; status: number }> {
+  const controller    = new AbortController();
+  const timer         = setTimeout(() => controller.abort(), 10_000);
+  const onParentAbort = () => controller.abort();
+  signal.addEventListener("abort", onParentAbort, { once: true });
+  try {
+    const response = await fetch(url, {
+      signal:   controller.signal,
+      headers:  { "User-Agent": "TruthStayBot/1.0 (+https://truth-stay.com)", "Accept": "*/*" },
+      redirect: "follow",
+    });
+    const text = await response.text();
+    return { text: text.slice(0, 2_000_000), status: response.status };
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", onParentAbort);
+  }
+}
+
 async function fetchSourcePage(
   url:       string,
   db:        DB,
@@ -461,9 +550,14 @@ async function fetchSourcePage(
 
 interface DiscoverResult {
   sub_pages:             string[];
+  strategy:              "seed_urls" | "sitemap" | "homepage_links";
   candidate_links_total: number;
   locale_used:           string;
-  top_candidates:        Array<{ url: string; score: number; matched_keywords: string[] }>;
+  locale_sources:        string[];
+  keywords_total:        number;
+  sitemap_urls_total?:   number;
+  sitemap_url_used?:     string;
+  top_candidates:        Array<{ url: string; score: number; matched_keywords: string[]; anchor_text?: string }>;
 }
 
 function scoreLink(
@@ -484,14 +578,12 @@ function scoreLink(
   return { score, matched_keywords: matched };
 }
 
-function discoverSubPages(html: string, baseUrl: string, focusType: ContentType): DiscoverResult {
+function discoverFromHomepageLinks(html: string, baseUrl: string, focusType: ContentType): DiscoverResult {
   let baseHostname = "";
   try { baseHostname = new URL(baseUrl).hostname; } catch { /* ignore */ }
 
-  const locale     = getLocale(baseUrl, html);
-  const localeKws  = LOCALE_KEYWORDS[focusType]?.[locale] ?? [];
-  const englishKws = LOCALE_KEYWORDS[focusType]?.["en"] ?? [];
-  const keywords   = [...new Set([...englishKws, ...localeKws])];
+  const locale                          = getLocale(baseUrl, html);
+  const { keywords, sources: localeSources } = getEffectiveKeywords(baseUrl, html, focusType);
 
   const allLinks   = extractLinks(html, baseUrl);
   const sameDomain = allLinks.filter(l => {
@@ -500,7 +592,7 @@ function discoverSubPages(html: string, baseUrl: string, focusType: ContentType)
 
   const scored = sameDomain.map(link => {
     const { score, matched_keywords } = scoreLink(link, keywords);
-    return { url: link.url, score, matched_keywords };
+    return { url: link.url, score, matched_keywords, anchor_text: link.anchorText.slice(0, 120) };
   });
 
   const withScore = scored
@@ -510,7 +602,7 @@ function discoverSubPages(html: string, baseUrl: string, focusType: ContentType)
   // Fallback: if nothing scored, use first 4 same-domain links by discovery order
   const candidates = withScore.length > 0
     ? withScore
-    : sameDomain.slice(0, MAX_SUBPAGES).map(l => ({ url: l.url, score: 0, matched_keywords: [] as string[] }));
+    : sameDomain.slice(0, MAX_SUBPAGES).map(l => ({ url: l.url, score: 0, matched_keywords: [] as string[], anchor_text: l.anchorText.slice(0, 120) }));
 
   const top_candidates = candidates.slice(0, 5);
 
@@ -522,10 +614,148 @@ function discoverSubPages(html: string, baseUrl: string, focusType: ContentType)
 
   return {
     sub_pages:             [baseUrl, ...picked],
+    strategy:              "homepage_links",
     candidate_links_total: sameDomain.length,
     locale_used:           locale,
+    locale_sources:        localeSources,
+    keywords_total:        keywords.length,
     top_candidates,
   };
+}
+
+// ── Stage 1B: Sitemap discovery ───────────────────────────────────────────────
+
+function parseSitemapXml(xml: string): { urls: string[]; isIndex: boolean } {
+  const isIndex  = /<sitemapindex/i.test(xml);
+  const tag      = isIndex ? "sitemap" : "url";
+  const urlPat   = new RegExp(`<${tag}>[\\s\\S]*?<loc>([^<]+)<\\/loc>[\\s\\S]*?<\\/${tag}>`, "gi");
+  const urls: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = urlPat.exec(xml)) !== null) {
+    const u = m[1]?.trim();
+    if (u) urls.push(u);
+    if (urls.length >= 5000) break;
+  }
+  return { urls, isIndex };
+}
+
+function filterSitemapUrls(urls: string[], focusType: FocusType, baseUrl: string): string[] {
+  const { keywords } = getEffectiveKeywords(baseUrl, undefined, focusType);
+  let baseHostname = "";
+  try { baseHostname = new URL(baseUrl).hostname; } catch { /* ignore */ }
+
+  const sameDomain = urls.filter(u => {
+    try { return new URL(u).hostname === baseHostname; } catch { return false; }
+  });
+
+  const scored = sameDomain.map(u => {
+    const urlLc  = u.toLowerCase();
+    const matched = keywords.filter(kw => urlLc.includes(kw));
+    return { url: u, score: matched.length };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20)
+    .map(s => s.url);
+}
+
+async function trySitemapDiscovery(
+  baseUrl:   string,
+  focusType: FocusType,
+  signal:    AbortSignal,
+): Promise<Pick<DiscoverResult, "sub_pages" | "strategy" | "sitemap_urls_total" | "sitemap_url_used" | "locale_used" | "locale_sources" | "keywords_total" | "candidate_links_total" | "top_candidates">> {
+  const { keywords, sources: localeSources } = getEffectiveKeywords(baseUrl, undefined, focusType);
+  const locale = getLocaleFromUrl(baseUrl);
+  const emptyMeta = { locale_used: locale, locale_sources: localeSources, keywords_total: keywords.length, candidate_links_total: 0, top_candidates: [] };
+
+  const candidates: string[] = [];
+  try { candidates.push(new URL("/sitemap.xml",       baseUrl).href); } catch { /* ignore */ }
+  try { candidates.push(new URL("/sitemap_index.xml", baseUrl).href); } catch { /* ignore */ }
+
+  // Also check robots.txt for Sitemap: directives
+  try {
+    const robots = await fetchRawText(new URL("/robots.txt", baseUrl).href, signal);
+    if (robots.status === 200) {
+      const matches = robots.text.match(/^Sitemap:\s*(\S+)/gmi) ?? [];
+      for (const m of matches.slice(0, 3)) {
+        const u = m.replace(/^Sitemap:\s*/i, "").trim();
+        if (u) candidates.push(u);
+      }
+    }
+  } catch { /* robots.txt missing is fine */ }
+
+  for (const sitemapUrl of candidates) {
+    try {
+      const res = await fetchRawText(sitemapUrl, signal);
+      if (res.status !== 200) continue;
+
+      const { urls, isIndex } = parseSitemapXml(res.text);
+
+      let allUrls = urls;
+      if (isIndex) {
+        allUrls = [];
+        for (const childUrl of urls.slice(0, 5)) {
+          try {
+            const childRes   = await fetchRawText(childUrl, signal);
+            const childParsed = parseSitemapXml(childRes.text);
+            allUrls.push(...childParsed.urls);
+          } catch { /* skip broken child sitemaps */ }
+        }
+      }
+
+      const filtered = filterSitemapUrls(allUrls, focusType, baseUrl);
+      if (filtered.length === 0) continue;
+
+      return {
+        sub_pages:          filtered.slice(0, MAX_SUBPAGES),
+        strategy:           "sitemap",
+        sitemap_urls_total: allUrls.length,
+        sitemap_url_used:   sitemapUrl,
+        ...emptyMeta,
+      };
+    } catch { /* try next candidate */ }
+  }
+
+  return { sub_pages: [], strategy: "homepage_links", sitemap_urls_total: 0, ...emptyMeta };
+}
+
+// ── Stage 1B: Candidate sub-page orchestration (seed > sitemap > homepage) ────
+
+interface SourceForDiscovery {
+  url:       string;
+  seed_urls: string[];
+}
+
+async function buildCandidateSubPages(
+  source:    SourceForDiscovery,
+  html:      string,
+  finalUrl:  string,
+  focusType: FocusType,
+  signal:    AbortSignal,
+): Promise<DiscoverResult> {
+  // Strategy 1: explicit seed URLs (highest priority)
+  if (source.seed_urls && source.seed_urls.length > 0) {
+    const { keywords, sources: localeSources } = getEffectiveKeywords(source.url, undefined, focusType);
+    const locale = getLocaleFromUrl(source.url);
+    return {
+      sub_pages:             source.seed_urls.slice(0, MAX_SUBPAGES),
+      strategy:              "seed_urls",
+      candidate_links_total: source.seed_urls.length,
+      locale_used:           locale,
+      locale_sources:        localeSources,
+      keywords_total:        keywords.length,
+      top_candidates:        [],
+    };
+  }
+
+  // Strategy 2: sitemap.xml discovery
+  const sitemapResult = await trySitemapDiscovery(finalUrl, focusType, signal);
+  if (sitemapResult.sub_pages.length > 0) return sitemapResult as DiscoverResult;
+
+  // Strategy 3: homepage-link discovery (existing behaviour)
+  return discoverFromHomepageLinks(html, finalUrl, focusType);
 }
 
 // ── Stage 1C: Per-page extraction (bounded Claude call, no web_search) ────────
@@ -1089,9 +1319,9 @@ async function runScrapePipeline(
 ): Promise<number> {
   const { data: source } = await db
     .from("content_sources")
-    .select("id, url, type, label, region")
+    .select("id, url, type, label, region, seed_urls")
     .eq("id", job.source_id!)
-    .single() as { data: { id: string; url: string; type: string; label: string; region: string | null } | null };
+    .single() as { data: { id: string; url: string; type: string; label: string; region: string | null; seed_urls: string[] } | null };
 
   if (!source) throw new Error(`Source ${job.source_id} not found`);
 
@@ -1153,16 +1383,27 @@ async function runScrapePipeline(
       summary.costs.scrapingbee_usd += homePage.costEstimateUsd;
       if (homePage.fetchMethod === "headless") summary.costs.scrapingbee_calls++;
 
-      // Stage 1B — discover sub-pages
+      // Stage 1B — discover sub-pages (seed_urls > sitemap > homepage_links)
       await updateProgress(db, job.id, { stage: "discover", stage_started_at: new Date().toISOString() });
       const discoverStart  = Date.now();
-      const discoverResult = discoverSubPages(homePage.html, homePage.finalUrl, focusType);
+      const discoverResult = await buildCandidateSubPages(
+        { url: source.url, seed_urls: source.seed_urls ?? [] },
+        homePage.html,
+        homePage.finalUrl,
+        focusType,
+        signal,
+      );
       subPages = discoverResult.sub_pages;
       summary.stages.discover = {
         duration_ms:           Date.now() - discoverStart,
+        strategy:              discoverResult.strategy,
         sub_pages:             subPages.length,
         candidate_links_total: discoverResult.candidate_links_total,
         locale_used:           discoverResult.locale_used,
+        locale_sources:        discoverResult.locale_sources,
+        keywords_total:        discoverResult.keywords_total,
+        ...(discoverResult.sitemap_urls_total !== undefined ? { sitemap_urls_total: discoverResult.sitemap_urls_total } : {}),
+        ...(discoverResult.sitemap_url_used   ? { sitemap_url_used:   discoverResult.sitemap_url_used   } : {}),
         top_candidates:        discoverResult.top_candidates,
       };
 

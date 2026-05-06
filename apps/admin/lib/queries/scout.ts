@@ -71,6 +71,7 @@ export interface ContentSource {
   type: "website" | "instagram";
   label: string;
   region: string | null;
+  seed_urls: string[];
   last_scraped_at: string | null;
   entry_count: number;
   status: "active" | "paused" | "error";
@@ -130,11 +131,28 @@ export async function addContentSource(input: {
   type: "website" | "instagram";
   label: string;
   region?: string;
+  seed_urls?: string[];
 }): Promise<ContentSource> {
   const db = createAdminClient();
   const { data, error } = await db
     .from("content_sources")
-    .insert({ ...input, region: input.region || null })
+    .insert({ ...input, region: input.region || null, seed_urls: input.seed_urls ?? [] })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ContentSource;
+}
+
+export async function updateContentSource(id: string, input: {
+  label?: string;
+  region?: string | null;
+  seed_urls?: string[];
+}): Promise<ContentSource> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("content_sources")
+    .update(input)
+    .eq("id", id)
     .select()
     .single();
   if (error) throw error;

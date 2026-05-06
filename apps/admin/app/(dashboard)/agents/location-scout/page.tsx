@@ -879,6 +879,9 @@ function DataSourcesSection({
   const [editError, setEditError] = useState<string | null>(null);
   const [editSeedWarnings, setEditSeedWarnings] = useState<string[]>([]);
 
+  const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const scrapeErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkStep, setBulkStep] = useState<"paste" | "review">("paste");
   const [bulkRaw, setBulkRaw] = useState("");
@@ -1012,17 +1015,29 @@ function DataSourcesSection({
     }
   }
 
+  function showScrapeError(message: string) {
+    setScrapeError(message);
+    if (scrapeErrorTimer.current) clearTimeout(scrapeErrorTimer.current);
+    scrapeErrorTimer.current = setTimeout(() => setScrapeError(null), 5000);
+  }
+
   async function handleScrape(id: string) {
     try {
       const res  = await fetch(`/api/admin/scout/sources/${id}/scrape`, { method: "POST" });
-      const data = await res.json();
-      if (res.ok && data.job_id) {
+      const data = await res.json().catch(() => ({})) as { job_id?: string; error?: string };
+      if (!res.ok) {
+        if (res.status === 401) {
+          showScrapeError("Session expired. Please refresh the page and log in again.");
+        } else {
+          showScrapeError(data.error ?? `Could not start scrape (${res.status})`);
+        }
+        return;
+      }
+      if (data.job_id) {
         onScrapeQueued(id, data.job_id);
-      } else {
-        setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
       }
     } catch {
-      setSources(s => s.map(src => src.id === id ? { ...src, status: "error" as const } : src));
+      showScrapeError("Network error — could not reach the server.");
     }
   }
 
@@ -1041,6 +1056,13 @@ function DataSourcesSection({
 
   return (
     <>
+      {scrapeError && (
+        <div className="mb-3 flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <AlertCircle size={15} className="shrink-0 mt-0.5" />
+          <span className="flex-1">{scrapeError}</span>
+          <button onClick={() => setScrapeError(null)} className="text-red-400 hover:text-red-600 shrink-0"><X size={14} /></button>
+        </div>
+      )}
       <div className="border border-slate-200 rounded-lg overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-grey-100">
@@ -1731,7 +1753,12 @@ export default function LocationScoutPage() {
         body: JSON.stringify(body),
       });
       const payload = await res.json();
-      if (!res.ok) throw new Error(payload.error ?? `HTTP ${res.status}`);
+      if (!res.ok) {
+        const message = res.status === 401
+          ? "Session expired. Please refresh the page and log in again."
+          : (payload.error ?? `HTTP ${res.status}`);
+        throw new Error(message);
+      }
       setRun({ phase: "queued", jobId: payload.job_id, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

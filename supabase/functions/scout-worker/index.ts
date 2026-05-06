@@ -28,6 +28,7 @@ interface DiscoveredLocation {
   metadata:         Record<string, unknown>;
   confidenceScore:  number;
   confidenceReason: string;
+  image_url?:       string | null;
 }
 
 interface SourceUrl {
@@ -349,6 +350,46 @@ function htmlToText(html: string): string {
     .replace(/&[a-z]+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function htmlToTextWithImages(html: string): string {
+  return html
+    // Preserve <img> tags as readable [IMAGE ...] annotations before stripping all other tags.
+    // Three passes: src-before-alt, alt-before-src, src-only.
+    .replace(/<img\s[^>]*?src=["']([^"']+)["'][^>]*?alt=["']([^"']*)["'][^>]*?>/gi,
+             '[IMAGE src="$1" alt="$2"]')
+    .replace(/<img\s[^>]*?alt=["']([^"']*)["'][^>]*?src=["']([^"']+)["'][^>]*?>/gi,
+             '[IMAGE src="$2" alt="$1"]')
+    .replace(/<img\s[^>]*?src=["']([^"']+)["'][^>]*?>/gi,
+             '[IMAGE src="$1" alt=""]')
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g,  "&")
+    .replace(/&lt;/g,   "<")
+    .replace(/&gt;/g,   ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#\d+;/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function validateAndResolveImageUrl(
+  raw: string | null | undefined,
+  pageUrl: string,
+): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  if (raw.startsWith("data:")) return null;
+  if (raw.length > 500) return null;
+  try {
+    const resolved = new URL(raw, pageUrl).href;
+    if (!/^https?:\/\//i.test(resolved)) return null;
+    return resolved;
+  } catch {
+    return null;
+  }
 }
 
 // ── Stage 1A: Fetch source page ───────────────────────────────────────────────
@@ -769,7 +810,7 @@ async function extractFromPage(
   defaultRegion: string,
   signal:        AbortSignal,
 ): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number }> {
-  const text          = htmlToText(pageHtml).slice(0, 30_000);
+  const text          = htmlToTextWithImages(pageHtml).slice(0, 40_000);
   const rubricSection = rubric
     ? `\nQUALITY RUBRIC (skip entries that fail these rules):\n${rubric}\n`
     : "";
@@ -797,8 +838,20 @@ Each entry must follow this exact shape:
   "highlights": [],
   "metadata": {},
   "confidenceScore": 0.65,
-  "confidenceReason": "Named in page content"
+  "confidenceReason": "Named in page content",
+  "image_url": "https://example.com/image.jpg or null"
 }
+
+For each entry, also identify the SINGLE most relevant image URL from the page that depicts that specific place. Selection rules:
+1. Prefer images that appear near the place's mention in the HTML (within the same article, card, or section).
+2. Prefer images whose alt text or surrounding caption refers to the place name (e.g. alt="Hotel Bela Vista pool").
+3. Skip generic/decorative images: logos, banners, navigation icons, "share on Facebook" thumbnails, page-header heroes that aren't specific to one place.
+4. Skip lazy-loading placeholders (data:image/svg+xml..., 1x1 spacer gifs, or src values that contain "placeholder", "loading", "blank").
+5. Resolve relative URLs to absolute (use the page URL as base).
+6. If the page has multiple images of the same place, pick the one that appears first in the DOM.
+7. If NO suitable image can be identified for a place, return image_url: null. Do not guess or fabricate URLs.
+
+Return image_url as a string or null. Do not return an array of images.
 
 OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
 
@@ -820,11 +873,13 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
   if (!match) return { locations: [], inputTokens, outputTokens };
   try {
     const parsed = JSON.parse(match[0]);
-    return {
-      locations:    Array.isArray(parsed) ? (parsed as DiscoveredLocation[]) : [],
-      inputTokens,
-      outputTokens,
-    };
+    const locations: DiscoveredLocation[] = Array.isArray(parsed)
+      ? (parsed as DiscoveredLocation[]).map(loc => ({
+          ...loc,
+          image_url: validateAndResolveImageUrl(loc.image_url, pageUrl),
+        }))
+      : [];
+    return { locations, inputTokens, outputTokens };
   } catch {
     return { locations: [], inputTokens, outputTokens };
   }
@@ -1154,6 +1209,7 @@ async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationTyp
     trust_score:              trustScore,
     quality_score:            qualityScore,
     features,
+    image_url:                loc.image_url ?? null,
     status:                   "pending_review",
     verified:                 false,
     source_type:              "agent",

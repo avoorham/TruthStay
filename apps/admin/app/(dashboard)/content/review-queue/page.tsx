@@ -66,6 +66,7 @@ function ReviewCard({
   const [editDesc, setEditDesc]         = useState(entry.description ?? "");
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject]     = useState(false);
+  const [lightbox, setLightbox]         = useState(false);
 
   const sourceUrls: SourceUrl[] = entry.source_urls ?? [];
   const trustScore  = entry.trust_score ?? 0;
@@ -109,29 +110,87 @@ function ReviewCard({
       </div>
 
       {/* Name + description */}
-      <div className="px-4 pt-3 pb-2">
-        {editMode ? (
-          <input
-            value={editName}
-            onChange={e => setEditName(e.target.value)}
-            className="w-full text-sm font-semibold text-dark border-b border-teal-400 focus:outline-none mb-1"
-          />
-        ) : (
-          <p className="text-sm font-semibold text-dark leading-snug">{entry.name}</p>
-        )}
-        {editMode ? (
-          <textarea
-            value={editDesc}
-            onChange={e => setEditDesc(e.target.value)}
-            rows={3}
-            className="w-full text-xs text-grey-600 mt-1 border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-teal-400 resize-none"
-          />
-        ) : (
-          entry.description && (
-            <p className="text-xs text-grey-500 mt-1 line-clamp-2 leading-relaxed">{entry.description}</p>
-          )
-        )}
+      <div className="px-4 pt-3 pb-2 flex items-start gap-3">
+        {/* Thumbnail */}
+        <div className="flex-shrink-0">
+          {entry.image_url ? (
+            <button onClick={() => setLightbox(true)} className="block focus:outline-none" title="Click to enlarge">
+              <img
+                src={entry.image_url}
+                alt={entry.name}
+                loading="lazy"
+                className="w-20 h-16 object-cover rounded border border-slate-100 hover:opacity-90 transition"
+                onError={e => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove("hidden"); }}
+              />
+              <div className="hidden w-20 h-16 bg-slate-100 rounded border border-slate-100 flex items-center justify-center text-[10px] text-grey-400">
+                No image
+              </div>
+            </button>
+          ) : (
+            <div className="w-20 h-16 bg-slate-100 rounded border border-slate-100 flex items-center justify-center text-[10px] text-grey-400">
+              No image
+            </div>
+          )}
+        </div>
+
+        {/* Name + description content */}
+        <div className="flex-1 min-w-0">
+          {editMode ? (
+            <input
+              value={editName}
+              onChange={e => setEditName(e.target.value)}
+              className="w-full text-sm font-semibold text-dark border-b border-teal-400 focus:outline-none mb-1"
+            />
+          ) : (
+            <p className="text-sm font-semibold text-dark leading-snug">{entry.name}</p>
+          )}
+          {editMode ? (
+            <textarea
+              value={editDesc}
+              onChange={e => setEditDesc(e.target.value)}
+              rows={3}
+              className="w-full text-xs text-grey-600 mt-1 border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-teal-400 resize-none"
+            />
+          ) : (
+            entry.description && (
+              <p className="text-xs text-grey-500 mt-1 line-clamp-2 leading-relaxed">{entry.description}</p>
+            )
+          )}
+        </div>
       </div>
+
+      {/* Lightbox */}
+      {lightbox && entry.image_url && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setLightbox(false)}
+        >
+          <div className="bg-white rounded-xl overflow-hidden shadow-2xl max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <img
+              src={entry.image_url}
+              alt={entry.name}
+              className="w-full object-contain max-h-96"
+              onError={e => { (e.currentTarget as HTMLImageElement).src = ""; }}
+            />
+            <div className="px-4 py-3 flex items-center justify-between gap-3 border-t border-slate-100">
+              <p className="text-xs font-semibold text-dark truncate">{entry.name}</p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={entry.image_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 transition"
+                >
+                  <ExternalLink size={11} /> Open image
+                </a>
+                <button onClick={() => setLightbox(false)} className="text-xs text-grey-400 hover:text-grey-700 transition">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scores */}
       <div className="px-4 pb-3 space-y-2">

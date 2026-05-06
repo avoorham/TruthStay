@@ -32,6 +32,7 @@ export interface ContentEntry {
   canonical_id: string | null;
   last_seen_at: string;
   features: Record<string, unknown>;
+  image_url: string | null;
   created_at: string;
 }
 

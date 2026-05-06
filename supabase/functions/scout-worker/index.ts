@@ -29,6 +29,7 @@ interface DiscoveredLocation {
   confidenceScore:  number;
   confidenceReason: string;
   image_url?:       string | null;
+  country?:         string | null;
 }
 
 interface SourceUrl {
@@ -39,6 +40,14 @@ interface SourceUrl {
   first_seen_at:     string;
 }
 
+interface ResolvedLocation {
+  lat:               number;
+  lng:               number;
+  place_id:          string | null;
+  formatted_address?: string;
+  country:           string | null;
+}
+
 interface ScoredEntry {
   loc:                    DiscoveredLocation;
   sourceUrls:             SourceUrl[];
@@ -47,6 +56,8 @@ interface ScoredEntry {
   qualityScore:           number;
   features:               Record<string, unknown>;
   coordinates:            { lat: number; lng: number };
+  placeId:                string | null;
+  country:                string | null;
 }
 
 interface ScoutJob {
@@ -374,6 +385,9 @@ function htmlToTextWithImages(html: string): string {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<[^>]+>/g, " ")
+    // Strip CSS rule blocks that survived <style> stripping (e.g. JS-injected text-node CSS).
+    // Matches selector{prop:val;} patterns; safe for prose (prose never starts with ./#/@).
+    .replace(/[.#@][^{}<>\n]*\{[^{}]*:[^{}]*;[^{}]*\}/g, " ")
     .replace(/&amp;/g,  "&")
     .replace(/&lt;/g,   "<")
     .replace(/&gt;/g,   ">")
@@ -435,6 +449,19 @@ interface FetchedPage {
 
 interface SpaMethodCache {
   method: "static" | "headless" | null;
+}
+
+function isCloudflareChallenge(html: string): boolean {
+  const lc = html.toLowerCase();
+  return lc.includes("data-cf-ray=") ||
+         lc.includes("cf-challenge") ||
+         lc.includes("cf-turnstile") ||
+         lc.includes("_cf_chl") ||
+         lc.includes("checking your browser") ||
+         lc.includes("just a moment") ||
+         lc.includes("cloudflare ray id") ||
+         lc.includes("__cf_bm") ||
+         (lc.includes("cloudflare") && lc.includes("security check"));
 }
 
 function isLikelySPA(html: string): { isSPA: boolean; reason: string } {
@@ -523,7 +550,15 @@ async function fetchViaScrapingBee(
       const errText = await response.text().catch(() => "");
       throw new Error(`ScrapingBee fetch failed (${response.status}): ${errText.slice(0, 200)}`);
     }
-    const html            = await response.text();
+    const rawHtml         = await response.text();
+    // Strip <style> and <script> blocks BEFORE the 500k cap.
+    // JS-heavy pages (e.g. WordPress/Astra with mega-menu CSS) can inject megabytes
+    // of navigation CSS into the rendered DOM, pushing article content past the cap.
+    // htmlToTextWithImages strips these anyway, so removing them here is safe and
+    // maximises the 500k window for actual visible content.
+    const html            = rawHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "");
     const costEstimateUsd = SCRAPINGBEE_COST_PER_JS;
     await recordScrapingBeeUsage(db, SCRAPINGBEE_CREDITS_PER_JS, costEstimateUsd);
     return { html: html.slice(0, 500_000), costEstimateUsd };
@@ -607,10 +642,12 @@ async function fetchSourcePage(
       return { ...stat, fetchMethod: "static", costEstimateUsd: 0 };
     }
     const headless = await fetchViaScrapingBee(url, db, signal);
-    if (spaCache) spaCache.method = "headless";
+    // Don't lock sub-pages to headless if SPA detection fired on a Cloudflare challenge page —
+    // content pages may be directly accessible even though the homepage is CF-protected.
+    if (spaCache) spaCache.method = isCloudflareChallenge(stat.html) ? null : "headless";
     return {
       ...headless, finalUrl: url, contentType: "text/html", status: 200,
-      fetchMethod: "headless", spaDetectionReason: spa.reason,
+      fetchMethod: "headless", spaDetectionReason: isCloudflareChallenge(stat.html) ? "cloudflare_block" : spa.reason,
     };
   }
   return { ...stat, fetchMethod: "static", costEstimateUsd: 0 };
@@ -838,7 +875,7 @@ async function extractFromPage(
   rubric:        string,
   defaultRegion: string,
   signal:        AbortSignal,
-): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number }> {
+): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number; debugInfo: { text_length: number; text_first_500: string; text_last_500: string; html_length: number; html_hit_cap: boolean } }> {
   const text          = htmlToTextWithImages(pageHtml).slice(0, 40_000);
   const rubricSection = rubric
     ? `\nQUALITY RUBRIC (skip entries that fail these rules):\n${rubric}\n`
@@ -861,6 +898,7 @@ Each entry must follow this exact shape:
   "name": "Exact place name",
   "type": "${focusType}",
   "region": "city or region mentioned (default to '${defaultRegion}' if unspecified)",
+  "country": "country in English (e.g. Portugal, Italy, United States) or null",
   "description": "1-2 sentences from the page text about this place",
   "coordinates": {"lat": 0, "lng": 0},
   "sources": [{"url": "${pageUrl}", "type": "blog", "author": "", "excerpt": "sentence that mentions this place"}],
@@ -870,6 +908,12 @@ Each entry must follow this exact shape:
   "confidenceReason": "Named in page content",
   "image_url": "https://example.com/image.jpg or null"
 }
+
+For the country field:
+- Use the English country name (e.g. "Portugal" not "Portuguesa", "Germany" not "Deutschland")
+- Infer from the page URL TLD if the page text doesn't state it explicitly (.pt → Portugal, .de → Germany, .it → Italy, .es → Spain, .fr → France, .uk or .co.uk → United Kingdom)
+- For multi-country travel blogs describing a specific place, use the country of that specific place
+- Return null only if you genuinely cannot determine the country
 
 For each entry, also identify the SINGLE most relevant image URL from the page that depicts that specific place. Selection rules:
 1. Prefer images that appear near the place's mention in the HTML (within the same article, card, or section).
@@ -884,11 +928,28 @@ Return image_url as a string or null. Do not return an array of images.
 
 OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
 
-  const response = await anthropic.messages.create({
-    model:      MODEL,
-    max_tokens: 8192,
-    messages:   [{ role: "user", content: prompt }],
-  }, { signal });
+  const debugInfo = {
+    text_length:   text.length,
+    text_first_500: text.slice(0, 500),
+    text_last_500:  text.slice(-500),
+    html_length:   pageHtml.length,
+    html_hit_cap:  pageHtml.length === 500_000,
+  };
+
+  let response: Anthropic.Message;
+  try {
+    response = await anthropic.messages.create({
+      model:      MODEL,
+      max_tokens: 8192,
+      messages:   [{ role: "user", content: prompt }],
+    }, { signal });
+  } catch (e) {
+    // Re-throw AbortErrors so the pipeline can handle timeouts/budget correctly.
+    // For all other errors (e.g. 529 Overloaded), return empty with debugInfo preserved.
+    if ((e as Error).name === "AbortError") throw e;
+    console.warn("[worker] extractFromPage: Anthropic call failed:", (e as Error).message);
+    return { locations: [], inputTokens: 0, outputTokens: 0, debugInfo };
+  }
 
   const raw = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -899,7 +960,7 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
   const outputTokens = response.usage?.output_tokens ?? 0;
 
   const jsonStr = extractJsonArray(raw);
-  if (!jsonStr) return { locations: [], inputTokens, outputTokens };
+  if (!jsonStr) return { locations: [], inputTokens, outputTokens, debugInfo };
   try {
     const parsed = JSON.parse(jsonStr);
     const locations: DiscoveredLocation[] = Array.isArray(parsed)
@@ -908,10 +969,10 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
           image_url: validateAndResolveImageUrl(loc.image_url, pageUrl),
         }))
       : [];
-    return { locations, inputTokens, outputTokens };
+    return { locations, inputTokens, outputTokens, debugInfo };
   } catch {
     console.warn("[worker] extractFromPage: JSON.parse failed, raw snippet:", jsonStr.slice(0, 200));
-    return { locations: [], inputTokens, outputTokens };
+    return { locations: [], inputTokens, outputTokens, debugInfo };
   }
 }
 
@@ -1088,20 +1149,42 @@ async function discoverWithPrompt(
 
 // ── Stage 2: Resolve — Google Places geocoding ────────────────────────────────
 
+function extractCountryFromAddressComponents(
+  components: Array<{ long_name?: string; short_name?: string; types?: string[] }> | undefined,
+): string | null {
+  if (!Array.isArray(components)) return null;
+  const c = components.find(c => Array.isArray(c?.types) && c.types.includes("country"));
+  return c?.long_name ?? null;
+}
+
 async function resolveCoordinates(
   name:   string,
   region: string,
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<ResolvedLocation | null> {
   const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY");
   if (!apiKey) return null;
 
   try {
-    const query = encodeURIComponent(`${name} ${region}`);
-    const url   = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}`;
-    const res   = await fetch(url);
-    const data  = await res.json() as { results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
-    const loc   = data.results?.[0]?.geometry?.location;
-    return loc ? { lat: loc.lat, lng: loc.lng } : null;
+    const query  = encodeURIComponent(`${name} ${region}`);
+    const url    = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${apiKey}&language=en`;
+    const res    = await fetch(url);
+    const data   = await res.json() as {
+      results?: Array<{
+        place_id?:           string;
+        formatted_address?:  string;
+        geometry?:           { location?: { lat: number; lng: number } };
+        address_components?: Array<{ long_name?: string; short_name?: string; types?: string[] }>;
+      }>;
+    };
+    const result = data.results?.[0];
+    if (!result?.geometry?.location) return null;
+    return {
+      lat:               result.geometry.location.lat,
+      lng:               result.geometry.location.lng,
+      place_id:          result.place_id ?? null,
+      formatted_address: result.formatted_address ?? undefined,
+      country:           extractCountryFromAddressComponents(result.address_components),
+    };
   } catch {
     return null;
   }
@@ -1113,16 +1196,36 @@ function isValidCoords(c: { lat: number; lng: number } | undefined): boolean {
 
 // ── Stage 3: Match — pg_trgm dedup ───────────────────────────────────────────
 
-async function findExistingMatch(db: DB, type: string, name: string, region: string): Promise<boolean> {
+async function findExistingMatch(
+  db:       DB,
+  type:     string,
+  name:     string,
+  region:   string,
+  resolved: ResolvedLocation,
+): Promise<boolean> {
+  // Primary: place_id exact match
+  if (resolved.place_id) {
+    const { data } = await db
+      .from("content_entries")
+      .select("id, status")
+      .eq("place_id", resolved.place_id)
+      .neq("status", "rejected")
+      .limit(1);
+    if ((data?.length ?? 0) > 0) return true;
+  }
+
+  // Fallback: name similarity > 0.6 + 50m proximity + same type
   try {
-    const { data, error } = await db.rpc("match_content_entry", {
-      p_type:   type,
-      p_name:   name,
-      p_region: region,
+    const { data, error } = await db.rpc("match_content_entry_v2", {
+      p_name:       name,
+      p_lat:        resolved.lat,
+      p_lng:        resolved.lng,
+      p_focus_type: type,
     }) as { data: Array<{ id: string; status: string }> | null; error: unknown };
     if (error || !data?.length) return false;
     return data.some(r => r.status !== "rejected");
   } catch {
+    // Last-resort exact name match
     const { data } = await db
       .from("content_entries")
       .select("id")
@@ -1206,20 +1309,20 @@ function computeQualityScore(features: Record<string, unknown>): number {
   return Math.min(1.0, score);
 }
 
-function scoreEntry(loc: DiscoveredLocation, coords: { lat: number; lng: number } | undefined): ScoredEntry {
+function scoreEntry(loc: DiscoveredLocation, resolved: ResolvedLocation): ScoredEntry {
+  const coords                 = { lat: resolved.lat, lng: resolved.lng };
   const sourceUrls             = buildSourceUrls(loc.sources ?? []);
   const independentSourceCount = countIndependentSources(sourceUrls);
   const trustScore             = computeTrustScore(sourceUrls, independentSourceCount);
   const features               = computeFeatures(loc, coords);
   const qualityScore           = computeQualityScore(features);
-  const finalCoords            = coords ?? (isValidCoords(loc.coordinates) ? loc.coordinates : { lat: 0, lng: 0 });
-  return { loc, sourceUrls, independentSourceCount, trustScore, qualityScore, features, coordinates: finalCoords };
+  return { loc, sourceUrls, independentSourceCount, trustScore, qualityScore, features, coordinates: coords, placeId: resolved.place_id, country: resolved.country };
 }
 
 // ── Stage 5: Queue — insert with pending_review ───────────────────────────────
 
 async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationType: string): Promise<boolean> {
-  const { loc, sourceUrls, independentSourceCount, trustScore, qualityScore, features, coordinates } = entry;
+  const { loc, sourceUrls, independentSourceCount, trustScore, qualityScore, features, coordinates, placeId, country } = entry;
   const { error } = await db.from("content_entries").insert({
     type:                     loc.type,
     name:                     loc.name.trim(),
@@ -1240,6 +1343,8 @@ async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationTyp
     quality_score:            qualityScore,
     features,
     image_url:                loc.image_url ?? null,
+    place_id:                 placeId ?? null,
+    country:                  country ?? null,
     status:                   "pending_review",
     verified:                 false,
     source_type:              "agent",
@@ -1316,7 +1421,7 @@ async function runResolveMatchScoreQueue(
   await updateProgress(db, jobId, { stage: "resolve", stage_started_at: new Date().toISOString(), stages_completed: stagesCompleted });
 
   const resolveStart = Date.now();
-  const toStage3: Array<{ loc: DiscoveredLocation; coords: { lat: number; lng: number } }> = [];
+  const toStage3: Array<{ loc: DiscoveredLocation; resolved: ResolvedLocation }> = [];
   let googleCalls  = 0;
   let resolvedCnt  = 0;
   let skippedCnt   = 0;
@@ -1325,19 +1430,27 @@ async function runResolveMatchScoreQueue(
     if (!loc.name?.trim()) continue;
     if ((loc.confidenceScore ?? 0) < MIN_SCOUT_SCORE) { skippedCnt++; continue; }
 
-    let coords: { lat: number; lng: number } | null = isValidCoords(loc.coordinates) ? loc.coordinates : null;
+    let resolved: ResolvedLocation | null = isValidCoords(loc.coordinates)
+      ? { lat: loc.coordinates.lat, lng: loc.coordinates.lng, place_id: null, country: null }
+      : null;
 
-    if (!coords) {
-      coords = await resolveCoordinates(loc.name, loc.region ?? defaultRegion);
+    if (!resolved) {
+      resolved = await resolveCoordinates(loc.name, loc.region ?? defaultRegion);
       googleCalls++;
-      if (!coords) {
+      if (!resolved) {
         summary.warnings.push(`Stage 2: no coordinates for "${loc.name}" — skipped`);
         continue;
       }
       resolvedCnt++;
     }
 
-    toStage3.push({ loc: { ...loc, region: loc.region ?? defaultRegion }, coords });
+    // Reconcile country: Google Places is authoritative; Claude extraction is fallback
+    const country = resolved.country ?? loc.country ?? null;
+    if (resolved.country && loc.country && resolved.country !== loc.country) {
+      summary.warnings.push(`Stage 2: country mismatch for "${loc.name}" — Places="${resolved.country}" Claude="${loc.country}" (using Places)`);
+    }
+
+    toStage3.push({ loc: { ...loc, region: loc.region ?? defaultRegion }, resolved: { ...resolved, country } });
   }
 
   summary.stages.resolve = { duration_ms: Date.now() - resolveStart, resolved: resolvedCnt, skipped: skippedCnt };
@@ -1350,13 +1463,13 @@ async function runResolveMatchScoreQueue(
   await updateProgress(db, jobId, { stage: "match", stage_started_at: new Date().toISOString() });
 
   const matchStart  = Date.now();
-  const toScore: Array<{ loc: DiscoveredLocation; coords: { lat: number; lng: number } }> = [];
+  const toScore: Array<{ loc: DiscoveredLocation; resolved: ResolvedLocation }> = [];
   let duplicateCnt  = 0;
 
-  for (const { loc, coords } of toStage3) {
-    const isDuplicate = await findExistingMatch(db, loc.type ?? "activity", loc.name, loc.region);
+  for (const { loc, resolved } of toStage3) {
+    const isDuplicate = await findExistingMatch(db, loc.type ?? "activity", loc.name, loc.region, resolved);
     if (isDuplicate) { duplicateCnt++; continue; }
-    toScore.push({ loc, coords });
+    toScore.push({ loc, resolved });
   }
 
   summary.stages.match = { duration_ms: Date.now() - matchStart, new: toScore.length, duplicates: duplicateCnt };
@@ -1368,7 +1481,7 @@ async function runResolveMatchScoreQueue(
   await updateProgress(db, jobId, { stage: "score", stage_started_at: new Date().toISOString() });
 
   const scoreStart = Date.now();
-  const scored     = toScore.map(({ loc, coords }) => scoreEntry(loc, coords));
+  const scored     = toScore.map(({ loc, resolved }) => scoreEntry(loc, resolved));
 
   summary.stages.score = { duration_ms: Date.now() - scoreStart, scored: scored.length };
 
@@ -1514,6 +1627,7 @@ async function runScrapePipeline(
     const extractStart     = Date.now();
     let extractInputTokens  = 0;
     let extractOutputTokens = 0;
+    let firstPageDebug: Record<string, unknown> | undefined;
 
     for (let i = startPage; i < subPages.length; i++) {
       if (signal.aborted) {
@@ -1549,6 +1663,7 @@ async function runScrapePipeline(
         extractOutputTokens     += result.outputTokens;
         summary.costs.anthropic_input_tokens  += result.inputTokens;
         summary.costs.anthropic_output_tokens += result.outputTokens;
+        if (i === startPage) firstPageDebug = { page: subPages[i], ...result.debugInfo };
       } catch (e) {
         if ((e as Error).name === "AbortError") {
           await updateProgress(db, job.id, { sub_pages_done: i, extractions: allExtractions });
@@ -1575,6 +1690,7 @@ async function runScrapePipeline(
       input_tokens:  extractInputTokens,
       output_tokens: extractOutputTokens,
       claude_calls:  subPages.length,
+      ...(firstPageDebug ? { debug: firstPageDebug } : {}),
     };
     summary.claude_calls = subPages.length;
 

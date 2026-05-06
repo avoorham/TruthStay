@@ -353,15 +353,23 @@ function htmlToText(html: string): string {
 }
 
 function htmlToTextWithImages(html: string): string {
+  // Skip data URIs — base64 LQIP placeholders can be 3KB+ each and would flood the text budget.
+  // Only annotate real http(s) URLs, capped at 300 chars to guard against extremely long CDN URLs.
+  const imgAnnotation = (src: string, alt: string): string => {
+    if (src.startsWith("data:") || !src.startsWith("http")) return "";
+    const safeSrc = src.length > 300 ? src.slice(0, 300) + "…" : src;
+    return `[IMAGE src="${safeSrc}" alt="${alt}"]`;
+  };
+
   return html
     // Preserve <img> tags as readable [IMAGE ...] annotations before stripping all other tags.
     // Three passes: src-before-alt, alt-before-src, src-only.
     .replace(/<img\s[^>]*?src=["']([^"']+)["'][^>]*?alt=["']([^"']*)["'][^>]*?>/gi,
-             '[IMAGE src="$1" alt="$2"]')
+             (_, src, alt) => imgAnnotation(src, alt))
     .replace(/<img\s[^>]*?alt=["']([^"']*)["'][^>]*?src=["']([^"']+)["'][^>]*?>/gi,
-             '[IMAGE src="$2" alt="$1"]')
+             (_, alt, src) => imgAnnotation(src, alt))
     .replace(/<img\s[^>]*?src=["']([^"']+)["'][^>]*?>/gi,
-             '[IMAGE src="$1" alt=""]')
+             (_, src) => imgAnnotation(src, ""))
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/<!--[\s\S]*?-->/g, "")
@@ -374,6 +382,27 @@ function htmlToTextWithImages(html: string): string {
     .replace(/&[a-z]+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractJsonArray(text: string): string | null {
+  const start = text.indexOf("[");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
 }
 
 function validateAndResolveImageUrl(
@@ -857,7 +886,7 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
 
   const response = await anthropic.messages.create({
     model:      MODEL,
-    max_tokens: 4096,
+    max_tokens: 8192,
     messages:   [{ role: "user", content: prompt }],
   }, { signal });
 
@@ -869,10 +898,10 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
   const inputTokens  = response.usage?.input_tokens  ?? 0;
   const outputTokens = response.usage?.output_tokens ?? 0;
 
-  const match = raw.match(/\[[\s\S]*\]/);
-  if (!match) return { locations: [], inputTokens, outputTokens };
+  const jsonStr = extractJsonArray(raw);
+  if (!jsonStr) return { locations: [], inputTokens, outputTokens };
   try {
-    const parsed = JSON.parse(match[0]);
+    const parsed = JSON.parse(jsonStr);
     const locations: DiscoveredLocation[] = Array.isArray(parsed)
       ? (parsed as DiscoveredLocation[]).map(loc => ({
           ...loc,
@@ -881,6 +910,7 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
       : [];
     return { locations, inputTokens, outputTokens };
   } catch {
+    console.warn("[worker] extractFromPage: JSON.parse failed, raw snippet:", jsonStr.slice(0, 200));
     return { locations: [], inputTokens, outputTokens };
   }
 }

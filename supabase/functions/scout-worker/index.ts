@@ -1439,7 +1439,7 @@ async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationTyp
     },
     source_urls:              sourceUrls,
     independent_source_count: independentSourceCount,
-    trust_score:              trustScore,
+    source_trust_score:       trustScore,
     quality_score:            qualityScore,
     features,
     image_url:                loc.image_url ?? null,

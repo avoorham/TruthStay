@@ -1,24 +1,26 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   CheckCircle2, XCircle, ExternalLink, RefreshCw, GitMerge,
-  MapPin, Link2, Utensils, Bed, Route, Activity,
-  ChevronDown, ChevronUp, Edit2, Save, X,
+  MapPin, X,
 } from "lucide-react";
-import { PageHeader } from "@/components/shared/PageHeader";
+import { PageHeader }      from "@/components/shared/PageHeader";
 import { TrustScoreBadge } from "@/components/shared/TrustScoreBadge";
-import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/utils";
+import { InlineText }      from "@/components/inline-edit/InlineText";
+import { InlineTextarea }  from "@/components/inline-edit/InlineTextarea";
+import { InlineSelect }    from "@/components/inline-edit/InlineSelect";
+import { InlineSourceUrls } from "@/components/inline-edit/InlineSourceUrls";
+import { cn }              from "@/lib/utils";
 import type { ContentEntry, SourceUrl } from "@/lib/queries/content";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  restaurant:    <Utensils size={14} />,
-  accommodation: <Bed      size={14} />,
-  route:         <Route    size={14} />,
-  activity:      <Activity size={14} />,
-};
+const TYPE_OPTIONS = [
+  { value: "accommodation", label: "Accommodation" },
+  { value: "restaurant",    label: "Restaurant" },
+  { value: "activity",      label: "Activity" },
+  { value: "route",         label: "Route" },
+];
 
 const SOURCE_TYPE_ICON: Record<string, string> = {
   blog:              "🌐",
@@ -27,17 +29,7 @@ const SOURCE_TYPE_ICON: Record<string, string> = {
   web_search:        "🔍",
 };
 
-function sourceLabel(s: SourceUrl): string {
-  if (s.source_label) return s.source_label;
-  try {
-    const url = new URL(s.source_url);
-    if (url.hostname.includes("instagram.com")) {
-      const handle = url.pathname.replace(/^\//, "").split("/")[0];
-      return handle ? `@${handle}` : "Instagram";
-    }
-    return url.hostname.replace(/^www\./, "");
-  } catch { return s.source_url; }
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function ScoreBar({ value, color }: { value: number; color: string }) {
   return (
@@ -53,48 +45,108 @@ function ScoreBar({ value, color }: { value: number; color: string }) {
 // ── Review Card ───────────────────────────────────────────────────────────────
 
 function ReviewCard({
-  entry,
+  entry: initialEntry,
   onDecision,
+  onEntryUpdated,
 }: {
-  entry: ContentEntry;
-  onDecision: (id: string, decision: "approve" | "reject" | "edit", extra?: { reason?: string; updates?: Record<string, unknown> }) => Promise<void>;
+  entry:           ContentEntry;
+  onDecision:      (id: string, decision: "approve" | "reject", extra?: { reason?: string }) => Promise<void>;
+  onEntryUpdated:  (updated: ContentEntry) => void;
 }) {
-  const [actioning, setActioning]       = useState(false);
-  const [expanded, setExpanded]         = useState(false);
-  const [editMode, setEditMode]         = useState(false);
-  const [editName, setEditName]         = useState(entry.name);
-  const [editDesc, setEditDesc]         = useState(entry.description ?? "");
+  const [entry,       setEntry]       = useState(initialEntry);
+  const [actioning,   setActioning]   = useState(false);
+  const [expanded,    setExpanded]    = useState(false);
+  const [showReject,  setShowReject]  = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [showReject, setShowReject]     = useState(false);
-  const [lightbox, setLightbox]         = useState(false);
+  const [lightbox,    setLightbox]    = useState(false);
 
-  const sourceUrls: SourceUrl[] = entry.source_urls ?? [];
-  const trustScore  = entry.trust_score ?? 0;
-  const qualScore   = Number(entry.quality_score ?? 0);
-  const qualExpl    = (entry.features as any)?.quality_explanation as string | undefined;
-  const coords      = (entry.data as any)?.coordinates as { lat: number; lng: number } | undefined;
-  const mapsUrl     = coords ? `https://maps.google.com/?q=${coords.lat},${coords.lng}` : null;
-  const canonicalId = entry.canonical_id;
+  // Track which fields are currently in edit mode
+  const [editingFields, setEditingFields] = useState<Set<string>>(new Set());
+  const anyEditing = editingFields.size > 0;
 
-  async function act(decision: "approve" | "reject" | "edit", extra?: Parameters<typeof onDecision>[2]) {
+  // Keep local entry in sync when parent re-renders
+  useEffect(() => { setEntry(initialEntry); }, [initialEntry]);
+
+  function setFieldEditing(field: string, editing: boolean) {
+    setEditingFields(prev => {
+      const next = new Set(prev);
+      if (editing) next.add(field); else next.delete(field);
+      return next;
+    });
+  }
+
+  // Generic field save: PATCH one field, update local state from response
+  const saveField = useCallback(async (field: string, value: unknown) => {
+    const res = await fetch(`/api/admin/content/${entry.id}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ [field]: value }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Save failed");
+    if (data.entry) {
+      setEntry(data.entry);
+      onEntryUpdated(data.entry);
+    }
+  }, [entry.id, onEntryUpdated]);
+
+  async function act(decision: "approve" | "reject", extra?: { reason?: string }) {
     setActioning(true);
     await onDecision(entry.id, decision, extra);
     setActioning(false);
   }
+
+  const sourceUrls: SourceUrl[] = entry.source_urls ?? [];
+  const trustScore       = entry.trust_score ?? 0;
+  const sourceTrustScore = entry.source_trust_score ?? 0;
+  const userTrustScore   = entry.user_trust_score ?? 0.5;
+  const qualScore   = Number(entry.quality_score ?? 0);
+  const qualExpl    = (entry.features as Record<string, unknown>)?.quality_explanation as string | undefined;
+  const coords      = (entry.data as Record<string, unknown>)?.coordinates as { lat: number; lng: number } | undefined;
+  const mapsUrl     = coords ? `https://maps.google.com/?q=${coords.lat},${coords.lng}` : null;
+  const canonicalId = entry.canonical_id;
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
 
       {/* Header row */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <span className="text-grey-500">{TYPE_ICON[entry.type]}</span>
-          <span className="text-xs font-semibold text-grey-500 capitalize">{entry.type}</span>
-          {entry.region && (
-            <span className="flex items-center gap-0.5 text-[10px] text-grey-400">
-              <MapPin size={9} />{entry.region.split(",")[0]}
-            </span>
-          )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Type — inline select */}
+          <InlineSelect
+            value={entry.type}
+            options={TYPE_OPTIONS}
+            onSave={v => saveField("type", v)}
+            onEditingChange={e => setFieldEditing("type", e)}
+            className="text-xs font-semibold text-grey-600"
+          />
+          {/* Region + Country — inline text */}
+          <span className="flex items-center gap-0.5 text-[10px] text-grey-400">
+            <MapPin size={9} />
+            <InlineText
+              value={entry.region?.split(",")[0] ?? ""}
+              onSave={v => saveField("region", v)}
+              onEditingChange={e => setFieldEditing("region", e)}
+              minLen={2}
+              maxLen={100}
+              placeholder="Region"
+              className="text-[10px] text-grey-400"
+            />
+            {(entry.country || true) && (
+              <>
+                <span className="text-grey-300">,</span>
+                <InlineText
+                  value={entry.country ?? ""}
+                  onSave={v => saveField("country", v)}
+                  onEditingChange={e => setFieldEditing("country", e)}
+                  minLen={0}
+                  maxLen={100}
+                  placeholder="Country"
+                  className="text-[10px] text-grey-400"
+                />
+              </>
+            )}
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           {mapsUrl && (
@@ -103,13 +155,16 @@ function ReviewCard({
               <MapPin size={13} />
             </a>
           )}
-          <button onClick={() => setExpanded(e => !e)} className="text-grey-400 hover:text-grey-700 transition">
-            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className="text-grey-400 hover:text-grey-700 transition text-[10px]"
+          >
+            {expanded ? "▲" : "▼"}
           </button>
         </div>
       </div>
 
-      {/* Name + description */}
+      {/* Image + Name + Description */}
       <div className="px-4 pt-3 pb-2 flex items-start gap-3">
         {/* Thumbnail */}
         <div className="flex-shrink-0">
@@ -120,7 +175,10 @@ function ReviewCard({
                 alt={entry.name}
                 loading="lazy"
                 className="w-20 h-16 object-cover rounded border border-slate-100 hover:opacity-90 transition"
-                onError={e => { e.currentTarget.style.display = "none"; (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove("hidden"); }}
+                onError={e => {
+                  e.currentTarget.style.display = "none";
+                  (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove("hidden");
+                }}
               />
               <div className="hidden w-20 h-16 bg-slate-100 rounded border border-slate-100 flex items-center justify-center text-[10px] text-grey-400">
                 No image
@@ -133,29 +191,27 @@ function ReviewCard({
           )}
         </div>
 
-        {/* Name + description content */}
+        {/* Name + Description */}
         <div className="flex-1 min-w-0">
-          {editMode ? (
-            <input
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              className="w-full text-sm font-semibold text-dark border-b border-teal-400 focus:outline-none mb-1"
+          <InlineText
+            value={entry.name}
+            onSave={v => saveField("name", v)}
+            onEditingChange={e => setFieldEditing("name", e)}
+            minLen={2}
+            maxLen={200}
+            className="text-sm font-semibold text-dark leading-snug"
+          />
+          <div className="mt-1">
+            <InlineTextarea
+              value={entry.description ?? ""}
+              onSave={v => saveField("description", v)}
+              onEditingChange={e => setFieldEditing("description", e)}
+              minLen={10}
+              maxLen={2000}
+              placeholder="Click to add description…"
+              className="text-xs text-grey-500 leading-relaxed"
             />
-          ) : (
-            <p className="text-sm font-semibold text-dark leading-snug">{entry.name}</p>
-          )}
-          {editMode ? (
-            <textarea
-              value={editDesc}
-              onChange={e => setEditDesc(e.target.value)}
-              rows={3}
-              className="w-full text-xs text-grey-600 mt-1 border border-slate-200 rounded px-2 py-1.5 focus:outline-none focus:border-teal-400 resize-none"
-            />
-          ) : (
-            entry.description && (
-              <p className="text-xs text-grey-500 mt-1 line-clamp-2 leading-relaxed">{entry.description}</p>
-            )
-          )}
+          </div>
         </div>
       </div>
 
@@ -170,17 +226,12 @@ function ReviewCard({
               src={entry.image_url}
               alt={entry.name}
               className="w-full object-contain max-h-96"
-              onError={e => { (e.currentTarget as HTMLImageElement).src = ""; }}
             />
             <div className="px-4 py-3 flex items-center justify-between gap-3 border-t border-slate-100">
               <p className="text-xs font-semibold text-dark truncate">{entry.name}</p>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <a
-                  href={entry.image_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 transition"
-                >
+                <a href={entry.image_url} target="_blank" rel="noopener noreferrer"
+                   className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-800 transition">
                   <ExternalLink size={11} /> Open image
                 </a>
                 <button onClick={() => setLightbox(false)} className="text-xs text-grey-400 hover:text-grey-700 transition">
@@ -202,6 +253,22 @@ function ReviewCard({
             <TrustScoreBadge score={trustScore} />
           </div>
           <ScoreBar value={trustScore} color="bg-teal-400" />
+          <div className="mt-1 grid grid-cols-2 gap-x-3">
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[9px] text-grey-400">Source</span>
+                <span className="text-[9px] font-mono text-grey-500">{(sourceTrustScore * 100).toFixed(0)}%</span>
+              </div>
+              <ScoreBar value={sourceTrustScore} color="bg-teal-300" />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-[9px] text-grey-400">User</span>
+                <span className="text-[9px] font-mono text-grey-500">{(userTrustScore * 100).toFixed(0)}%</span>
+              </div>
+              <ScoreBar value={userTrustScore} color="bg-violet-400" />
+            </div>
+          </div>
         </div>
         {qualScore > 0 && (
           <div>
@@ -215,24 +282,15 @@ function ReviewCard({
         )}
       </div>
 
-      {/* Source URL badges */}
-      {sourceUrls.length > 0 && (
-        <div className="px-4 pb-3 flex flex-wrap gap-1.5">
-          {sourceUrls.map((s, i) => (
-            <a
-              key={i}
-              href={s.evidence_url ?? s.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={s.evidence_excerpt ?? ""}
-              className="inline-flex items-center gap-1 text-[10px] bg-slate-100 hover:bg-slate-200 text-grey-600 rounded-full px-2 py-0.5 transition"
-            >
-              <span>{SOURCE_TYPE_ICON[s.source_type] ?? "🌐"}</span>
-              <span className="font-mono truncate max-w-[120px]">{sourceLabel(s)}</span>
-            </a>
-          ))}
-        </div>
-      )}
+      {/* Source URL inline editor */}
+      <div className="px-4 pb-3">
+        <p className="text-[10px] font-semibold text-grey-400 uppercase tracking-wide mb-1.5">Sources</p>
+        <InlineSourceUrls
+          sources={sourceUrls}
+          onSave={v => saveField("source_urls", v)}
+          onEditingChange={e => setFieldEditing("sources", e)}
+        />
+      </div>
 
       {/* Expanded: features panel */}
       {expanded && Object.keys(entry.features ?? {}).length > 0 && (
@@ -282,7 +340,7 @@ function ReviewCard({
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowReject(false)} className="text-xs text-grey-500 hover:text-grey-700 transition">Cancel</button>
             <button
-              onClick={() => { setShowReject(false); act("reject", { reason: rejectReason || undefined, updates: { status: "rejected" } }); }}
+              onClick={() => { setShowReject(false); act("reject", { reason: rejectReason || undefined }); }}
               disabled={actioning}
               className="flex items-center gap-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg px-3 py-1.5 transition disabled:opacity-50"
             >
@@ -294,51 +352,32 @@ function ReviewCard({
 
       {/* Actions */}
       <div className="flex items-center gap-1.5 px-4 pb-4 border-t border-slate-100 pt-3 mt-auto">
-        {editMode ? (
-          <>
-            <button
-              onClick={() => setEditMode(false)}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs text-grey-600 border border-slate-200 rounded-md py-2 hover:bg-slate-50 transition"
-            >
-              <X size={12} /> Cancel
-            </button>
-            <button
-              onClick={() => {
-                setEditMode(false);
-                act("edit", { updates: { name: editName, description: editDesc } });
-              }}
-              disabled={actioning}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-md py-2 transition disabled:opacity-50"
-            >
-              <Save size={12} /> Save edit
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => act("approve", { updates: { status: "approved" } })}
-              disabled={actioning}
-              className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-md py-2 transition disabled:opacity-50"
-            >
-              <CheckCircle2 size={12} /> Approve
-            </button>
-            <button
-              onClick={() => setEditMode(true)}
-              disabled={actioning}
-              className="inline-flex items-center justify-center gap-1 text-xs font-medium text-grey-600 border border-slate-200 hover:bg-slate-50 rounded-md px-3 py-2 transition disabled:opacity-50"
-              title="Edit before approving"
-            >
-              <Edit2 size={12} /> Edit
-            </button>
-            <button
-              onClick={() => setShowReject(s => !s)}
-              disabled={actioning}
-              className="flex-1 inline-flex items-center justify-center gap-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md py-2 transition disabled:opacity-50"
-            >
-              <XCircle size={12} /> Reject
-            </button>
-          </>
-        )}
+        <button
+          onClick={() => act("approve", {})}
+          disabled={actioning || anyEditing}
+          title={anyEditing ? "Save your edits first" : undefined}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1 text-xs font-medium rounded-md py-2 transition",
+            anyEditing
+              ? "text-grey-400 bg-slate-100 cursor-not-allowed"
+              : "text-green-700 bg-green-50 hover:bg-green-100 disabled:opacity-50",
+          )}
+        >
+          <CheckCircle2 size={12} /> Approve
+        </button>
+        <button
+          onClick={() => setShowReject(s => !s)}
+          disabled={actioning || anyEditing}
+          title={anyEditing ? "Save your edits first" : undefined}
+          className={cn(
+            "flex-1 inline-flex items-center justify-center gap-1 text-xs font-medium rounded-md py-2 transition",
+            anyEditing
+              ? "text-grey-400 bg-slate-100 cursor-not-allowed"
+              : "text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50",
+          )}
+        >
+          <XCircle size={12} /> Reject
+        </button>
       </div>
     </div>
   );
@@ -352,7 +391,7 @@ export default function ReviewQueuePage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/admin/content/review-queue");
+    const res  = await fetch("/api/admin/content/review-queue");
     const data = await res.json();
     setEntries(Array.isArray(data) ? data : []);
     setLoading(false);
@@ -361,21 +400,21 @@ export default function ReviewQueuePage() {
   useEffect(() => { load(); }, []);
 
   async function handleDecision(
-    id: string,
-    decision: "approve" | "reject" | "edit",
-    extra?: { reason?: string; updates?: Record<string, unknown> }
+    id:        string,
+    decision:  "approve" | "reject",
+    extra?:    { reason?: string },
   ) {
-    const updates = extra?.updates ?? (
-      decision === "approve" ? { status: "approved" } :
-      decision === "reject"  ? { status: "rejected" } : {}
-    );
+    const status  = decision === "approve" ? "approved" : "rejected";
     await fetch(`/api/admin/content/${id}`, {
-      method: "PATCH",
+      method:  "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision, reason: extra?.reason, ...updates }),
+      body:    JSON.stringify({ decision, reason: extra?.reason, status }),
     });
-    // Remove from queue immediately on approve/reject; keep on edit (status stays pending_review)
-    if (decision !== "edit") setEntries(prev => prev.filter(e => e.id !== id));
+    setEntries(prev => prev.filter(e => e.id !== id));
+  }
+
+  function handleEntryUpdated(updated: ContentEntry) {
+    setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
   }
 
   return (
@@ -416,6 +455,7 @@ export default function ReviewQueuePage() {
               key={entry.id}
               entry={entry}
               onDecision={handleDecision}
+              onEntryUpdated={handleEntryUpdated}
             />
           ))}
         </div>

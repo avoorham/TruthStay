@@ -17,12 +17,15 @@ export interface ContentEntry {
   type: string;
   name: string;
   region: string | null;
+  country: string | null;
   activity_type: string | null;
   description: string | null;
   data: Record<string, unknown> | null;
   submitted_by: string | null;
   upvotes: number;
   verified: boolean;           // deprecated — mirror of status
+  source_trust_score: number | null;
+  user_trust_score: number | null;
   trust_score: number | null;
   source_type: string | null;
   source_urls: SourceUrl[];

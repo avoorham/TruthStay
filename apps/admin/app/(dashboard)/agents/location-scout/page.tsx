@@ -103,6 +103,14 @@ const PRESET_PRESETS = [
     contentTypes: ["accommodation", "restaurant"],
     maxResults: 10,
   },
+  {
+    emoji: "✨", label: "All Algarve Content",
+    region: "Algarve, Portugal", vacationType: "Leisure Holiday",
+    activityFocus: "None (general)",
+    contentTypes: ["accommodation", "restaurant", "activity"],
+    maxResults: 20,
+    focusType: "all",
+  },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -172,6 +180,7 @@ interface AddSourceForm {
   type: "website" | "instagram";
   label: string;
   region: string;
+  focusType: string;
   seedUrlsRaw: string;
 }
 
@@ -866,7 +875,7 @@ function DataSourcesSection({
   onJobDrawerOpen: (job: ScoutJob) => void;
 }) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "", seedUrlsRaw: "" });
+  const [addForm, setAddForm] = useState<AddSourceForm>({ url: "", type: "website", label: "", region: "", focusType: "accommodation", seedUrlsRaw: "" });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSeedWarnings, setAddSeedWarnings] = useState<string[]>([]);
@@ -874,7 +883,7 @@ function DataSourcesSection({
   const [deleting, setDeleting] = useState(false);
 
   const [editTarget, setEditTarget] = useState<ContentSource | null>(null);
-  const [editForm, setEditForm] = useState<{ label: string; region: string; seedUrlsRaw: string }>({ label: "", region: "", seedUrlsRaw: "" });
+  const [editForm, setEditForm] = useState<{ label: string; region: string; focusType: string; seedUrlsRaw: string }>({ label: "", region: "", focusType: "accommodation", seedUrlsRaw: "" });
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSeedWarnings, setEditSeedWarnings] = useState<string[]>([]);
@@ -957,13 +966,13 @@ function DataSourcesSection({
       const res = await fetch("/api/admin/scout/sources", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, type: addForm.type, label: addForm.label, region: addForm.region || undefined, seed_urls: seedUrls }),
+        body: JSON.stringify({ url, type: addForm.type, label: addForm.label, region: addForm.region || undefined, focus_type: addForm.focusType, seed_urls: seedUrls }),
       });
       const data = await res.json();
       if (res.ok) {
         setSources(s => [data, ...s]);
         setShowAddForm(false);
-        setAddForm({ url: "", type: "website", label: "", region: "", seedUrlsRaw: "" });
+        setAddForm({ url: "", type: "website", label: "", region: "", focusType: "accommodation", seedUrlsRaw: "" });
         setAddSeedWarnings([]);
       } else {
         setAddError(data.error ?? `Error ${res.status}`);
@@ -980,6 +989,7 @@ function DataSourcesSection({
     setEditForm({
       label:       src.label,
       region:      src.region ?? "",
+      focusType:   src.focus_type ?? "accommodation",
       seedUrlsRaw: (src.seed_urls ?? []).join("\n"),
     });
     setEditError(null);
@@ -999,7 +1009,7 @@ function DataSourcesSection({
       const res = await fetch(`/api/admin/scout/sources/${editTarget.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: editForm.label, region: editForm.region || null, seed_urls: seedUrls }),
+        body: JSON.stringify({ label: editForm.label, region: editForm.region || null, focus_type: editForm.focusType, seed_urls: seedUrls }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -1144,6 +1154,22 @@ function DataSourcesSection({
               </div>
             </div>
             <div>
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Focus type</label>
+              <select value={addForm.focusType} onChange={e => setAddForm(f => ({ ...f, focusType: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400">
+                <option value="accommodation">🏨 Accommodation</option>
+                <option value="restaurant">🍽 Restaurant</option>
+                <option value="activity">🎯 Activity</option>
+                <option value="route">🥾 Route</option>
+                <option value="all">✨ All types</option>
+              </select>
+              {addForm.focusType === "all" && (
+                <p className="text-[11px] text-teal-dark mt-1.5">
+                  ℹ All types: Claude extracts hotels, restaurants, activities, and routes from each page. Best for editorial travel blogs with mixed content. Slightly higher cost per scrape.
+                </p>
+              )}
+            </div>
+            <div>
               <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">
                 Seed URLs <span className="text-grey-400 font-normal normal-case">(optional — one per line, cap 20)</span>
               </label>
@@ -1276,6 +1302,22 @@ function DataSourcesSection({
               </div>
             </div>
             <div>
+              <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">Focus type</label>
+              <select value={editForm.focusType} onChange={e => setEditForm(f => ({ ...f, focusType: e.target.value }))}
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-teal-400">
+                <option value="accommodation">🏨 Accommodation</option>
+                <option value="restaurant">🍽 Restaurant</option>
+                <option value="activity">🎯 Activity</option>
+                <option value="route">🥾 Route</option>
+                <option value="all">✨ All types</option>
+              </select>
+              {editForm.focusType === "all" && (
+                <p className="text-[11px] text-teal-dark mt-1.5">
+                  ℹ All types: Claude extracts hotels, restaurants, activities, and routes from each page. Best for editorial travel blogs with mixed content.
+                </p>
+              )}
+            </div>
+            <div>
               <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1">
                 Seed URLs <span className="text-grey-400 font-normal normal-case">(optional — one per line, cap 20)</span>
               </label>
@@ -1328,6 +1370,7 @@ function DataSourcesSection({
                 <th className="text-left px-6 py-3">Label</th>
                 <th className="text-left px-6 py-3">URL</th>
                 <th className="text-left px-6 py-3">Type</th>
+                <th className="text-left px-6 py-3">Focus</th>
                 <th className="text-left px-6 py-3">Region</th>
                 <th className="text-left px-6 py-3">Last scraped</th>
                 <th className="text-left px-6 py-3">Entries</th>
@@ -1366,6 +1409,13 @@ function DataSourcesSection({
                         {src.type === "instagram" ? <Instagram size={10} /> : <Globe size={10} />}
                         {src.type}
                       </span>
+                    </td>
+                    <td className="px-6 py-3">
+                      {src.focus_type === "all" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">✨ All types</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">{src.focus_type ?? "accommodation"}</span>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-xs text-grey-500">{src.region ?? "—"}</td>
                     <td className="px-6 py-3 text-xs text-grey-500">
@@ -1683,6 +1733,7 @@ export default function LocationScoutPage() {
       activityFocus: preset.activityFocus,
       contentTypes:  preset.contentTypes,
       maxResults:    preset.maxResults,
+      ...(("focusType" in preset && preset.focusType) ? { focusType: preset.focusType } : {}),
     }));
   }
 

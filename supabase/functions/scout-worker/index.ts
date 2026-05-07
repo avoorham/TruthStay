@@ -113,9 +113,15 @@ const GOOGLE_PLACES_COST_PER_CALL   = 0.017;  // Text Search call
 const SCRAPINGBEE_CREDITS_PER_JS    = 5;       // credits per JS-rendered request
 const SCRAPINGBEE_COST_PER_JS       = 0.005;   // $/request on smallest paid plan
 
-type FocusType = ContentType;
+type FocusType = ContentType | "all";
 
-const LOCALE_KEYWORDS: Record<FocusType, Record<string, string[]>> = {
+interface SkippedEntry {
+  name:          string;
+  would_be_type: string;
+  reason:        string;
+}
+
+const LOCALE_KEYWORDS: Record<ContentType, Record<string, string[]>> = {
   accommodation: {
     en: ["hotel", "stay", "accommodat", "lodging", "guesthouse", "villa", "resort", "apartment"],
     nl: ["hotel", "overnachten", "accommodatie", "verblijf", "vakantiehuis", "appartement", "pension", "logies"],
@@ -211,6 +217,19 @@ function getTldLocale(url: string): string | null {
   return null;
 }
 
+const ALL_CONTENT_TYPES: ContentType[] = ["accommodation", "restaurant", "activity", "route"];
+
+function getKeywordsForLocale(focusType: FocusType, locale: string): string[] {
+  if (focusType === "all") {
+    const combined = new Set<string>();
+    for (const type of ALL_CONTENT_TYPES) {
+      for (const kw of LOCALE_KEYWORDS[type][locale] ?? []) combined.add(kw);
+    }
+    return Array.from(combined);
+  }
+  return LOCALE_KEYWORDS[focusType][locale] ?? [];
+}
+
 function getEffectiveKeywords(
   url:       string,
   html:      string | undefined,
@@ -220,21 +239,21 @@ function getEffectiveKeywords(
   const merged = new Set<string>();
 
   // 1. Always include English
-  for (const kw of LOCALE_KEYWORDS[focusType]["en"] ?? []) merged.add(kw);
+  for (const kw of getKeywordsForLocale(focusType, "en")) merged.add(kw);
   sources.push("en");
 
   // 2. Path-based locale (page content language)
   const pathLocale = getPathLocale(url);
-  if (pathLocale && pathLocale !== "en" && LOCALE_KEYWORDS[focusType][pathLocale]) {
-    for (const kw of LOCALE_KEYWORDS[focusType][pathLocale]) merged.add(kw);
-    sources.push(pathLocale);
+  if (pathLocale && pathLocale !== "en") {
+    const kws = getKeywordsForLocale(focusType, pathLocale);
+    if (kws.length > 0) { for (const kw of kws) merged.add(kw); sources.push(pathLocale); }
   }
 
   // 3. TLD-based locale (site's underlying language — often differs from path)
   const tldLocale = getTldLocale(url);
-  if (tldLocale && tldLocale !== "en" && tldLocale !== pathLocale && LOCALE_KEYWORDS[focusType][tldLocale]) {
-    for (const kw of LOCALE_KEYWORDS[focusType][tldLocale]) merged.add(kw);
-    sources.push(tldLocale);
+  if (tldLocale && tldLocale !== "en" && tldLocale !== pathLocale) {
+    const kws = getKeywordsForLocale(focusType, tldLocale);
+    if (kws.length > 0) { for (const kw of kws) merged.add(kw); sources.push(tldLocale); }
   }
 
   // 4. <html lang> as tiebreaker
@@ -242,10 +261,8 @@ function getEffectiveKeywords(
     const langMatch = html.match(/<html[^>]+lang=["']([a-z]{2})/i);
     if (langMatch) {
       const htmlLang = langMatch[1].toLowerCase();
-      if (LOCALE_KEYWORDS[focusType][htmlLang]) {
-        for (const kw of LOCALE_KEYWORDS[focusType][htmlLang]) merged.add(kw);
-        sources.push(`html-lang:${htmlLang}`);
-      }
+      const kws = getKeywordsForLocale(focusType, htmlLang);
+      if (kws.length > 0) { for (const kw of kws) merged.add(kw); sources.push(`html-lang:${htmlLang}`); }
     }
   }
 
@@ -404,6 +421,31 @@ function extractJsonArray(text: string): string | null {
   let depth = 0;
   let inString = false;
   let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\" && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+// Extracts the first top-level JSON value (object or array) from text.
+// Used for multi-type responses that return { entries, skipped } objects.
+function extractJsonValue(text: string): string | null {
+  const objStart = text.indexOf("{");
+  const arrStart = text.indexOf("[");
+  const start = objStart === -1 ? arrStart
+               : arrStart === -1 ? objStart
+               : Math.min(objStart, arrStart);
+  if (start === -1) return null;
+  let depth = 0, inString = false, escape = false;
   for (let i = start; i < text.length; i++) {
     const ch = text[i];
     if (escape) { escape = false; continue; }
@@ -685,7 +727,7 @@ function scoreLink(
   return { score, matched_keywords: matched };
 }
 
-function discoverFromHomepageLinks(html: string, baseUrl: string, focusType: ContentType): DiscoverResult {
+function discoverFromHomepageLinks(html: string, baseUrl: string, focusType: FocusType): DiscoverResult {
   let baseHostname = "";
   try { baseHostname = new URL(baseUrl).hostname; } catch { /* ignore */ }
 
@@ -871,32 +913,72 @@ async function extractFromPage(
   anthropic:     Anthropic,
   pageUrl:       string,
   pageHtml:      string,
-  focusType:     ContentType,
+  focusType:     FocusType,
   rubric:        string,
   defaultRegion: string,
   signal:        AbortSignal,
-): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number; debugInfo: { text_length: number; text_first_500: string; text_last_500: string; html_length: number; html_hit_cap: boolean } }> {
+): Promise<{
+  locations:      DiscoveredLocation[];
+  skippedEntries: SkippedEntry[];
+  inputTokens:    number;
+  outputTokens:   number;
+  debugInfo:      { text_length: number; text_first_500: string; text_last_500: string; html_length: number; html_hit_cap: boolean };
+}> {
   const text          = htmlToTextWithImages(pageHtml).slice(0, 40_000);
   const rubricSection = rubric
     ? `\nQUALITY RUBRIC (skip entries that fail these rules):\n${rubric}\n`
     : "";
 
-  const prompt = `You are extracting ${focusType} entries from a single web page.
+  const isMultiType = focusType === "all";
+
+  const focusInstruction = isMultiType
+    ? `You are extracting travel-related entries from a single web page.
+Extract entries of these four types:
+- accommodation: hotels, hostels, B&Bs, guesthouses, villas, apartments, retreats
+- restaurant: restaurants, cafés, bars, food spots, eateries
+- activity: attractions, viewpoints, beaches, museums, tours, parks, landmarks, hikes
+- route: long-distance hiking trails, cycling routes, multi-day journeys
+
+For each entry, set "type" to the most appropriate of these four values.`
+    : `You are extracting ${focusType} entries from a single web page.`;
+
+  const entryTypeField = isMultiType
+    ? `"type": "accommodation|restaurant|activity|route",`
+    : `"type": "${focusType}",`;
+
+  const skipInstruction = isMultiType
+    ? `
+If a candidate entry doesn't fit any of the four types above (e.g. a wellness retreat that's too service-focused, a ferry crossing, a shopping district), DO NOT include it in the entries array. Instead add it to a "skipped" array:
+{
+  "name": "...",
+  "would_be_type": "your_suggested_type",
+  "reason": "Doesn't fit accommodation/restaurant/activity/route."
+}
+
+Return the full response as:
+{ "entries": [...], "skipped": [...] }
+`
+    : `
+OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
+
+  const returnInstruction = isMultiType
+    ? `Return up to 30 entries total across all four types. Return { "entries": [], "skipped": [] } if the page has no matching content.`
+    : `Return a JSON array of up to 15 specifically-named ${focusType} places found on this page.\nReturn [] if the page contains no ${focusType} entries.`;
+
+  const prompt = `${focusInstruction}
 
 Source URL: ${pageUrl}
-Focus type: ${focusType}
 Default region: ${defaultRegion}
 ${rubricSection}
 PAGE TEXT:
 ${text}
 
-Return a JSON array of up to 15 specifically-named ${focusType} places found on this page.
-Return [] if the page contains no ${focusType} entries.
+${returnInstruction}
 
 Each entry must follow this exact shape:
 {
   "name": "Exact place name",
-  "type": "${focusType}",
+  ${entryTypeField}
   "region": "city or region mentioned (default to '${defaultRegion}' if unspecified)",
   "country": "country in English (e.g. Portugal, Italy, United States) or null",
   "description": "1-2 sentences from the page text about this place",
@@ -925,16 +1007,17 @@ For each entry, also identify the SINGLE most relevant image URL from the page t
 7. If NO suitable image can be identified for a place, return image_url: null. Do not guess or fabricate URLs.
 
 Return image_url as a string or null. Do not return an array of images.
-
-OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
+${skipInstruction}`;
 
   const debugInfo = {
-    text_length:   text.length,
+    text_length:    text.length,
     text_first_500: text.slice(0, 500),
     text_last_500:  text.slice(-500),
-    html_length:   pageHtml.length,
-    html_hit_cap:  pageHtml.length === 500_000,
+    html_length:    pageHtml.length,
+    html_hit_cap:   pageHtml.length === 500_000,
   };
+
+  const empty = { locations: [], skippedEntries: [], inputTokens: 0, outputTokens: 0, debugInfo };
 
   let response: Anthropic.Message;
   try {
@@ -948,7 +1031,7 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
     // For all other errors (e.g. 529 Overloaded), return empty with debugInfo preserved.
     if ((e as Error).name === "AbortError") throw e;
     console.warn("[worker] extractFromPage: Anthropic call failed:", (e as Error).message);
-    return { locations: [], inputTokens: 0, outputTokens: 0, debugInfo };
+    return { ...empty, inputTokens: 0, outputTokens: 0 };
   }
 
   const raw = response.content
@@ -959,20 +1042,34 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
   const inputTokens  = response.usage?.input_tokens  ?? 0;
   const outputTokens = response.usage?.output_tokens ?? 0;
 
-  const jsonStr = extractJsonArray(raw);
-  if (!jsonStr) return { locations: [], inputTokens, outputTokens, debugInfo };
+  const jsonStr = extractJsonValue(raw);
+  if (!jsonStr) return { locations: [], skippedEntries: [], inputTokens, outputTokens, debugInfo };
+
   try {
     const parsed = JSON.parse(jsonStr);
-    const locations: DiscoveredLocation[] = Array.isArray(parsed)
-      ? (parsed as DiscoveredLocation[]).map(loc => ({
-          ...loc,
-          image_url: validateAndResolveImageUrl(loc.image_url, pageUrl),
-        }))
-      : [];
-    return { locations, inputTokens, outputTokens, debugInfo };
+    const rawEntries: DiscoveredLocation[] = Array.isArray(parsed)
+      ? (parsed as DiscoveredLocation[])
+      : ((parsed.entries ?? []) as DiscoveredLocation[]);
+    const skippedEntries: SkippedEntry[] = Array.isArray(parsed) ? [] : (parsed.skipped ?? []);
+
+    const validTypes = new Set<string>(ALL_CONTENT_TYPES);
+    const locations: DiscoveredLocation[] = rawEntries
+      .filter(loc => {
+        if (isMultiType && (!loc.type || !validTypes.has(loc.type as string))) {
+          console.warn(`[worker] extractFromPage: dropped entry missing valid type: "${loc.name}" type="${loc.type}"`);
+          return false;
+        }
+        return true;
+      })
+      .map(loc => ({
+        ...loc,
+        image_url: validateAndResolveImageUrl(loc.image_url, pageUrl),
+      }));
+
+    return { locations, skippedEntries, inputTokens, outputTokens, debugInfo };
   } catch {
     console.warn("[worker] extractFromPage: JSON.parse failed, raw snippet:", jsonStr.slice(0, 200));
-    return { locations: [], inputTokens, outputTokens, debugInfo };
+    return { locations: [], skippedEntries: [], inputTokens, outputTokens, debugInfo };
   }
 }
 
@@ -981,7 +1078,7 @@ OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
 async function runInstagramScrape(
   anthropic:     Anthropic,
   sourceUrl:     string,
-  focusType:     ContentType,
+  focusType:     FocusType,
   rubric:        string,
   region:        string,
   signal:        AbortSignal,
@@ -1006,21 +1103,24 @@ async function runInstagramScrape(
   // for accommodation focus) or relaxing the extraction schema.
   // See update-8 smoke test A for context.
 
-  // One bounded web_search: find Instagram posts, extract from snippets only
-  const prompt = `You are finding ${focusType} recommendations from the Instagram account @${handle}.
+  const igFocusLabel = focusType === "all" ? "travel" : focusType;
+  const igTypeField  = focusType === "all" ? `"type": "accommodation|restaurant|activity|route",` : `"type": "${focusType}",`;
 
-Search for: site:instagram.com "${handle}" ${focusType} ${region}
+  // One bounded web_search: find Instagram posts, extract from snippets only
+  const prompt = `You are finding ${igFocusLabel} recommendations from the Instagram account @${handle}.
+
+Search for: site:instagram.com "${handle}" ${igFocusLabel} ${region}
 
 Instructions:
 - Run ONE web_search with the query above.
-- Extract ${focusType} entries ONLY from the search result snippets (~200 chars each). Do not follow any links.
+- Extract ${igFocusLabel} entries ONLY from the search result snippets (~200 chars each). Do not follow any links.
 - Maximum 8 entries total.
-- Only include specifically named places that are clearly ${focusType} type.${rubricSection}
+- Only include specifically named places.${focusType !== "all" ? ` Only include places that are clearly ${focusType} type.` : " Set type to accommodation, restaurant, activity, or route based on the place."}${rubricSection}
 
 Return a JSON array:
 [{
   "name": "Place name",
-  "type": "${focusType}",
+  ${igTypeField}
   "region": "${region}",
   "description": "What the snippet says about this place",
   "coordinates": {"lat": 0, "lng": 0},
@@ -1518,15 +1618,17 @@ async function runScrapePipeline(
 ): Promise<number> {
   const { data: source } = await db
     .from("content_sources")
-    .select("id, url, type, label, region, seed_urls")
+    .select("id, url, type, label, region, seed_urls, focus_type")
     .eq("id", job.source_id!)
-    .single() as { data: { id: string; url: string; type: string; label: string; region: string | null; seed_urls: string[] } | null };
+    .single() as { data: { id: string; url: string; type: string; label: string; region: string | null; seed_urls: string[]; focus_type: string | null } | null };
 
   if (!source) throw new Error(`Source ${job.source_id} not found`);
 
   const region    = source.region ?? "Europe";
   const rubric    = await fetchRubric(db);
-  const focusType = (job.trigger_payload.focus_type as ContentType | undefined) ?? "accommodation";
+  const focusType = (job.trigger_payload.focus_type as FocusType | undefined)
+    ?? (source.focus_type as FocusType | null)
+    ?? "accommodation";
   const depth     = job.trigger_payload.mode === "exhaustive" ? "exhaustive" : "standard";
   const maxResults = depth === "exhaustive" ? MAX_EXTRACTIONS_EXH : MAX_EXTRACTIONS_STD;
 
@@ -1624,10 +1726,11 @@ async function runScrapePipeline(
     // For partial resumes, spaCache.method stays null → auto-detect on first sub-page
 
     // Stage 1C — per-page extraction loop
-    const extractStart     = Date.now();
-    let extractInputTokens  = 0;
-    let extractOutputTokens = 0;
+    const extractStart       = Date.now();
+    let extractInputTokens   = 0;
+    let extractOutputTokens  = 0;
     let firstPageDebug: Record<string, unknown> | undefined;
+    const allSkipped: SkippedEntry[] = [];
 
     for (let i = startPage; i < subPages.length; i++) {
       if (signal.aborted) {
@@ -1664,6 +1767,7 @@ async function runScrapePipeline(
         summary.costs.anthropic_input_tokens  += result.inputTokens;
         summary.costs.anthropic_output_tokens += result.outputTokens;
         if (i === startPage) firstPageDebug = { page: subPages[i], ...result.debugInfo };
+        if (result.skippedEntries.length > 0) allSkipped.push(...result.skippedEntries);
       } catch (e) {
         if ((e as Error).name === "AbortError") {
           await updateProgress(db, job.id, { sub_pages_done: i, extractions: allExtractions });
@@ -1690,6 +1794,7 @@ async function runScrapePipeline(
       input_tokens:  extractInputTokens,
       output_tokens: extractOutputTokens,
       claude_calls:  subPages.length,
+      ...(allSkipped.length > 0 ? { skipped_unknown_types: allSkipped } : {}),
       ...(firstPageDebug ? { debug: firstPageDebug } : {}),
     };
     summary.claude_calls = subPages.length;

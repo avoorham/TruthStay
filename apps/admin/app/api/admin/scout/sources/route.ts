@@ -9,11 +9,16 @@ export async function GET() {
   }
 }
 
+const VALID_FOCUS_TYPES = ["accommodation", "restaurant", "activity", "route", "all"] as const;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body.url || !body.type || !body.label) {
       return NextResponse.json({ error: "url, type, and label are required" }, { status: 400 });
+    }
+    if (body.focus_type && !VALID_FOCUS_TYPES.includes(body.focus_type)) {
+      return NextResponse.json({ error: `focus_type must be one of: ${VALID_FOCUS_TYPES.join(", ")}` }, { status: 400 });
     }
     const source = await addContentSource(body);
     return NextResponse.json(source, { status: 201 });

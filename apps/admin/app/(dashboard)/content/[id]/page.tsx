@@ -158,6 +158,7 @@ export default function ContentDetailPage() {
   const [saving,     setSaving]     = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [saveError,  setSaveError]  = useState<string | null>(null);
 
   // Editable fields
   const [name,         setName]         = useState("");
@@ -182,14 +183,24 @@ export default function ContentDetailPage() {
 
   async function handleSave() {
     setSaving(true);
-    await fetch(`/api/admin/content/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, region, country, description, activity_type: activityType }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/admin/content/${id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name, region, country, description, activity_type: activityType }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(errorData.error ?? `Save failed (${res.status})`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleVerify(v: boolean) {
@@ -268,6 +279,12 @@ export default function ContentDetailPage() {
           </div>
         }
       />
+
+      {saveError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {saveError}
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-5">
 

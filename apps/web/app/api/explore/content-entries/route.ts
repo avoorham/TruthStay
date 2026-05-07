@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// GET /api/explore/content-entries?type=accommodation|route|restaurant
+// GET /api/explore/content-entries?type=accommodation|route|restaurant|activity|things_to_do
 // Optional bounds: &north=&south=&east=&west=
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const west  = parseFloat(searchParams.get("west")  ?? "");
   const hasBounds = !isNaN(north) && !isNaN(south) && !isNaN(east) && !isNaN(west);
 
-  if (!["accommodation", "route", "restaurant"].includes(type)) {
+  if (!["accommodation", "route", "restaurant", "activity", "things_to_do"].includes(type)) {
     return NextResponse.json({ error: "Invalid type" }, { status: 400 });
   }
 

@@ -149,7 +149,7 @@ interface POIPin {
   adventureTitle?:string;
 }
 
-type FilterCategory = "vacations" | "accommodations" | "activities" | "restaurants";
+type FilterCategory = "vacations" | "accommodations" | "trails" | "activities" | "things_to_do" | "restaurants";
 type ActivityCategory =
   | "restaurants" | "bars" | "cafes"
   | "hiking" | "cycling" | "trail_running"
@@ -299,9 +299,11 @@ const RATING_OPTIONS = Array.from({ length: 10 }, (_, i) => {
 
 const FILTER_CATEGORIES: { key: FilterCategory; label: string }[] = [
   { key: "vacations",      label: "Vacations" },
-  { key: "accommodations", label: "Accommodations" },
+  { key: "accommodations", label: "Stays" },
+  { key: "trails",         label: "Trails" },
   { key: "activities",     label: "Activities" },
-  { key: "restaurants",    label: "Restaurants" },
+  { key: "things_to_do",   label: "Things to Do" },
+  { key: "restaurants",    label: "Eats" },
 ];
 
 const PROPERTY_TYPES = [
@@ -537,7 +539,7 @@ function countActiveFilters(filters: FilterState): number {
     if (filters.maxPricePerNight < ACCOMMODATION_PRICE_MAX) n++;
     if (filters.onlinePayment) n++;
     if (filters.sustainabilityBadge) n++;
-  } else if (cat === "activities") {
+  } else if (cat === "trails") {
     n = filters.activityTypes.length + filters.activityVibes.length + filters.activitySubItems.length;
     if (filters.level) n++;
   } else if (cat === "restaurants") {
@@ -1287,8 +1289,8 @@ function FilterSheet({
 
           </>}
 
-          {/* ── ACTIVITIES ───────────────────────────────────────────────────── */}
-          {cat === "activities" && <>
+          {/* ── TRAILS ───────────────────────────────────────────────────────── */}
+          {cat === "trails" && <>
             <FilterSection title="Activity type">
               {ACTIVITY_TYPE_OPTIONS.map(o => (
                 <FilterChip key={o.key} label={o.label}
@@ -1946,13 +1948,15 @@ function ImpressionsSheet({
   const countLabel = isContentMode
     ? loadingContentEntries
       ? "Loading…"
-      : `${contentEntries.length} ${filterCategory === "accommodations" ? "accommodations" : filterCategory === "activities" ? "activities" : "restaurants"}`
+      : `${contentEntries.length} ${filterCategory === "accommodations" ? "stays" : filterCategory === "trails" ? "trails" : filterCategory === "activities" ? "activities" : filterCategory === "things_to_do" ? "things to do" : "restaurants"}`
     : isPOIMode
     ? `${poiPins.length} ${(poiPins[0] ? ACTIVITY_CATEGORIES.find(c => c.key === poiPins[0].category)?.label.toLowerCase() : null) ?? "results"}`
     : `${adventures.length} public ${adventures.length === 1 ? "itinerary" : "itineraries"}`;
 
-  const typeLabel = filterCategory === "accommodations" ? "accommodations"
+  const typeLabel = filterCategory === "accommodations" ? "stays"
+    : filterCategory === "trails" ? "trails"
     : filterCategory === "activities" ? "activities"
+    : filterCategory === "things_to_do" ? "things to do"
     : "restaurants";
 
   return (
@@ -2105,7 +2109,9 @@ export default function ExploreScreen() {
   const loadContentEntries = useCallback((category: FilterCategory, bounds?: [[number, number], [number, number]]) => {
     if (category === "vacations") { setContentEntries([]); return; }
     const type = category === "accommodations" ? "accommodation"
-      : category === "activities" ? "route"
+      : category === "trails" ? "route"
+      : category === "activities" ? "activity"
+      : category === "things_to_do" ? "things_to_do"
       : "restaurant";
     let boundsOpts: { north: number; south: number; east: number; west: number } | undefined;
     if (bounds) {
@@ -2546,7 +2552,7 @@ export default function ExploreScreen() {
               })));
               setMapMode("pois");
             }).catch(() => {}).finally(() => setLoadingPOIs(false));
-          } else if (fc === "activities") {
+          } else if (fc === "trails") {
             const primaryType = (filters.activityTypes[0] ?? null) as ActivityCategory | null;
             if (primaryType) {
               setActivityCategory(primaryType);

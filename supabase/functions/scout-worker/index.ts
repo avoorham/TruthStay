@@ -6,7 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ContentType = "route" | "accommodation" | "restaurant" | "activity";
+type ContentType = "route" | "accommodation" | "restaurant" | "activity" | "things_to_do";
 type SourceType  = "blog" | "instagram_profile" | "instagram_post" | "web_search";
 
 interface RawSource {
@@ -158,6 +158,15 @@ const LOCALE_KEYWORDS: Record<ContentType, Record<string, string[]>> = {
     it: ["percorso", "sentiero", "ciclabile", "escursione", "cammino"],
     pt: ["rota", "trilha", "caminhada", "ciclismo", "caminho"],
   },
+  things_to_do: {
+    en: ["beach", "viewpoint", "monument", "museum", "park", "church", "lighthouse", "garden", "village", "scenic"],
+    nl: ["strand", "uitzichtpunt", "monument", "museum", "park", "kerk", "vuurtoren", "tuin", "dorp", "bezienswaardigh"],
+    de: ["strand", "aussichtspunkt", "denkmal", "museum", "park", "kirche", "leuchtturm", "garten", "dorf", "sehenswürd"],
+    fr: ["plage", "point de vue", "monument", "musée", "parc", "église", "phare", "jardin", "village", "panorama"],
+    es: ["playa", "mirador", "monumento", "museo", "parque", "iglesia", "faro", "jardín", "pueblo", "panorámico"],
+    it: ["spiaggia", "belvedere", "monumento", "museo", "parco", "chiesa", "faro", "giardino", "villaggio", "panorama"],
+    pt: ["praia", "miradouro", "monumento", "museu", "parque", "igreja", "farol", "jardim", "aldeia", "panorâmico"],
+  },
 };
 
 function getLocaleFromUrl(url: string): string {
@@ -217,7 +226,7 @@ function getTldLocale(url: string): string | null {
   return null;
 }
 
-const ALL_CONTENT_TYPES: ContentType[] = ["accommodation", "restaurant", "activity", "route"];
+const ALL_CONTENT_TYPES: ContentType[] = ["accommodation", "restaurant", "activity", "things_to_do", "route"];
 
 function getKeywordsForLocale(focusType: FocusType, locale: string): string[] {
   if (focusType === "all") {
@@ -933,26 +942,33 @@ async function extractFromPage(
 
   const focusInstruction = isMultiType
     ? `You are extracting travel-related entries from a single web page.
-Extract entries of these four types:
+Extract entries of these five types:
 - accommodation: hotels, hostels, B&Bs, guesthouses, villas, apartments, retreats
 - restaurant: restaurants, cafés, bars, food spots, eateries
-- activity: attractions, viewpoints, beaches, museums, tours, parks, landmarks, hikes
-- route: long-distance hiking trails, cycling routes, multi-day journeys
+- activity: physical/sport activities — hikes, surfing, kayaking, biking, climbing, diving, anything requiring physical exertion or sport gear
+- things_to_do: casual/cultural — beaches (for swimming/relaxing/viewing), viewpoints, monuments, churches, museums, parks, gardens, neighborhoods to wander, lighthouses
+- route: multi-day or significant journeys — long-distance hiking trails, cycling routes, multi-day expeditions
 
-For each entry, set "type" to the most appropriate of these four values.`
+For each entry, set "type" to the most appropriate of these FIVE values.
+
+CLASSIFICATION RULE:
+- If the entity is described primarily as a place to BE or VISIT (passive viewing, relaxing, walking around) → things_to_do
+- If the entity is described primarily as something to DO (sport, exercise, active engagement) → activity
+- When ambiguous (e.g. a beach that mentions both sunbathing and surfing), prefer the type matching how the page primarily presents it
+- Multi-day or named long-distance journeys → route, not activity`
     : `You are extracting ${focusType} entries from a single web page.`;
 
   const entryTypeField = isMultiType
-    ? `"type": "accommodation|restaurant|activity|route",`
+    ? `"type": "accommodation|restaurant|activity|things_to_do|route",`
     : `"type": "${focusType}",`;
 
   const skipInstruction = isMultiType
     ? `
-If a candidate entry doesn't fit any of the four types above (e.g. a wellness retreat that's too service-focused, a ferry crossing, a shopping district), DO NOT include it in the entries array. Instead add it to a "skipped" array:
+If a candidate entry doesn't fit any of the five types above (e.g. a wellness retreat that's too service-focused, a ferry crossing, a shopping district), DO NOT include it in the entries array. Instead add it to a "skipped" array:
 {
   "name": "...",
   "would_be_type": "your_suggested_type",
-  "reason": "Doesn't fit accommodation/restaurant/activity/route."
+  "reason": "Doesn't fit accommodation/restaurant/activity/things_to_do/route."
 }
 
 Return the full response as:
@@ -962,7 +978,7 @@ Return the full response as:
 OUTPUT — ONLY a valid JSON array, no prose, no markdown fences.`;
 
   const returnInstruction = isMultiType
-    ? `Return up to 30 entries total across all four types. Return { "entries": [], "skipped": [] } if the page has no matching content.`
+    ? `Return up to 30 entries total across all five types. Return { "entries": [], "skipped": [] } if the page has no matching content.`
     : `Return a JSON array of up to 15 specifically-named ${focusType} places found on this page.\nReturn [] if the page contains no ${focusType} entries.`;
 
   const prompt = `${focusInstruction}
@@ -1104,7 +1120,7 @@ async function runInstagramScrape(
   // See update-8 smoke test A for context.
 
   const igFocusLabel = focusType === "all" ? "travel" : focusType;
-  const igTypeField  = focusType === "all" ? `"type": "accommodation|restaurant|activity|route",` : `"type": "${focusType}",`;
+  const igTypeField  = focusType === "all" ? `"type": "accommodation|restaurant|activity|things_to_do|route",` : `"type": "${focusType}",`;
 
   // One bounded web_search: find Instagram posts, extract from snippets only
   const prompt = `You are finding ${igFocusLabel} recommendations from the Instagram account @${handle}.
@@ -1115,7 +1131,7 @@ Instructions:
 - Run ONE web_search with the query above.
 - Extract ${igFocusLabel} entries ONLY from the search result snippets (~200 chars each). Do not follow any links.
 - Maximum 8 entries total.
-- Only include specifically named places.${focusType !== "all" ? ` Only include places that are clearly ${focusType} type.` : " Set type to accommodation, restaurant, activity, or route based on the place."}${rubricSection}
+- Only include specifically named places.${focusType !== "all" ? ` Only include places that are clearly ${focusType} type.` : " Set type to accommodation, restaurant, activity, things_to_do, or route based on the place."}${rubricSection}
 
 Return a JSON array:
 [{
@@ -1203,7 +1219,7 @@ OUTPUT — ONLY a valid JSON array, no prose:
 [
   {
     "name": "Exact place name",
-    "type": "route | accommodation | restaurant | activity",
+    "type": "route | accommodation | restaurant | activity | things_to_do",
     "region": "${region}",
     "description": "2–3 sentences based on what travellers actually say",
     "coordinates": { "lat": 0.0, "lng": 0.0 },

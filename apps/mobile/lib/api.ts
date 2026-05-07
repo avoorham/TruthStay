@@ -738,7 +738,7 @@ export interface ExploreContentEntry {
 }
 
 export async function getExploreContentEntries(opts: {
-  type: "accommodation" | "route" | "restaurant";
+  type: "accommodation" | "route" | "restaurant" | "activity" | "things_to_do";
   bounds?: { north: number; south: number; east: number; west: number };
 }): Promise<ExploreContentEntry[]> {
   const params = new URLSearchParams({ type: opts.type });

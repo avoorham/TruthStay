@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, updateTileOrder, getCollaborators, inviteCollaborator, updateCollaboratorPermission, removeCollaborator, updateDayCustomItems, createActivityPost, type AdventureRow, type AdventureDayRow, type CustomItem, type Collaborator as ApiCollaborator } from "../../../lib/api";
+import { TripDetailSkeletonView } from "../../../components/TripDetailSkeleton";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { supabase } from "../../../lib/supabase";
 import { colors, fontSize, fonts, radius, spacing, shadow } from "../../../lib/theme";
@@ -2722,6 +2723,14 @@ export default function TripDetailScreen() {
         <Feather name="loader" size={28} color={colors.muted} />
       </View>
     );
+  }
+
+  // Skeleton trips (new Discovery flow): all distanceKm are NULL and no legacy routes array
+  const isLegacy = (adventure.adventure_days ?? []).some(
+    d => d.distanceKm != null || Array.isArray((d.alternatives as { routes?: unknown[] } | null)?.routes),
+  );
+  if (!isLegacy) {
+    return <TripDetailSkeletonView adventure={adventure} />;
   }
 
   const meta        = deriveMetaMeta(adventure);

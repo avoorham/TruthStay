@@ -12,6 +12,12 @@
     },
     "app/api/adventures/chat/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/discovery/destinations/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/discovery/itinerary-skeleton/route.ts": {
+      "maxDuration": 30
     }
   }
 }

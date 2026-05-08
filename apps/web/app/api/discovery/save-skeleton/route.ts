@@ -50,21 +50,13 @@ export async function POST(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Resolve internal user ID
-  const { data: publicUser } = await db
-    .from("users")
-    .select("id")
-    .eq("authId", user.id)
-    .maybeSingle();
-
-  if (!publicUser) return Response.json({ error: "User not found" }, { status: 404 });
-
   const requestPrompt = `${skeleton.duration_days}-day trip to ${region}`;
 
+  // Use the auth UUID directly as userId (matches existing adventures pattern)
   const { data: adventureRow, error: advErr } = await db
     .from("adventures")
     .insert({
-      userId:       publicUser.id,
+      userId:       user.id,
       title:        skeleton.title,
       description:  skeleton.description ?? null,
       region,

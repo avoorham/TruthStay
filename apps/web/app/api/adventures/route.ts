@@ -9,6 +9,17 @@ export async function POST(request: NextRequest) {
 
   const adminDb = createAdminClient();
 
+  type OldUserRowPost = { id: string };
+  const OLD_USERS_POST = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
+  const { data: oldUser } = await adminDb
+    .from(OLD_USERS_POST)
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  const userId = (oldUser as OldUserRowPost | null)?.id ?? user.id;
+  if (!oldUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
   let body: {
     title: string;
     region: string;
@@ -37,7 +48,7 @@ export async function POST(request: NextRequest) {
   const { data: adventure, error: advErr } = await adminDb
     .from("adventures")
     .insert({
-      userId:        user.id,
+      userId,
       title:         body.title.trim(),
       region:        body.region.trim(),
       activityType:  body.activityType,
@@ -85,6 +96,17 @@ export async function GET(request: NextRequest) {
 
   const adminDb = createAdminClient();
 
+  // Resolve _old_users.id from auth UUID (FK target for adventures.userId)
+  type OldUserRow = { id: string };
+  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
+  const { data: oldUser } = await adminDb
+    .from(OLD_USERS)
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  const userId = (oldUser as OldUserRow | null)?.id ?? user.id;
+
   const { data, error } = await adminDb
     .from("adventures")
     .select(`
@@ -92,7 +114,7 @@ export async function GET(request: NextRequest) {
       "coverImageUrl", meta,
       adventure_days(id, "dayNumber", title, description, "distanceKm", "elevationGainM", "routeNotes", "komootTourId", alternatives)
     `)
-    .eq("userId", user.id)
+    .eq("userId", userId)
     .eq("isSaved", true)
     .order("createdAt", { ascending: false });
 

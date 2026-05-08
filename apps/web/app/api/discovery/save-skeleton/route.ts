@@ -50,13 +50,23 @@ export async function POST(request: NextRequest) {
 
   const db = createAdminClient();
 
+  // Resolve _old_users.id from auth UUID (FK target for adventures.userId)
+  type OldUserRow = { id: string };
+  const OLD_USERS = "_old_users" as unknown as Parameters<typeof db.from>[0];
+  const { data: oldUser } = await db
+    .from(OLD_USERS)
+    .select("id")
+    .eq("authId", user.id)
+    .maybeSingle();
+
+  const userId = (oldUser as OldUserRow | null)?.id ?? user.id;
+
   const requestPrompt = `${skeleton.duration_days}-day trip to ${region}`;
 
-  // Use the auth UUID directly as userId (matches existing adventures pattern)
   const { data: adventureRow, error: advErr } = await db
     .from("adventures")
     .insert({
-      userId:       user.id,
+      userId,
       title:        skeleton.title,
       description:  skeleton.description ?? null,
       region,

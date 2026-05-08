@@ -164,8 +164,9 @@ Respond with ONLY valid JSON (no markdown, no extra text):
       const parsed = JSON.parse(raw.slice(jsonStart, jsonEnd + 1)) as { destinations?: ClaudeDestination[] };
       aiDestinations = parsed.destinations ?? [];
     }
-  } catch {
-    return Response.json({ error: "AI generation failed" }, { status: 500 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return Response.json({ error: "AI generation failed", detail: msg }, { status: 500 });
   }
 
   // Attach source_entry_ids and hero_images per destination

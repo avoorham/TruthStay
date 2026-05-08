@@ -29,9 +29,10 @@ export async function GET(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  type EntryRow = { id: string; type: string; name: string; region: string; activity_type: string | null; description: string | null; data: Record<string, unknown> | null; trust_score: number | null };
+  type Coords = { lat?: string; latitude?: string; lng?: string; longitude?: string };
+  type EntryRow = { id: string; type: string; name: string; region: string; activity_type: string | null; description: string | null; data: { coordinates?: Coords } | null; trust_score: number | null };
   const entries = (data ?? []).map((e: EntryRow) => {
-    const coords = e.data?.coordinates ?? {};
+    const coords: Coords = e.data?.coordinates ?? {};
     const lat = parseFloat(coords.lat ?? coords.latitude ?? "");
     const lng = parseFloat(coords.lng ?? coords.longitude ?? "");
     if (isNaN(lat) || isNaN(lng)) return null;

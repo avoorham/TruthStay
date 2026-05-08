@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
         activities.push({
           title,
-          activityType: (adv as any).activityType ?? "",
+          activityType: (adv as { activityType?: string }).activityType ?? "",
           difficulty:   route.difficulty ?? "moderate",
           distanceKm:   route.distance_km ?? null,
           elevationM:   route.elevation_gain_m ?? null,

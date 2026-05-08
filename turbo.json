@@ -16,7 +16,8 @@
         "THEFORK_WEBHOOK_SECRET",
         "THEFORK_WEBHOOK_TOKEN",
         "UPSTASH_REDIS_REST_URL",
-        "UPSTASH_REDIS_REST_TOKEN"
+        "UPSTASH_REDIS_REST_TOKEN",
+        "BOOKING_API_KEY"
       ]
     },
     "lint": {

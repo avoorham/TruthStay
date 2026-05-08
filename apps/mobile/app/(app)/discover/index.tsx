@@ -1,1219 +1,815 @@
-"use client";
 import {
-  Alert, AppState, FlatList, KeyboardAvoidingView, Modal,
-  Platform, StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator,
+  ActivityIndicator, FlatList, Image, ScrollView, StyleSheet,
+  Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
-import { sendChatMessage, getMyAdventures, saveAdventure, logInteraction, type ChatMessage, type AdventureRow, type TripSummary } from "../../../lib/api";
-import { MOCK_TRIPS } from "../../../lib/mock-trips";
-import { QuickReplies, detectQuickReplies } from "../../../components/QuickReplies";
-import { AdventurePlanCard } from "../../../components/AdventurePlanCard";
-import { RichOptionTiles } from "../../../components/RichOptionTiles";
-import { DateRangePicker } from "../../../components/DateRangePicker";
-import { loadSessions, upsertSession, removeSession, type StoredSession } from "../../../lib/chat-history";
-import type {
-  GeneratedAdventure, DayAlternativesMap, AccommodationStop,
-  RichOption, RichOptionCategory, RichOptionsMsg,
-  PlaceSuggestion, PlaceSuggestionsMsg,
-} from "../../../lib/adventure-types";
-import { VacationWizard, type WizardResult } from "../../../components/VacationWizard";
-import { PlaceTile } from "../../../components/PlaceTile";
-import { ALL_LOCATIONS } from "../../../lib/locationData";
-import { fetchPlaceWeather } from "../../../lib/weather";
-import { getPublicAdventures } from "../../../lib/api";
+import { supabase } from "../../../lib/supabase";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
-function tripStatus(a: AdventureRow): "current" | "upcoming" | "past" {
-  if (!a.startDate) return "upcoming";
-  const start = new Date(a.startDate);
-  const end   = new Date(a.startDate);
-  end.setDate(end.getDate() + (a.durationDays ?? 1));
-  const now = new Date();
-  if (now >= start && now <= end) return "current";
-  if (now < start) return "upcoming";
-  return "past";
-}
-
-function stripMd(text: string) {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
-    .replace(/[\u{2600}-\u{27BF}]/gu, "")
-    .replace(/  +/g, " ")
-    .trim();
-}
-
-function parseAiMessage(text: string, nights = 0): { display: string; options: string[] | null } {
-  const keywordReplies = detectQuickReplies(text, nights);
-  if (keywordReplies) {
-    // Strip bullet lines — they're redundant when buttons already show them
-    const nonBullet = text.split("\n").filter(l => !/^[-•*]\s+/.test(l.trim())).join("\n").trim();
-    return { display: stripMd(nonBullet), options: keywordReplies };
-  }
-
-  const lines = text.split("\n");
-  const bulletOptions: string[] = [];
-  const nonBulletLines: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^[-•*]\s+/.test(trimmed)) {
-      bulletOptions.push(stripMd(trimmed.replace(/^[-•*]\s+/, "").trim()));
-    } else {
-      nonBulletLines.push(line);
-    }
-  }
-
-  if (bulletOptions.length >= 2) {
-    return { display: stripMd(nonBulletLines.join("\n").trim()), options: bulletOptions };
-  }
-
-  return { display: stripMd(text), options: null };
+async function discoveryHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return {
+    "Content-Type": "application/json",
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface TextMsg {
-  id: string; kind: "text"; role: "ai" | "user";
-  text: string; display: string; options: string[] | null;
-}
-interface AdventureMsg {
-  id: string; kind: "adventure";
-  adventure: GeneratedAdventure; dayAlternatives: DayAlternativesMap;
-  accommodationStops: AccommodationStop[]; adventureId: string | null;
-}
-interface AdditionMsg {
-  id: string; kind: "addition";
-  description: string; adventureId: string;
-}
-type Msg = TextMsg | AdventureMsg | AdditionMsg | RichOptionsMsg | PlaceSuggestionsMsg;
-type Mode = "new" | "update" | null;
-
-function uid() { return Math.random().toString(36).slice(2); }
-
-const LINE_HEIGHT = 22;
-const MIN_INPUT_HEIGHT = LINE_HEIGHT + 16;
-const MAX_INPUT_HEIGHT = LINE_HEIGHT * 8 + 16;
-
-function makeAiMsg(text: string, nights = 0): TextMsg {
-  const { display, options } = parseAiMessage(text, nights);
-  return { id: uid(), kind: "text", role: "ai", text, display, options };
-}
-function makeUserMsg(text: string): TextMsg {
-  return { id: uid(), kind: "text", role: "user", text, display: text, options: null };
+interface Chip {
+  id: string;
+  name: string;
+  type: string;
+  country: string | null;
+  save_count: number;
+  description: string | null;
 }
 
-// ─── Place suggestion detection ───────────────────────────────────────────────
-
-const LOC_SET = new Set(ALL_LOCATIONS.map(l => l.toLowerCase()));
-
-function isPlaceSuggestion(options: string[]): boolean {
-  if (options.length < 2) return false;
-  const matches = options.filter(opt => {
-    const base = opt.split(",")[0].trim().toLowerCase();
-    return LOC_SET.has(base) || LOC_SET.has(opt.trim().toLowerCase());
-  });
-  return matches.length >= 2;
+interface DestinationTile {
+  name: string;
+  type: string;
+  country: string | null;
+  region: string;
+  hero_images: string[];
+  description: string;
+  why_it_fits: string[];
+  source_entry_ids: string[];
 }
 
-async function enrichPlaces(
-  names: string[],
-  startDate?: string | null,
-): Promise<PlaceSuggestion[]> {
-  return Promise.all(
-    names.map(async name => {
-      const [weatherResult, adventures] = await Promise.allSettled([
-        fetchPlaceWeather(name, startDate ?? undefined),
-        getPublicAdventures({ region: name }),
-      ]);
-
-      const geo = weatherResult.status === "fulfilled" ? weatherResult.value?.geo : null;
-      const weather = weatherResult.status === "fulfilled" ? weatherResult.value?.weather : null;
-      const advRows = adventures.status === "fulfilled" ? adventures.value : [];
-
-      let rating: number | undefined;
-      let ratingCount: number | undefined;
-      if (advRows.length > 0) {
-        const rated = advRows.filter(a => a.rating > 0);
-        if (rated.length > 0) {
-          rating = Math.round((rated.reduce((s, a) => s + a.rating, 0) / rated.length) * 10) / 10;
-          ratingCount = rated.length;
-        }
-      }
-
-      const slug = `${name}${geo?.country ? `-${geo.country}` : ""}`
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "-");
-
-      return {
-        name,
-        country: geo?.country,
-        summary: "",
-        highlights: [],
-        images: [
-          `https://picsum.photos/seed/${slug}-a/800/500`,
-          `https://picsum.photos/seed/${slug}-b/800/500`,
-          `https://picsum.photos/seed/${slug}-c/800/500`,
-        ],
-        coords: geo ? [geo.lat, geo.lon] : undefined,
-        weather: weather ?? undefined,
-        rating,
-        ratingCount,
-      } satisfies PlaceSuggestion;
-    }),
-  );
+interface AccomStop {
+  destination: string;
+  nights: number;
+  night_numbers: number[];
 }
 
-const INITIAL: TextMsg = {
-  id: uid(), kind: "text", role: "ai",
-  text: "Are you looking to plan a new adventure, or update a current or upcoming trip?",
-  display: "Are you looking to plan a new adventure, or update a current or upcoming trip?",
-  options: ["Plan a new adventure", "Update a current trip"],
-};
+interface SkeletonDay {
+  day_number: number;
+  destination: string;
+  title: string;
+}
 
-// ─── Component ────────────────────────────────────────────────────────────────
+interface Skeleton {
+  title: string;
+  description: string;
+  activity_type: string;
+  duration_days: number;
+  accommodation_stops: AccomStop[];
+  days: SkeletonDay[];
+}
+
+const BUDGET_OPTIONS = [
+  { key: "low",   label: "Budget"  },
+  { key: "mid",   label: "Mid"     },
+  { key: "high",  label: "Luxury"  },
+] as const;
+
+const TYPE_OPTIONS = [
+  { key: "relaxing", label: "Relaxing" },
+  { key: "active",   label: "Active"   },
+  { key: "mixed",    label: "Mixed"    },
+] as const;
+
+const PREFERENCE_OPTIONS = ["Beach", "Culture", "Food", "Nature", "Nightlife", "Wellness", "Sport", "Hiking"];
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function DiscoverScreen() {
-  const insets  = useSafeAreaInsets();
-  const router  = useRouter();
-  const {
-    template_title,
-    template_region,
-    template_activity,
-    template_days,
-  } = useLocalSearchParams<{
-    template_title?:    string;
-    template_region?:   string;
-    template_activity?: string;
-    template_days?:     string;
-  }>();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
 
-  // ── Chat state ──────────────────────────────────────────────────────────────
-  const [messages, setMessages]         = useState<Msg[]>([INITIAL]);
-  const [history, setHistory]           = useState<ChatMessage[]>([]);
-  const [input, setInput]               = useState("");
-  const [inputHeight, setInputHeight]   = useState(MIN_INPUT_HEIGHT);
-  const [loading, setLoading]           = useState(false);
-  const [mode, setMode]                 = useState<Mode>(null);
-  const [selectedTrip, setSelectedTrip] = useState<AdventureRow | null>(null);
-  const [myTrips, setMyTrips]           = useState<AdventureRow[]>([]);
-  const [sessionActivityType, setSessionActivityType] = useState<string | undefined>(undefined);
-  const [sessionRegion,       setSessionRegion]       = useState<string | undefined>(undefined);
-  const [sessionVacationType, setSessionVacationType] = useState<string | undefined>(undefined);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
-  const [wizardResult, setWizardResult] = useState<WizardResult | null>(null);
-  const [pendingUpdateTrip, setPendingUpdateTrip] = useState<AdventureRow | null>(null);
-  const [placeSelections, setPlaceSelections] = useState<Record<string, Set<string>>>({});
-  const [tripStartDate, setTripStartDate] = useState<string | null>(null);
-  const [tripNights, setTripNights] = useState<number>(0);
-  const [savingItinerary, setSavingItinerary] = useState(false);
-  const listRef = useRef<FlatList>(null);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
 
-  // Most recent generated adventure in this session (null until AI produces one)
-  const latestAdventureId = useMemo(() =>
-    [...messages].reverse().find(m => m.kind === "adventure")?.adventureId ?? null,
-  [messages]);
+  // Step 1 — Search
+  const [query, setQuery] = useState("");
+  const [chips, setChips] = useState<Chip[]>([]);
+  const [chipsLoading, setChipsLoading] = useState(false);
+  const [selectedChip, setSelectedChip] = useState<Chip | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Session refs (always hold latest state for effects/callbacks with no deps) ─
-  const sessionIdRef      = useRef(uid());
-  const shouldResetRef    = useRef(false);
-  const messagesRef       = useRef<Msg[]>([INITIAL]);
-  const historyRef        = useRef<ChatMessage[]>([]);
-  const modeRef           = useRef<Mode>(null);
-  const selectedTripRef   = useRef<AdventureRow | null>(null);
+  // Step 2 — Filters
+  const [duration, setDuration] = useState(7);
+  const [budget, setBudget] = useState<"low" | "mid" | "high">("mid");
+  const [travelers, setTravelers] = useState(2);
+  const [vacationType, setVacationType] = useState<"relaxing" | "active" | "mixed">("mixed");
+  const [preferences, setPreferences] = useState<string[]>([]);
 
-  useEffect(() => { messagesRef.current    = messages;    }, [messages]);
-  useEffect(() => { historyRef.current     = history;     }, [history]);
-  useEffect(() => { modeRef.current        = mode;        }, [mode]);
-  useEffect(() => { selectedTripRef.current = selectedTrip; }, [selectedTrip]);
+  // Step 3 — Destinations
+  const [destinations, setDestinations] = useState<DestinationTile[]>([]);
+  const [destinationsLoading, setDestinationsLoading] = useState(false);
+  const [destinationsError, setDestinationsError] = useState<string | null>(null);
+  const [selectedDestNames, setSelectedDestNames] = useState<Set<string>>(new Set());
+  const [expandedTile, setExpandedTile] = useState<string | null>(null);
 
-  // ── Template pre-fill (from "Plan similar" in feed) ─────────────────────────
-  const templateSentRef = useRef(false);
-  useEffect(() => {
-    if (!template_title || templateSentRef.current) return;
-    templateSentRef.current = true;
-    const msg = `I want to plan a trip inspired by "${template_title}" — a ${template_days}-day ${template_activity} adventure in ${template_region}. Can you help me plan something similar?`;
-    setTimeout(() => send(msg), 250);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [template_title]);
+  // Step 4 — Skeleton
+  const [skeleton, setSkeleton] = useState<Skeleton | null>(null);
+  const [skeletonLoading, setSkeletonLoading] = useState(false);
+  const [nightAllocations, setNightAllocations] = useState<{ destination: string; nights: number }[]>([]);
 
-  // ── History modal state ──────────────────────────────────────────────────────
-  const [showHistory,    setShowHistory]    = useState(false);
-  const [historySearch,  setHistorySearch]  = useState("");
-  const [sessions,       setSessions]       = useState<StoredSession[]>([]);
-  const [viewingSession, setViewingSession] = useState<StoredSession | null>(null);
+  // Step 5 — Saving
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
 
-  // ── Session helpers ──────────────────────────────────────────────────────────
+  // ─── Chip fetch (debounced 200ms) ───────────────────────────────────────────
 
-  function deriveTitle(): string {
-    const trip = selectedTripRef.current;
-    if (trip) return `Update: ${trip.title}`;
-    const msgs = messagesRef.current;
-    const first = msgs.find(
-      m => m.kind === "text" && (m as TextMsg).role === "user" &&
-           (m as TextMsg).text !== "Plan a new adventure" &&
-           (m as TextMsg).text !== "Update a current trip",
-    ) as TextMsg | undefined;
-    if (first) return first.text.slice(0, 60);
-    const fallback = msgs.find(m => m.kind === "text" && (m as TextMsg).role === "user") as TextMsg | undefined;
-    return fallback?.text ?? "New conversation";
-  }
-
-  const persistCurrentSession = useCallback(async () => {
-    if (messagesRef.current.length <= 1) return;
-    await upsertSession({
-      id:        sessionIdRef.current,
-      createdAt: new Date().toISOString(),
-      title:     deriveTitle(),
-      mode:      modeRef.current,
-      messages:  messagesRef.current,
-      history:   historyRef.current,
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function resetChat() {
-    sessionIdRef.current = uid();
-    setMessages([INITIAL]);
-    setHistory([]);
-    setMode(null);
-    setSelectedTrip(null);
-    setPendingUpdateTrip(null);
-    setMyTrips([]);
-    setSessionActivityType(undefined);
-    setShowDatePicker(false);
-    setShowWizard(false);
-    setWizardResult(null);
-    setInput("");
-    setInputHeight(MIN_INPUT_HEIGHT);
-  }
-
-  function fmtDate(d: Date): string {
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  }
-
-  // Called when user confirms dates in the DateRangePicker
-  async function handleDateConfirm(
-    start: Date, end: Date,
-    adults: number, children: number, rooms: number,
-  ) {
-    setShowDatePicker(false);
-    setTripStartDate(start.toISOString().slice(0, 10));
-    const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
-    setTripNights(days);
-    const guestLine = `${adults} adult${adults !== 1 ? "s" : ""}${children > 0 ? `, ${children} child${children !== 1 ? "ren" : ""}` : ""}, ${rooms} room${rooms !== 1 ? "s" : ""}`;
-    const tripContext = `Trip: ${fmtDate(start)} to ${fmtDate(end)} (${days} day${days !== 1 ? "s" : ""}). Guests: ${guestLine}.`;
-    if (pendingUpdateTrip) {
-      // Update-trip path: dates confirmed for existing trip
-      const trip = pendingUpdateTrip;
-      setPendingUpdateTrip(null);
-      setSelectedTrip(trip);
-      setHistory([]);
-      const whatMsg: TextMsg = {
-        id: uid(), kind: "text", role: "ai",
-        text: `What would you like to add to "${trip.title}"?`,
-        display: `What would you like to add to "${trip.title}"?`,
-        options: ["Route details", "Accommodation", "Restaurant recommendations", "New days"],
-      };
-      setMessages(prev => [...prev, whatMsg]);
-      scrollToBottom();
-      return;
-    }
-
-    // New adventure path: send enriched context as first user message
-    const result = wizardResult;
-    const wizardContext = result
-      ? `\nVacation preferences:\n- Location: ${result.locations.join(", ")}\n- Destination: ${result.destinations.join(", ")}\n- Focus: ${result.focuses.join(", ")}\n- Activities: ${result.activities.join(", ")}`
-      : "";
-    send(`I want to plan a new vacation.${wizardContext}\n${tripContext}`);
-  }
-
-  function handleWizardComplete(result: WizardResult) {
-    setWizardResult(result);
-    setShowWizard(false);
-    setShowDatePicker(true);
-    // Capture session context for interaction tracking
-    if (result.locations?.length)  setSessionRegion(result.locations[0]);
-    if (result.focuses?.length)    setSessionVacationType(result.focuses[0]);
-    if (result.activities?.length) {
-      const act = result.activities[0].toLowerCase();
-      if      (act.includes("cycling") || act.includes("biking")) setSessionActivityType("cycling");
-      else if (act.includes("trail running"))                      setSessionActivityType("trail_running");
-      else if (act.includes("hiking") || act.includes("trekking")) setSessionActivityType("hiking");
-      else if (act.includes("skiing"))                             setSessionActivityType("skiing");
-      else if (act.includes("kayaking"))                           setSessionActivityType("kayaking");
-      else if (act.includes("climbing"))                           setSessionActivityType("climbing");
-      else                                                         setSessionActivityType("other");
-    }
-  }
-
-  async function openHistory() {
-    setSessions(await loadSessions());
-    setHistorySearch("");
-    setViewingSession(null);
-    setShowHistory(true);
-  }
-
-  async function handleDeleteSession(id: string) {
-    await removeSession(id);
-    setSessions(prev => prev.filter(s => s.id !== id));
-    if (viewingSession?.id === id) setViewingSession(null);
-  }
-
-  // ── Auto-save + auto-reset ───────────────────────────────────────────────────
-
-  useFocusEffect(useCallback(() => {
-    // On focus: reset if flagged (screen was left or app was backgrounded)
-    if (shouldResetRef.current) {
-      resetChat();
-      shouldResetRef.current = false;
-    }
-    loadSessions().then(setSessions);
-
-    return () => {
-      // On blur: save + flag for reset on next focus
-      if (messagesRef.current.length > 1) {
-        persistCurrentSession().catch(e => console.warn("Session persist failed:", e));
-        shouldResetRef.current = true;
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []));
-
-  useEffect(() => {
-    const sub = AppState.addEventListener("change", state => {
-      if (state === "background" || state === "inactive") {
-        if (messagesRef.current.length > 1) {
-          persistCurrentSession().catch(e => console.warn("Session persist failed:", e));
-          shouldResetRef.current = true;
-        }
-      }
-    });
-    return () => sub.remove();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Chat send ────────────────────────────────────────────────────────────────
-
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-  }, []);
-
-  const send = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
-
-    setInput("");
-    setInputHeight(MIN_INPUT_HEIGHT);
-
-    // Detect activity type from quick-reply selection for image context
-    if (!sessionActivityType) {
-      const ACTIVITY_PREFIXES: Array<[string, string]> = [
-        ["Cycling", "cycling"], ["MTB", "mtb"], ["Hiking", "hiking"],
-        ["Trail Running", "trail_running"], ["Climbing", "climbing"],
-        ["Skiing", "skiing"], ["Kayaking", "kayaking"],
-        ["Surfing", "other"], ["Yoga", "other"], ["Safari", "other"],
-        ["Wildlife", "other"], ["Wellness", "other"], ["Snorkeling", "other"],
-      ];
-      for (const [prefix, type] of ACTIVITY_PREFIXES) {
-        if (trimmed.startsWith(prefix)) { setSessionActivityType(type); break; }
-      }
-    }
-
-    // ── Step 1: Choose mode ──────────────────────────────────────────────────
-    if (mode === null) {
-      setMessages(prev => [...prev, makeUserMsg(trimmed)]);
-      scrollToBottom();
-
-      if (trimmed === "Plan a new adventure") {
-        setMode("new");
-        // Show vacation wizard first, then date/guest picker
-        setShowWizard(true);
-        return;
-      }
-
-      if (trimmed === "Update a current trip") {
-        setMode("update");
-        try {
-          const real = await getMyAdventures().catch(() => [] as AdventureRow[]);
-          const ids  = new Set(real.map(a => a.id));
-          const all  = [...real, ...MOCK_TRIPS.filter(m => !ids.has(m.id))];
-          const eligible = all.filter(t => tripStatus(t) !== "past");
-          setMyTrips(eligible);
-
-          if (eligible.length === 0) {
-            setMessages(prev => [...prev, makeAiMsg(
-              "You don't have any current or upcoming trips yet.\nWould you like to plan a new adventure instead?",
-            )]);
-          } else {
-            const aiMsg: TextMsg = {
-              id: uid(), kind: "text", role: "ai",
-              text: "Which trip would you like to update?",
-              display: "Which trip would you like to update?",
-              options: eligible.map(t => t.title),
-            };
-            setMessages(prev => [...prev, aiMsg]);
-          }
-        } catch {
-          setMessages(prev => [...prev, makeAiMsg("Could not load your trips. Please try again.")]);
-        }
-        scrollToBottom();
-        return;
-      }
-
-      return;
-    }
-
-    // ── Step 2: Pick a trip (update mode) ───────────────────────────────────
-    if (mode === "update" && selectedTrip === null) {
-      const trip = myTrips.find(t => t.title === trimmed) ?? null;
-      setMessages(prev => [...prev, makeUserMsg(trimmed)]);
-
-      if (!trip) {
-        setMessages(prev => [...prev, makeAiMsg("Please select a trip from the list above.")]);
-        scrollToBottom();
-        return;
-      }
-
-      // Ask if dates are still correct before opening the AI
-      setPendingUpdateTrip(trip);
-      const startLabel = trip.startDate
-        ? new Date(trip.startDate).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
-        : null;
-      const dateText = startLabel
-        ? `Are these dates still correct for "${trip.title}"? (${startLabel}, ${trip.durationDays} days)`
-        : `Would you like to update the dates for "${trip.title}"?`;
-      const dateAiMsg: TextMsg = {
-        id: uid(), kind: "text", role: "ai",
-        text: dateText,
-        display: dateText,
-        options: ["Yes, keep dates", "No, change dates"],
-      };
-      setMessages(prev => [...prev, dateAiMsg]);
-      scrollToBottom();
-      return;
-    }
-
-    // ── Step 2b: Date confirmation for update trip ───────────────────────────
-    if (mode === "update" && pendingUpdateTrip !== null && selectedTrip === null) {
-      setMessages(prev => [...prev, makeUserMsg(trimmed)]);
-      if (trimmed === "No, change dates") {
-        setShowDatePicker(true);
-        scrollToBottom();
-        return;
-      }
-      // "Yes, keep dates" or anything else → proceed to update flow
-      const trip = pendingUpdateTrip;
-      setPendingUpdateTrip(null);
-      setSelectedTrip(trip);
-      setHistory([]);
-      const whatMsg: TextMsg = {
-        id: uid(), kind: "text", role: "ai",
-        text: `What would you like to add to "${trip.title}"?`,
-        display: `What would you like to add to "${trip.title}"?`,
-        options: ["Route details", "Accommodation", "Restaurant recommendations", "New days"],
-      };
-      setMessages(prev => [...prev, whatMsg]);
-      scrollToBottom();
-      return;
-    }
-
-    // ── Step 3: Chat (new trip or update trip) ───────────────────────────────
-    setMessages(prev => [...prev, makeUserMsg(trimmed)]);
-    scrollToBottom();
-
-    // If the user is responding to rich_options, log a "selected" interaction
-    const prevMsg = messagesRef.current[messagesRef.current.length - 1];
-    if (prevMsg?.kind === "rich_options") {
-      logInteraction({
-        interaction_type:      "selected",
-        adventure_id:          latestAdventureId ?? null,
-        session_id:            sessionIdRef.current,
-        session_query:         history[0]?.content?.slice(0, 500) ?? null,
-        session_region:        sessionRegion ?? null,
-        session_activity_type: sessionActivityType ?? null,
-        session_vacation_type: sessionVacationType ?? null,
-      });
-    }
-
-    const updatedHistory: ChatMessage[] = [...history, { role: "user", content: trimmed }];
-    setLoading(true);
-
+  const fetchChips = useCallback(async (q: string) => {
+    setChipsLoading(true);
     try {
-      const tripSummary: TripSummary | undefined = selectedTrip
-        ? {
-            title:         selectedTrip.title,
-            activity_type: selectedTrip.activityType,
-            region:        selectedTrip.region,
-            duration_days: selectedTrip.durationDays,
-            start_date:    selectedTrip.startDate,
-            days: selectedTrip.adventure_days.map(d => ({
-              day_number:       d.dayNumber,
-              title:            d.title,
-              distance_km:      d.distanceKm,
-              elevation_gain_m: d.elevationGainM,
-            })),
-          }
-        : undefined;
+      const res = await fetch(`${BASE}/api/discovery/chips?q=${encodeURIComponent(q)}&limit=8`);
+      const json = await res.json() as { chips?: Chip[] };
+      setChips(json.chips ?? []);
+    } catch {
+      setChips([]);
+    } finally {
+      setChipsLoading(false);
+    }
+  }, []);
 
-      const chatOptions = mode === "update" && selectedTrip
-        ? { mode: "update" as const, adventure_id: selectedTrip.id, trip_summary: tripSummary }
-        : undefined;
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchChips(query), 200);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, fetchChips]);
 
-      const data = await sendChatMessage(updatedHistory, chatOptions);
+  // ─── Step transitions ────────────────────────────────────────────────────────
 
-      if (data.type === "adventure") {
-        const adventureMsg: AdventureMsg = {
-          id: uid(), kind: "adventure",
-          adventure:          data.adventure,
-          dayAlternatives:    data.day_alternatives ?? {},
-          accommodationStops: data.accommodation_stops ?? [],
-          adventureId:        data.adventure_id ?? null,
-        };
-        setMessages(prev => [...prev, adventureMsg]);
-        setHistory(updatedHistory);
-        // Track: user viewed the generated adventure
-        logInteraction({
-          interaction_type:      "viewed",
-          adventure_id:          data.adventure_id ?? null,
-          session_id:            sessionIdRef.current,
-          session_query:         updatedHistory[0]?.content?.slice(0, 500) ?? null,
-          session_region:        data.adventure?.region ?? sessionRegion ?? null,
-          session_activity_type: data.adventure?.activity_type ?? sessionActivityType ?? null,
-          session_vacation_type: sessionVacationType ?? null,
-        });
-      } else if (data.type === "addition") {
-        const addMsg: AdditionMsg = {
-          id: uid(), kind: "addition",
-          description: data.description ?? "Trip updated",
-          adventureId: data.adventure_id ?? selectedTrip?.id ?? "",
-        };
-        setMessages(prev => [...prev, addMsg]);
-        setHistory([...updatedHistory, { role: "assistant", content: data.description ?? "Done" }]);
-      } else if (data.type === "rich_options") {
-        const richMsg: RichOptionsMsg = {
-          id: uid(), kind: "rich_options",
-          text:           data.text ?? "",
-          category:       (data.category as RichOptionCategory) ?? "route",
-          options:        (data.options as RichOption[]) ?? [],
-          footer_options: (data.footer_options as string[]) ?? [],
-        };
-        setMessages(prev => [...prev, richMsg]);
-        // Store compact JSON summary so AI has full context of what options it presented
-        const richSummary = JSON.stringify({
-          type: "rich_options",
-          text: data.text ?? "",
-          category: data.category,
-          options: ((data.options ?? []) as RichOption[]).map((o: RichOption) => ({ title: o.title })),
-          footer_options: data.footer_options ?? [],
-        });
-        setHistory([...updatedHistory, { role: "assistant", content: richSummary }]);
-        // Track: user saw suggestions (one event per option batch)
-        logInteraction({
-          interaction_type:      "viewed",
-          adventure_id:          latestAdventureId ?? null,
-          session_id:            sessionIdRef.current,
-          session_query:         updatedHistory[0]?.content?.slice(0, 500) ?? null,
-          session_region:        sessionRegion ?? null,
-          session_activity_type: sessionActivityType ?? null,
-          session_vacation_type: sessionVacationType ?? null,
-        });
-      } else {
-        const aiText: string = data.text ?? "Could you tell me a bit more?";
-        const aiMsg = makeAiMsg(aiText, tripNights);
+  async function goToStep3() {
+    setDestinationsLoading(true);
+    setDestinationsError(null);
+    setStep(3);
+    try {
+      const input = selectedChip
+        ? { name: selectedChip.name, type: selectedChip.type }
+        : { name: query.trim(), type: "region" };
+      const res = await fetch(`${BASE}/api/discovery/destinations`, {
+        method: "POST",
+        headers: await discoveryHeaders(),
+        body: JSON.stringify({
+          input,
+          filters: { duration_days: duration, budget, travelers, vacation_type: vacationType, preferences },
+        }),
+      });
+      const json = await res.json() as { destinations?: DestinationTile[]; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Failed");
+      setDestinations(json.destinations ?? []);
+    } catch (e) {
+      setDestinationsError(e instanceof Error ? e.message : "Could not load destinations");
+    } finally {
+      setDestinationsLoading(false);
+    }
+  }
 
-        if (aiMsg.options && isPlaceSuggestion(aiMsg.options)) {
-          const placesMsg: PlaceSuggestionsMsg = {
-            id: uid(),
-            kind: "place_suggestions",
-            intro: aiMsg.display,
-            places: aiMsg.options.map(name => ({
-              name: name.split(",")[0].trim(),
-              summary: "", highlights: [], images: [],
-            })),
+  async function goToStep4() {
+    setSkeletonLoading(true);
+    setStep(4);
+    try {
+      const selectedDests = destinations.filter(d => selectedDestNames.has(d.name));
+      const res = await fetch(`${BASE}/api/discovery/itinerary-skeleton`, {
+        method: "POST",
+        headers: await discoveryHeaders(),
+        body: JSON.stringify({
+          destinations: selectedDests.map(d => ({ name: d.name, type: d.type })),
+          duration_days: duration,
+          filters: { budget, vacation_type: vacationType },
+        }),
+      });
+      const json = await res.json() as { skeleton?: Skeleton; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Failed");
+      const sk = json.skeleton!;
+      setSkeleton(sk);
+      setNightAllocations(sk.accommodation_stops.map(s => ({ destination: s.destination, nights: s.nights })));
+    } catch {
+      // Fallback: equal distribution
+      const dests = [...selectedDestNames];
+      const perDest = Math.floor(duration / dests.length);
+      const rem = duration - perDest * dests.length;
+      setSkeleton(null);
+      setNightAllocations(dests.map((d, i) => ({ destination: d, nights: perDest + (i === 0 ? rem : 0) })));
+    } finally {
+      setSkeletonLoading(false);
+    }
+  }
+
+  async function saveTrip() {
+    setSaving(true);
+    try {
+      const selectedDests = destinations.filter(d => selectedDestNames.has(d.name));
+      const sourceIds = selectedDests.flatMap(d => d.source_entry_ids);
+      const totalNights = nightAllocations.reduce((s, a) => s + a.nights, 0);
+
+      // Rebuild skeleton with adjusted nights
+      let sk = skeleton;
+      if (sk) {
+        const stops: AccomStop[] = [];
+        let night = 1;
+        for (const alloc of nightAllocations) {
+          const nightNums = Array.from({ length: alloc.nights }, (_, i) => night + i);
+          stops.push({ destination: alloc.destination, nights: alloc.nights, night_numbers: nightNums });
+          night += alloc.nights;
+        }
+        const days: SkeletonDay[] = Array.from({ length: totalNights }, (_, i) => {
+          const dayNum = i + 1;
+          const stop = stops.find(s => s.night_numbers.includes(dayNum));
+          const isFirstForStop = stop?.night_numbers[0] === dayNum;
+          return {
+            day_number: dayNum,
+            destination: stop?.destination ?? nightAllocations[0]?.destination ?? "",
+            title: isFirstForStop && dayNum > 1 ? `Arrival in ${stop!.destination}` : stop?.destination ?? `Day ${dayNum}`,
           };
-          setMessages(prev => [...prev, placesMsg]);
-          setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
-          enrichPlaces(placesMsg.places.map(p => p.name), tripStartDate).then(enriched => {
-            setMessages(prev => prev.map(m =>
-              m.id === placesMsg.id ? { ...placesMsg, places: enriched } : m,
-            ));
-          });
-        } else {
-          setMessages(prev => [...prev, aiMsg]);
-          setHistory([...updatedHistory, { role: "assistant", content: aiText }]);
-        }
+        });
+        sk = { ...sk, accommodation_stops: stops, days, duration_days: totalNights };
       }
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      setMessages(prev => [...prev, makeAiMsg(`Sorry, something went wrong.\n\n${detail}`)]);
-    } finally {
-      setLoading(false);
-      scrollToBottom();
-    }
-  }, [mode, selectedTrip, pendingUpdateTrip, myTrips, history, loading, scrollToBottom, sessionActivityType, tripStartDate]);
 
-  // ── Filtered history sessions ────────────────────────────────────────────────
-
-  const filteredSessions = useMemo(() => {
-    const q = historySearch.toLowerCase().trim();
-    if (!q) return sessions;
-    return sessions.filter(s => {
-      if (s.title.toLowerCase().includes(q)) return true;
-      return s.messages.some((m: Msg) => {
-        if (m.kind === "text") return (m as TextMsg).text.toLowerCase().includes(q);
-        return false;
+      const region = selectedChip?.name ?? query.trim();
+      const res = await fetch(`${BASE}/api/discovery/save-skeleton`, {
+        method: "POST",
+        headers: await discoveryHeaders(),
+        body: JSON.stringify({ skeleton: sk, region, source_entry_ids: sourceIds }),
       });
-    });
-  }, [sessions, historySearch]);
-
-  // ── Save itinerary handler ───────────────────────────────────────────────────
-
-  const handleSaveItinerary = useCallback(async () => {
-    if (!latestAdventureId) {
-      // No adventure generated yet — ask the AI to finalise the plan now
-      send("Please generate the full adventure plan now based on everything we've discussed so far.");
-      return;
+      const json = await res.json() as { adventureId?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Save failed");
+      setSavedId(json.adventureId ?? null);
+      setStep(5);
+    } catch {
+      setSaving(false);
     }
-    setSavingItinerary(true);
-    try {
-      await saveAdventure(latestAdventureId);
-      logInteraction({
-        interaction_type:      "saved",
-        adventure_id:          latestAdventureId,
-        session_id:            sessionIdRef.current,
-        session_query:         history[0]?.content?.slice(0, 500) ?? null,
-        session_region:        sessionRegion ?? null,
-        session_activity_type: sessionActivityType ?? null,
-        session_vacation_type: sessionVacationType ?? null,
-      });
-      router.push(`/(app)/trips/${latestAdventureId}` as never);
-    } catch (err) {
-      Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
-    } finally {
-      setSavingItinerary(false);
-    }
-  }, [latestAdventureId, router, send]);
-
-  // ── Render helpers ───────────────────────────────────────────────────────────
-
-  function renderHistoryMessage(item: Msg, index: number) {
-    if (item.kind === "adventure") {
-      return null;
-    }
-    if (item.kind === "addition") {
-      return (
-        <View key={index} style={styles.additionCard}>
-          <Feather name="check-circle" size={18} color={colors.accent} />
-          <View style={styles.additionBody}>
-            <Text style={styles.additionTitle}>Trip updated</Text>
-            <Text style={styles.additionDesc}>{item.description}</Text>
-          </View>
-        </View>
-      );
-    }
-    if (item.kind === "rich_options") {
-      return (
-        <View key={index} style={styles.questionBlock}>
-          {item.text ? <Text style={styles.questionText}>{item.text}</Text> : null}
-          <RichOptionTiles messageId={item.id} category={item.category} options={item.options} footer_options={item.footer_options} onSelect={send} />
-        </View>
-      );
-    }
-    if (item.kind === "place_suggestions") {
-      const names = item.places.map(p => p.name).join(", ");
-      return (
-        <View key={index} style={[styles.bubbleRow]}>
-          <View style={styles.bubbleAi}>
-            <Text style={styles.bubbleText}>{item.intro ? `${item.intro}\n` : ""}Suggested: {names}</Text>
-          </View>
-        </View>
-      );
-    }
-    const isUser = (item as TextMsg).role === "user";
-    const bodyText = (item as TextMsg).options
-      ? `${(item as TextMsg).display}\n${(item as TextMsg).options!.map((o: string) => `• ${o}`).join("\n")}`
-      : (item as TextMsg).display;
-    return (
-      <View key={index} style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{bodyText}</Text>
-        </View>
-      </View>
-    );
   }
 
-  const renderItem = useCallback(({ item }: { item: Msg }) => {
-    if (item.kind === "adventure") {
-      return null;
-    }
+  function resetWizard() {
+    setStep(1);
+    setQuery("");
+    setSelectedChip(null);
+    setSelectedDestNames(new Set());
+    setSkeleton(null);
+    setNightAllocations([]);
+    setSavedId(null);
+    setSaving(false);
+    setDestinations([]);
+    setDestinationsError(null);
+  }
 
-    if (item.kind === "addition") {
-      return (
-        <View style={styles.additionCard}>
-          <Feather name="check-circle" size={18} color={colors.accent} />
-          <View style={styles.additionBody}>
-            <Text style={styles.additionTitle}>Trip updated</Text>
-            <Text style={styles.additionDesc}>{item.description}</Text>
-          </View>
-          <TouchableOpacity onPress={() => router.push(`/(app)/trips/${item.adventureId}`)}>
-            <Text style={styles.additionLink}>View →</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
+  const totalNights = nightAllocations.reduce((s, a) => s + a.nights, 0);
+  const nightsMatch = totalNights === duration;
 
-    if (item.kind === "rich_options") {
-      return (
-        <View style={styles.questionBlock}>
-          {item.text ? <Text style={styles.questionText}>{item.text}</Text> : null}
-          <RichOptionTiles
-            messageId={item.id}
-            category={item.category}
-            activityType={sessionActivityType ?? selectedTrip?.activityType ?? undefined}
-            options={item.options}
-            footer_options={item.footer_options}
-            disabled={loading}
-            onSelect={send}
-          />
-        </View>
-      );
-    }
-
-    if (item.kind === "place_suggestions") {
-      const selections = placeSelections[item.id] ?? new Set<string>();
-      const isLoading = item.places.some(p => !p.coords && !p.weather);
-      return (
-        <View style={styles.questionBlock}>
-          {item.intro ? <Text style={styles.questionText}>{item.intro}</Text> : null}
-          {item.places.map(place => (
-            <PlaceTile
-              key={place.name}
-              place={place}
-              selected={selections.has(place.name)}
-              loading={isLoading}
-              onToggle={() => {
-                setPlaceSelections(prev => {
-                  const next = new Set(prev[item.id] ?? []);
-                  if (next.has(place.name)) { next.delete(place.name); } else { next.add(place.name); }
-                  return { ...prev, [item.id]: next };
-                });
-              }}
-            />
-          ))}
-          {selections.size > 0 && (
-            <TouchableOpacity
-              style={styles.placeContinueBtn}
-              onPress={() => send(`I want to visit ${[...selections].join(" and ")}`)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.placeContinueBtnText}>
-                Continue with {selections.size} selected →
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
-
-    const textItem = item as TextMsg;
-    const isUser = textItem.role === "user";
-
-    if (!isUser && textItem.options && textItem.options.length > 0) {
-      return (
-        <View style={styles.questionBlock}>
-          {textItem.display ? <Text style={styles.questionText}>{textItem.display}</Text> : null}
-          <QuickReplies options={textItem.options} disabled={loading} onSelect={send} compact={textItem.options.includes("Plan a new adventure")} />
-        </View>
-      );
-    }
-
-    return (
-      <View style={[styles.bubbleRow, isUser && styles.bubbleRowUser]}>
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi]}>
-          <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{textItem.display}</Text>
-        </View>
-      </View>
-    );
-  }, [send, router, loading, sessionActivityType, selectedTrip, placeSelections]);
-
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { paddingTop: insets.top }]}
-      enabled={Platform.OS === "ios"}
-      behavior="padding"
-      keyboardVerticalOffset={90}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ width: 36 }} />
-        <Text style={styles.headerTitle}>✦ Discover</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={openHistory} activeOpacity={0.7}>
-          <Feather name="clock" size={18} color={colors.muted} />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Step 1 — Search */}
+      {step === 1 && (
+        <View style={styles.flex}>
+          <View style={styles.wizardHeader}>
+            <Text style={styles.wizardTitle}>Where to?</Text>
+          </View>
 
-      {/* Chat list */}
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.list}
-        onContentSizeChange={scrollToBottom}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        ListFooterComponent={
-          loading ? (
-            <View style={styles.thinkingRow}>
-              <View style={styles.thinkingBubble}>
-                <ActivityIndicator size="small" color={colors.muted} />
-                <Text style={styles.thinkingText}>Thinking…</Text>
-              </View>
-            </View>
-          ) : null
-        }
-      />
-
-      {/* Persistent save CTA — visible once conversation has started */}
-      {messages.length >= 2 && (
-        <TouchableOpacity
-          style={[styles.saveCta, savingItinerary && styles.saveCtaDisabled]}
-          onPress={handleSaveItinerary}
-          disabled={savingItinerary}
-          activeOpacity={0.85}
-        >
-          {savingItinerary
-            ? <ActivityIndicator color={colors.inverse} size="small" />
-            : <>
-                <Feather name="bookmark" size={15} color={colors.inverse} />
-                <Text style={styles.saveCtaText}>
-                  {latestAdventureId ? "Save & view itinerary" : "Generate & save itinerary"}
-                </Text>
-              </>
-          }
-        </TouchableOpacity>
-      )}
-
-      {/* Input bar */}
-      <View style={[styles.inputBar, { paddingBottom: Platform.OS === "ios" ? insets.bottom + spacing.sm : spacing.sm }]}>
-        <TextInput
-          style={[styles.input, { height: Math.min(inputHeight, MAX_INPUT_HEIGHT) }]}
-          value={input}
-          onChangeText={setInput}
-          onSubmitEditing={() => send(input)}
-          onContentSizeChange={e => {
-            const h = e.nativeEvent.contentSize.height + 16;
-            setInputHeight(Math.max(MIN_INPUT_HEIGHT, h));
-          }}
-          placeholder="Type a message…"
-          placeholderTextColor={colors.muted}
-          returnKeyType="send"
-          multiline
-          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
-          blurOnSubmit
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
-          onPress={() => send(input)}
-          disabled={!input.trim() || loading}
-          activeOpacity={0.8}
-        >
-          <Feather name="arrow-up" size={18} color={colors.inverse} />
-        </TouchableOpacity>
-      </View>
-
-      {/* ── Vacation wizard ────────────────────────────────────────────────── */}
-      <VacationWizard
-        visible={showWizard}
-        onComplete={handleWizardComplete}
-        onCancel={() => {
-          setShowWizard(false);
-          setMode(null);
-          setMessages([INITIAL]);
-        }}
-      />
-
-      {/* ── Date range picker ─────────────────────────────────────────────── */}
-      <DateRangePicker
-        visible={showDatePicker}
-        onConfirm={handleDateConfirm}
-        onClose={() => {
-          setShowDatePicker(false);
-          // If user closes without picking dates, reset to initial state
-          if (mode === "new" && history.length === 0) {
-            setMode(null);
-          }
-        }}
-      />
-
-      {/* ── History modal ──────────────────────────────────────────────────── */}
-      <Modal
-        visible={showHistory}
-        animationType="slide"
-        onRequestClose={() => { setShowHistory(false); setViewingSession(null); }}
-      >
-        <View style={[styles.histOverlay, { paddingTop: insets.top }]}>
-
-          {/* Modal header */}
-          <View style={styles.histHeader}>
-            {viewingSession ? (
-              <TouchableOpacity onPress={() => setViewingSession(null)} style={styles.histBackBtn}>
-                <Feather name="arrow-left" size={20} color={colors.text} />
-              </TouchableOpacity>
-            ) : null}
-            <Text style={styles.histTitle} numberOfLines={1}>
-              {viewingSession ? viewingSession.title : "Chat history"}
-            </Text>
-            {viewingSession ? (
-              <TouchableOpacity
-                onPress={() => {
-                  Alert.alert("Delete chat", "Remove this conversation from history?", [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: () => handleDeleteSession(viewingSession.id) },
-                  ]);
-                }}
-                style={styles.histActionBtn}
-              >
-                <Feather name="trash-2" size={18} color={colors.muted} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => { setShowHistory(false); setViewingSession(null); setHistorySearch(""); }}
-                style={styles.histActionBtn}
-              >
-                <Feather name="x" size={22} color={colors.text} />
+          <View style={styles.searchBox}>
+            <Feather name="search" size={18} color={colors.muted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search destinations..."
+              placeholderTextColor={colors.subtle}
+              value={query}
+              onChangeText={text => { setQuery(text); setSelectedChip(null); }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => { setQuery(""); setSelectedChip(null); }}>
+                <Feather name="x" size={16} color={colors.muted} />
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Session detail */}
-          {viewingSession ? (
-            <FlatList
-              data={viewingSession.messages as Msg[]}
-              keyExtractor={(_, i) => String(i)}
-              renderItem={({ item, index }) => renderHistoryMessage(item, index)}
-              contentContainerStyle={styles.histMsgList}
-              showsVerticalScrollIndicator={false}
-            />
+          {chipsLoading ? (
+            <ActivityIndicator style={{ marginTop: spacing.lg }} color={colors.accent} />
           ) : (
-            <>
-              {/* Search bar */}
-              <View style={styles.histSearchRow}>
-                <Feather name="search" size={15} color={colors.muted} />
-                <TextInput
-                  style={styles.histSearchInput}
-                  value={historySearch}
-                  onChangeText={setHistorySearch}
-                  placeholder="Search conversations…"
-                  placeholderTextColor={colors.muted}
-                  returnKeyType="search"
-                  autoCorrect={false}
-                />
-                {historySearch ? (
-                  <TouchableOpacity onPress={() => setHistorySearch("")}>
-                    <Feather name="x" size={14} color={colors.muted} />
+            <FlatList
+              data={chips}
+              keyExtractor={c => c.id}
+              style={styles.chipList}
+              contentContainerStyle={styles.chipListContent}
+              renderItem={({ item }) => {
+                const selected = selectedChip?.id === item.id;
+                return (
+                  <TouchableOpacity
+                    style={[styles.chipRow, selected && styles.chipRowSelected]}
+                    onPress={() => setSelectedChip(selected ? null : item)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.chipRowLeft}>
+                      <Text style={[styles.chipName, selected && styles.chipNameSelected]}>{item.name}</Text>
+                      {item.description ? <Text style={styles.chipDesc} numberOfLines={1}>{item.description}</Text> : null}
+                    </View>
+                    <View style={styles.chipMeta}>
+                      <Text style={styles.chipType}>{item.type}</Text>
+                      {selected && <Feather name="check" size={14} color={colors.inverse} style={{ marginLeft: 4 }} />}
+                    </View>
                   </TouchableOpacity>
-                ) : null}
-              </View>
+                );
+              }}
+              ListEmptyComponent={
+                query.length > 0 ? (
+                  <Text style={styles.emptyText}>No destinations found. Try a different name.</Text>
+                ) : null
+              }
+            />
+          )}
 
-              {/* Session list */}
-              <FlatList
-                data={filteredSessions}
-                keyExtractor={s => s.id}
-                renderItem={({ item }) => {
-                  const date = new Date(item.createdAt);
-                  const dateStr = date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-                  const userMsgCount = (item.messages as Msg[]).filter(
-                    m => m.kind === "text" && (m as TextMsg).role === "user",
-                  ).length;
-                  return (
-                    <TouchableOpacity
-                      style={styles.histSessionItem}
-                      onPress={() => setViewingSession(item)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.histSessionIcon, item.mode === "update" && styles.histSessionIconUpdate]}>
-                        <Feather
-                          name={item.mode === "update" ? "edit-2" : "compass"}
-                          size={14}
-                          color={item.mode === "update" ? colors.easy : colors.accent}
-                        />
+          <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            <TouchableOpacity
+              style={[styles.ctaBtn, !(selectedChip || query.trim().length > 1) && styles.ctaBtnDisabled]}
+              disabled={!(selectedChip || query.trim().length > 1)}
+              onPress={() => setStep(2)}
+            >
+              <Text style={styles.ctaBtnText}>Next</Text>
+              <Feather name="arrow-right" size={16} color={colors.inverse} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Step 2 — Filters */}
+      {step === 2 && (
+        <View style={styles.flex}>
+          <View style={styles.wizardHeader}>
+            <TouchableOpacity onPress={() => setStep(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.wizardTitle}>Trip details</Text>
+            <View style={{ width: 20 }} />
+          </View>
+
+          <ScrollView style={styles.flex} contentContainerStyle={styles.filtersContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.filterLabel}>Duration</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setDuration(d => Math.max(1, d - 1))}>
+                <Feather name="minus" size={16} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.stepValue}>{duration} days</Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setDuration(d => Math.min(28, d + 1))}>
+                <Feather name="plus" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.filterLabel}>Budget</Text>
+            <View style={styles.pillRow}>
+              {BUDGET_OPTIONS.map(o => (
+                <TouchableOpacity
+                  key={o.key}
+                  style={[styles.pill, budget === o.key && styles.pillActive]}
+                  onPress={() => setBudget(o.key)}
+                >
+                  <Text style={[styles.pillText, budget === o.key && styles.pillTextActive]}>{o.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.filterLabel}>Travelers</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setTravelers(t => Math.max(1, t - 1))}>
+                <Feather name="minus" size={16} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.stepValue}>{travelers}</Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setTravelers(t => Math.min(20, t + 1))}>
+                <Feather name="plus" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.filterLabel}>Trip type</Text>
+            <View style={styles.pillRow}>
+              {TYPE_OPTIONS.map(o => (
+                <TouchableOpacity
+                  key={o.key}
+                  style={[styles.pill, vacationType === o.key && styles.pillActive]}
+                  onPress={() => setVacationType(o.key)}
+                >
+                  <Text style={[styles.pillText, vacationType === o.key && styles.pillTextActive]}>{o.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.filterLabel}>I love</Text>
+            <View style={styles.pillRow}>
+              {PREFERENCE_OPTIONS.map(p => {
+                const active = preferences.includes(p);
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    style={[styles.pill, active && styles.pillActive]}
+                    onPress={() => setPreferences(prev => active ? prev.filter(x => x !== p) : [...prev, p])}
+                  >
+                    <Text style={[styles.pillText, active && styles.pillTextActive]}>{p}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            <TouchableOpacity style={styles.ctaBtn} onPress={goToStep3}>
+              <Text style={styles.ctaBtnText}>Generate destinations</Text>
+              <Feather name="arrow-right" size={16} color={colors.inverse} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Step 3 — Destination tiles */}
+      {step === 3 && (
+        <View style={styles.flex}>
+          <View style={styles.wizardHeader}>
+            <TouchableOpacity onPress={() => setStep(2)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.wizardTitle}>Choose destinations</Text>
+            <View style={{ width: 20 }} />
+          </View>
+
+          {destinationsLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.accent} />
+              <Text style={styles.loadingText}>Finding the best destinations...</Text>
+            </View>
+          ) : destinationsError ? (
+            <View style={styles.centered}>
+              <Feather name="alert-circle" size={40} color={colors.muted} />
+              <Text style={styles.errorText}>{destinationsError}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={goToStep3}>
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={destinations}
+              keyExtractor={d => d.name}
+              contentContainerStyle={{ padding: spacing.md, paddingBottom: 120, gap: spacing.md }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item: dest }) => {
+                const selected = selectedDestNames.has(dest.name);
+                const expanded = expandedTile === dest.name;
+                const heroUri = dest.hero_images[0] || `https://picsum.photos/seed/${encodeURIComponent(dest.name)}/400/200`;
+                return (
+                  <TouchableOpacity
+                    style={[styles.destTile, selected && styles.destTileSelected]}
+                    onPress={() => setSelectedDestNames(prev => {
+                      const next = new Set(prev);
+                      if (next.has(dest.name)) next.delete(dest.name); else next.add(dest.name);
+                      return next;
+                    })}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.destImageBox}>
+                      <Image source={{ uri: heroUri }} style={styles.destImage} />
+                      <View style={[styles.destCheckbox, selected && styles.destCheckboxSelected]}>
+                        {selected && <Feather name="check" size={13} color="#fff" />}
                       </View>
-                      <View style={styles.histSessionBody}>
-                        <Text style={styles.histSessionTitle} numberOfLines={2}>{item.title}</Text>
-                        <Text style={styles.histSessionMeta}>
-                          {dateStr} · {userMsgCount} message{userMsgCount !== 1 ? "s" : ""}
-                        </Text>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={colors.muted} />
-                    </TouchableOpacity>
-                  );
-                }}
-                contentContainerStyle={styles.histList}
-                showsVerticalScrollIndicator={false}
-                ListEmptyComponent={
-                  <View style={styles.histEmpty}>
-                    <Feather name="clock" size={40} color={colors.border} />
-                    <Text style={styles.histEmptyText}>
-                      {historySearch ? "No matches found." : "No saved chats yet.\nStart a conversation and it will appear here."}
-                    </Text>
-                  </View>
-                }
-              />
-            </>
+                    </View>
+                    <View style={styles.destBody}>
+                      <Text style={styles.destName}>{dest.name}</Text>
+                      <Text style={styles.destCountry}>{dest.country ?? dest.region}</Text>
+                      <Text style={styles.destDesc} numberOfLines={expanded ? undefined : 2}>{dest.description}</Text>
+                      {dest.why_it_fits.length > 0 && (
+                        <TouchableOpacity
+                          style={styles.expandBtn}
+                          onPress={() => setExpandedTile(expanded ? null : dest.name)}
+                        >
+                          <Feather name={expanded ? "chevron-up" : "chevron-down"} size={14} color={colors.accent} />
+                          <Text style={styles.expandBtnText}>
+                            {expanded ? "Less" : `Why it fits (${dest.why_it_fits.length})`}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {expanded && dest.why_it_fits.map((reason, i) => (
+                        <View key={i} style={styles.reasonRow}>
+                          <Text style={styles.reasonBullet}>•</Text>
+                          <Text style={styles.reasonText}>{reason}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+
+          {!destinationsLoading && !destinationsError && (
+            <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+              <TouchableOpacity
+                style={[styles.ctaBtn, selectedDestNames.size === 0 && styles.ctaBtnDisabled]}
+                disabled={selectedDestNames.size === 0}
+                onPress={goToStep4}
+              >
+                <Text style={styles.ctaBtnText}>
+                  Continue with {selectedDestNames.size} {selectedDestNames.size === 1 ? "destination" : "destinations"}
+                </Text>
+                <Feather name="arrow-right" size={16} color={colors.inverse} />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
-      </Modal>
-    </KeyboardAvoidingView>
+      )}
+
+      {/* Step 4 — Night allocation */}
+      {step === 4 && (
+        <View style={styles.flex}>
+          <View style={styles.wizardHeader}>
+            <TouchableOpacity onPress={() => setStep(3)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.wizardTitle}>Your itinerary</Text>
+            <View style={{ width: 20 }} />
+          </View>
+
+          {skeletonLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.accent} />
+              <Text style={styles.loadingText}>Building your skeleton...</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.flex} contentContainerStyle={styles.skeletonContent}>
+              {skeleton?.title ? (
+                <Text style={styles.skeletonTitle}>{skeleton.title}</Text>
+              ) : null}
+
+              {nightAllocations.map(alloc => (
+                <View key={alloc.destination} style={styles.allocRow}>
+                  <Text style={styles.allocDest} numberOfLines={1}>{alloc.destination}</Text>
+                  <View style={styles.allocControls}>
+                    <TouchableOpacity
+                      style={styles.allocBtn}
+                      onPress={() => setNightAllocations(prev =>
+                        prev.map(a => a.destination === alloc.destination
+                          ? { ...a, nights: Math.max(0, a.nights - 1) } : a)
+                      )}
+                    >
+                      <Feather name="minus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.allocNights}>{alloc.nights} {alloc.nights === 1 ? "night" : "nights"}</Text>
+                    <TouchableOpacity
+                      style={styles.allocBtn}
+                      onPress={() => setNightAllocations(prev =>
+                        prev.map(a => a.destination === alloc.destination
+                          ? { ...a, nights: a.nights + 1 } : a)
+                      )}
+                    >
+                      <Feather name="plus" size={16} color={colors.text} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total</Text>
+                <Text style={[styles.totalValue, nightsMatch && styles.totalValueOk]}>
+                  {totalNights} / {duration} days {nightsMatch ? "✓" : ""}
+                </Text>
+              </View>
+              {!nightsMatch && (
+                <Text style={styles.totalHint}>
+                  Adjust nights so the total equals {duration} days.
+                </Text>
+              )}
+            </ScrollView>
+          )}
+
+          {!skeletonLoading && (
+            <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+              <TouchableOpacity
+                style={[styles.ctaBtn, (!nightsMatch || saving) && styles.ctaBtnDisabled]}
+                disabled={!nightsMatch || saving}
+                onPress={saveTrip}
+              >
+                {saving
+                  ? <ActivityIndicator color={colors.inverse} />
+                  : <>
+                    <Text style={styles.ctaBtnText}>Save Trip</Text>
+                    <Feather name="check" size={16} color={colors.inverse} />
+                  </>
+                }
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Step 5 — Confirmation */}
+      {step === 5 && (
+        <View style={[styles.flex, styles.centered]}>
+          <View style={styles.successIcon}>
+            <Feather name="check" size={36} color={colors.inverse} />
+          </View>
+          <Text style={styles.successTitle}>{skeleton?.title ?? "Trip saved!"}</Text>
+          <Text style={styles.successSub}>Saved to My Trips · {duration} days</Text>
+
+          <TouchableOpacity
+            style={[styles.ctaBtn, { marginTop: spacing.xl, width: "80%" }]}
+            onPress={() => router.push("/(app)/trips")}
+          >
+            <Text style={styles.ctaBtnText}>View My Trips</Text>
+            <Feather name="arrow-right" size={16} color={colors.inverse} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryBtn} onPress={resetWizard}>
+            <Text style={styles.secondaryBtnText}>Plan another trip</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+  container:   { flex: 1, backgroundColor: colors.bg },
+  flex:        { flex: 1 },
+  centered:    { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
 
-  // Header
-  header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.bg,
-  },
-  headerTitle:   { fontFamily: fonts.display, flex: 1, textAlign: "center", fontSize: fontSize.xxl, color: colors.text, letterSpacing: -0.5 },
-  headerBtn:     { padding: 6 },
-
-  // Chat
-  list: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.lg, flexGrow: 1 },
-  adventureWrapper: { marginVertical: spacing.sm },
-  questionBlock:    { marginTop: spacing.sm, marginBottom: spacing.xs },
-  questionText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, lineHeight: 22, marginBottom: spacing.sm },
-  bubbleRow:     { flexDirection: "row", justifyContent: "flex-start", marginBottom: spacing.xs, marginTop: spacing.xs },
-  bubbleRowUser: { justifyContent: "flex-end" },
-  bubble:     { maxWidth: "82%", borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2 },
-  bubbleAi:   { backgroundColor: colors.aiBubble },
-  bubbleUser: { backgroundColor: colors.userBubble },
-  bubbleText:     { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.text, lineHeight: 22 },
-  bubbleTextUser: { fontFamily: fonts.sans, color: colors.text },
-  thinkingRow:    { flexDirection: "row", justifyContent: "flex-start", marginTop: spacing.xs, marginBottom: spacing.sm },
-  thinkingBubble: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    backgroundColor: colors.aiBubble, borderRadius: radius.lg,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
-  },
-  thinkingText: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted },
-
-  // Input
-  inputBar: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: spacing.md, paddingTop: spacing.sm,
-    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg, gap: spacing.sm,
-  },
-  input: {
-    fontFamily: fonts.sans,
-    flex: 1, backgroundColor: colors.inputBg, borderRadius: radius.xl,
-    paddingHorizontal: spacing.md, paddingTop: spacing.sm + 2, paddingBottom: spacing.sm + 2,
-    fontSize: fontSize.base, color: colors.text, textAlignVertical: "top",
-  },
-  sendBtn:         { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.text, alignItems: "center", justifyContent: "center" },
-  sendBtnDisabled: { backgroundColor: colors.border },
-
-  // Addition card
-  additionCard: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: colors.card, borderRadius: radius.lg,
-    padding: spacing.md, marginVertical: spacing.sm,
-    gap: spacing.sm, ...shadow.sm,
-  },
-  additionBody:  { flex: 1 },
-  additionTitle: { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.text },
-  additionDesc:  { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
-  additionLink:  { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.accent },
-
-  // ── History modal ────────────────────────────────────────────────────────────
-  histOverlay: { flex: 1, backgroundColor: colors.bg },
-  histHeader: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.sm,
-  },
-  histBackBtn:   { padding: 4 },
-  histTitle:     { fontFamily: fonts.display, flex: 1, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
-  histActionBtn: { padding: 4 },
-
-  histSearchRow: {
-    flexDirection: "row", alignItems: "center",
-    margin: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
-    backgroundColor: colors.inputBg, borderRadius: radius.lg, gap: spacing.sm,
-  },
-  histSearchInput: { flex: 1, fontSize: fontSize.base, color: colors.text, padding: 0 },
-
-  histList:    { paddingBottom: 40 },
-  histMsgList: { paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: 60 },
-
-  histSessionItem: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: spacing.lg, paddingVertical: spacing.md,
-    borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md,
-  },
-  histSessionIcon: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: colors.accent + "22",
-    alignItems: "center", justifyContent: "center",
-  },
-  histSessionIconUpdate: { backgroundColor: colors.easy + "22" },
-  histSessionBody:  { flex: 1 },
-  histSessionTitle: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, lineHeight: 20 },
-  histSessionMeta:  { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginTop: 2 },
-
-  histEmpty: {
-    alignItems: "center", paddingTop: spacing.xxl * 2, gap: spacing.md,
-    paddingHorizontal: spacing.xl,
-  },
-  histEmptyText: {
-    fontFamily: fonts.sans,
-    fontSize: fontSize.base, color: colors.muted,
-    textAlign: "center", lineHeight: 22,
-  },
-
-  placeContinueBtn: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.full,
-    paddingVertical: 14,
+  wizardHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: spacing.sm,
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  placeContinueBtnText: {
-    fontFamily: fonts.sansSemiBold,
+  wizardTitle: { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
+
+  // Search
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    margin: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    backgroundColor: colors.sheet,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  searchIcon:  { flexShrink: 0 },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.sans,
     fontSize: fontSize.base,
-    color: "#FFFFFF",
+    color: colors.text,
+    padding: 0,
   },
-  saveCta: {
+  chipList:        { flex: 1 },
+  chipListContent: { paddingHorizontal: spacing.md, gap: spacing.xs },
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  chipRowSelected: { backgroundColor: colors.text, borderColor: colors.text },
+  chipRowLeft:     { flex: 1, gap: 2 },
+  chipName:        { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
+  chipNameSelected:{ color: colors.inverse },
+  chipDesc:        { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  chipMeta:        { flexDirection: "row", alignItems: "center" },
+  chipType:        { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textTransform: "capitalize" },
+  emptyText:       { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center", padding: spacing.xl },
+
+  // CTA bar
+  ctaBar: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  ctaBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.xs,
-    backgroundColor: colors.accent,
-    paddingVertical: 12,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xs,
+    backgroundColor: colors.text,
     borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.xl,
   },
-  saveCtaDisabled: {
-    backgroundColor: colors.subtle,
+  ctaBtnDisabled: { opacity: 0.4 },
+  ctaBtnText:     { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.inverse },
+
+  // Filters
+  filtersContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
+  filterLabel:    { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  stepperRow:     { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  stepBtn: {
+    width: 36, height: 36, borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
   },
-  saveCtaText: {
-    fontFamily: fonts.sansBold,
-    color: colors.inverse,
-    fontSize: fontSize.sm,
+  stepValue:      { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, minWidth: 60, textAlign: "center" },
+  pillRow:        { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  pill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.full,
+    borderWidth: 1.5,
+    borderColor: colors.border,
   },
+  pillActive:     { backgroundColor: colors.text, borderColor: colors.text },
+  pillText:       { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
+  pillTextActive: { color: colors.inverse },
+
+  // Destination tiles
+  destTile: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    overflow: "hidden",
+    ...shadow.md,
+  },
+  destTileSelected: { borderColor: colors.text },
+  destImageBox:     { height: 160, backgroundColor: colors.sheet },
+  destImage:        { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
+  destCheckbox: {
+    position: "absolute",
+    top: spacing.sm,
+    right: spacing.sm,
+    width: 28, height: 28,
+    borderRadius: 14,
+    borderWidth: 2, borderColor: "#fff",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    alignItems: "center", justifyContent: "center",
+  },
+  destCheckboxSelected: { backgroundColor: colors.text, borderColor: colors.text },
+  destBody:   { padding: spacing.md, gap: spacing.xs },
+  destName:   { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
+  destCountry:{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  destDesc:   { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19 },
+  expandBtn:  { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
+  expandBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.accent },
+  reasonRow:  { flexDirection: "row", gap: spacing.xs, paddingTop: 4 },
+  reasonBullet: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent, width: 10 },
+  reasonText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 18 },
+
+  // Skeleton
+  skeletonContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
+  skeletonTitle:   { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
+  allocRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  allocDest:     { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text, flex: 1 },
+  allocControls: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  allocBtn: {
+    width: 32, height: 32, borderRadius: radius.full,
+    borderWidth: 1.5, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
+  },
+  allocNights:   { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.text, minWidth: 64, textAlign: "center" },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: spacing.xs,
+  },
+  totalLabel:    { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.muted },
+  totalValue:    { fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.muted },
+  totalValueOk:  { color: colors.text },
+  totalHint:     { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textAlign: "center" },
+
+  // Success
+  successIcon: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: colors.text,
+    alignItems: "center", justifyContent: "center",
+    marginBottom: spacing.md,
+  },
+  successTitle:   { fontFamily: fonts.display, fontSize: fontSize.xxl, color: colors.text, textAlign: "center", letterSpacing: -0.5 },
+  successSub:     { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted },
+  secondaryBtn:   { marginTop: spacing.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
+  secondaryBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
+
+  // Shared
+  loadingText: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center" },
+  errorText:   { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted, textAlign: "center" },
+  retryBtn:    { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border },
+  retryText:   { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
 });

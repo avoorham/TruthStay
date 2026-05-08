@@ -2126,12 +2126,11 @@ export default function ExploreScreen() {
 
   useEffect(() => {
     if (filters.filterCategory !== "vacations") {
-      loadContentEntries(filters.filterCategory, mapBounds ?? undefined);
+      loadContentEntries(filters.filterCategory);
     } else {
       setContentEntries([]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.filterCategory]);
+  }, [filters.filterCategory, loadContentEntries]);
 
   const handleFilterOpen = useCallback(async () => {
     setFilterOpen(true);

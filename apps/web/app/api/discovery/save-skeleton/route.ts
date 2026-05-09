@@ -50,11 +50,9 @@ export async function POST(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Resolve _old_users.id from auth UUID (FK target for adventures.userId)
   type OldUserRow = { id: string };
-  const OLD_USERS = "_old_users" as unknown as Parameters<typeof db.from>[0];
   const { data: oldUser } = await db
-    .from(OLD_USERS)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();

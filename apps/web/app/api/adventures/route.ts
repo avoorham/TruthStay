@@ -10,9 +10,8 @@ export async function POST(request: NextRequest) {
   const adminDb = createAdminClient();
 
   type OldUserRowPost = { id: string };
-  const OLD_USERS_POST = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
   const { data: oldUser } = await adminDb
-    .from(OLD_USERS_POST)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();
@@ -96,11 +95,9 @@ export async function GET(request: NextRequest) {
 
   const adminDb = createAdminClient();
 
-  // Resolve _old_users.id from auth UUID (FK target for adventures.userId)
   type OldUserRow = { id: string };
-  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
   const { data: oldUser } = await adminDb
-    .from(OLD_USERS)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();

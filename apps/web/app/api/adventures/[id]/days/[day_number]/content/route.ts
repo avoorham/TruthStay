@@ -30,11 +30,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const db = createAdminClient();
 
-  // Verify the adventure belongs to this user via _old_users
   type OldUserRow = { id: string };
-  const OLD_USERS = "_old_users" as unknown as Parameters<typeof db.from>[0];
   const { data: oldUser } = await db
-    .from(OLD_USERS)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();

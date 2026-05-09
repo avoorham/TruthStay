@@ -33,9 +33,8 @@ export async function GET(
   let isOwner = false;
   if (authUser) {
     type OldUserRow = { id: string };
-    const OLD_USERS = "_old_users" as unknown as Parameters<typeof db.from>[0];
     const { data: oldUser } = await db
-      .from(OLD_USERS)
+      .from("users")
       .select("id")
       .eq("authId", authUser.id)
       .maybeSingle();
@@ -124,9 +123,8 @@ export async function PATCH(
   const adminDb = createAdminClient();
 
   type OldUserRow = { id: string };
-  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
   const { data: oldUser } = await adminDb
-    .from(OLD_USERS)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();
@@ -266,9 +264,8 @@ export async function DELETE(
   const adminDb = createAdminClient();
 
   type OldUserRow = { id: string };
-  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
   const { data: oldUser } = await adminDb
-    .from(OLD_USERS)
+    .from("users")
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();

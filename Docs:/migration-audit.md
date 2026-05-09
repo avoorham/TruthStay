@@ -157,11 +157,11 @@ EXISTS (
 | Trigger | Table | Function | References users? |
 |---------|-------|----------|--------------------|
 | `content_entry_story_trigger` | `content_entries` | `generate_scout_stories()` | No — queries `user_adventure_preferences` only |
-| `activity_post_story_trigger` | `activity_posts` | `generate_friend_activity_stories()` | Needs verification |
+| `activity_post_story_trigger` | `activity_posts` | `generate_friend_activity_stories()` | **No** — queries `follows` by email columns only; inserts into `feed_stories` |
 | `trg_check_verified` | `content_entries` | `check_content_verified()` | No |
 | `on_auth_user_created` | `auth.users` | `handle_new_user()` | Separate schema, unaffected |
 
-**Action:** Verify `generate_friend_activity_stories()` body before Phase 2.
+**Action:** None — all trigger functions are safe. Pre-Phase-2 check complete (2026-05-09).
 
 ---
 

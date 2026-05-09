@@ -32,12 +32,14 @@ export async function GET(
   const authUser = await getAuthUser(request);
   let isOwner = false;
   if (authUser) {
-    const { data: publicUser } = await db
-      .from("users")
+    type OldUserRow = { id: string };
+    const OLD_USERS = "_old_users" as unknown as Parameters<typeof db.from>[0];
+    const { data: oldUser } = await db
+      .from(OLD_USERS)
       .select("id")
       .eq("authId", authUser.id)
       .maybeSingle();
-    isOwner = !!publicUser && adv.userId === publicUser.id;
+    isOwner = !!(oldUser as OldUserRow | null) && adv.userId === (oldUser as OldUserRow).id;
   }
 
   if (!adv.isPublic && !isOwner) {
@@ -84,16 +86,19 @@ export async function PATCH(
 
   const adminDb = createAdminClient();
 
-  // Resolve public.users.id from the auth UUID — they are different columns.
-  const { data: publicUser } = await adminDb
-    .from("users")
+  type OldUserRow = { id: string };
+  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
+  const { data: oldUser } = await adminDb
+    .from(OLD_USERS)
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();
 
-  if (!publicUser) {
+  if (!oldUser) {
     return NextResponse.json({ error: "User profile not found" }, { status: 404 });
   }
+
+  const userId = (oldUser as OldUserRow).id;
 
   const updateFields: Record<string, unknown> = {};
   if (body.isSaved      !== undefined) updateFields.isSaved      = body.isSaved;
@@ -106,7 +111,7 @@ export async function PATCH(
     .from("adventures")
     .update(updateFields)
     .eq("id", adventureId)
-    .eq("userId", publicUser.id);
+    .eq("userId", userId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -223,19 +228,21 @@ export async function DELETE(
 
   const adminDb = createAdminClient();
 
-  const { data: publicUser } = await adminDb
-    .from("users")
+  type OldUserRow = { id: string };
+  const OLD_USERS = "_old_users" as unknown as Parameters<typeof adminDb.from>[0];
+  const { data: oldUser } = await adminDb
+    .from(OLD_USERS)
     .select("id")
     .eq("authId", user.id)
     .maybeSingle();
 
-  if (!publicUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!oldUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const { error } = await adminDb
     .from("adventures")
     .delete()
     .eq("id", adventureId)
-    .eq("userId", publicUser.id);
+    .eq("userId", (oldUser as OldUserRow).id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

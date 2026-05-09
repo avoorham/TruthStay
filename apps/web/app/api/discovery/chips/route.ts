@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const { data: chips, error } = await db
     .from("destination_chips")
     .select("id, name, type, parent_region, country, save_count, description")
-    .ilike("name", `${query}%`)
+    .ilike("name", query.length > 0 ? `%${query}%` : "%")
     .order("save_count", { ascending: false })
     .limit(limit);
 

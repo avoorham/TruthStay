@@ -25,6 +25,7 @@ interface Chip {
   id: string;
   name: string;
   type: string;
+  parent_region: string | null;
   country: string | null;
   save_count: number;
   description: string | null;
@@ -294,6 +295,7 @@ export default function DiscoverScreen() {
               contentContainerStyle={styles.chipListContent}
               renderItem={({ item }) => {
                 const selected = selectedChip?.id === item.id;
+                const regionLabel = [item.parent_region, item.country].filter(Boolean).join(" / ");
                 return (
                   <TouchableOpacity
                     style={[styles.chipRow, selected && styles.chipRowSelected]}
@@ -302,18 +304,50 @@ export default function DiscoverScreen() {
                   >
                     <View style={styles.chipRowLeft}>
                       <Text style={[styles.chipName, selected && styles.chipNameSelected]}>{item.name}</Text>
-                      {item.description ? <Text style={styles.chipDesc} numberOfLines={1}>{item.description}</Text> : null}
+                      {regionLabel ? (
+                        <Text style={[styles.chipDesc, selected && { color: colors.inverse + "99" }]} numberOfLines={1}>{regionLabel}</Text>
+                      ) : item.description ? (
+                        <Text style={styles.chipDesc} numberOfLines={1}>{item.description}</Text>
+                      ) : null}
                     </View>
                     <View style={styles.chipMeta}>
-                      <Text style={styles.chipType}>{item.type}</Text>
+                      <Text style={[styles.chipType, selected && { color: colors.inverse + "99" }]}>{item.type}</Text>
                       {selected && <Feather name="check" size={14} color={colors.inverse} style={{ marginLeft: 4 }} />}
                     </View>
                   </TouchableOpacity>
                 );
               }}
               ListEmptyComponent={
-                query.length > 0 ? (
-                  <Text style={styles.emptyText}>No destinations found. Try a different name.</Text>
+                query.trim().length >= 3 ? (
+                  <TouchableOpacity
+                    style={styles.fallbackChip}
+                    onPress={() => {
+                      const freeChip: Chip = {
+                        id: `free:${query.trim()}`,
+                        name: query.trim(),
+                        type: "region",
+                        parent_region: null,
+                        country: null,
+                        save_count: 0,
+                        description: null,
+                      };
+                      setSelectedChip(freeChip);
+                      // Fire background Scout for this unknown destination
+                      fetch(`${BASE}/api/discovery/scout-region`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ region: query.trim() }),
+                      }).catch(() => {});
+                      setStep(2);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Feather name="plus" size={14} color={colors.accent} />
+                    <Text style={styles.fallbackChipText}>"{query.trim()}"</Text>
+                    <Text style={styles.fallbackChipSub}>Search this destination</Text>
+                  </TouchableOpacity>
+                ) : query.length > 0 ? (
+                  <Text style={styles.emptyText}>Keep typing to search…</Text>
                 ) : null
               }
             />
@@ -683,6 +717,20 @@ const styles = StyleSheet.create({
   chipMeta:        { flexDirection: "row", alignItems: "center" },
   chipType:        { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textTransform: "capitalize" },
   emptyText:       { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center", padding: spacing.xl },
+  fallbackChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderStyle: "dashed",
+  },
+  fallbackChipText:{ fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.accent, flex: 1 },
+  fallbackChipSub: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
 
   // CTA bar
   ctaBar: {

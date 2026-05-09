@@ -11,38 +11,6 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
-// ─── Adventures chat ─────────────────────────────────────────────────────────
-
-export interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-export interface TripSummary {
-  title: string;
-  activity_type: string;
-  region: string;
-  duration_days: number;
-  start_date: string | null;
-  days: { day_number: number; title: string; distance_km: number | null; elevation_gain_m: number | null }[];
-}
-
-export async function sendChatMessage(
-  messages: ChatMessage[],
-  options?: { mode?: "update"; adventure_id?: string; trip_summary?: TripSummary },
-) {
-  const res = await fetch(`${BASE}/api/adventures/chat`, {
-    method: "POST",
-    headers: await authHeaders(),
-    body: JSON.stringify({ messages, ...options }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail ?? err.error ?? `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
 // ─── Adventures list ─────────────────────────────────────────────────────────
 
 export async function getMyAdventures() {
@@ -59,16 +27,6 @@ export async function getAdventureById(id: string): Promise<AdventureRow> {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<AdventureRow>;
-}
-
-export async function saveAdventure(id: string) {
-  const res = await fetch(`${BASE}/api/adventures/${id}`, {
-    method: "PATCH",
-    headers: await authHeaders(),
-    body: JSON.stringify({ isSaved: true }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 export async function shareAdventurePublic(id: string) {
@@ -159,21 +117,6 @@ export async function moveActivity(
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
-export async function reorderActivity(
-  adventureId: string,
-  dayNumber: number,
-  activityType: "restaurant",
-  fromIndex: number,
-  toIndex: number,
-) {
-  const res = await fetch(`${BASE}/api/adventures/${adventureId}/reorder-activity`, {
-    method: "POST",
-    headers: await authHeaders(),
-    body: JSON.stringify({ dayNumber, activityType, fromIndex, toIndex }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-}
-
 export async function updateTileOrder(
   adventureId: string,
   dayNumber: number,
@@ -184,22 +127,6 @@ export async function updateTileOrder(
       method: "POST",
       headers: await authHeaders(),
       body: JSON.stringify({ dayNumber, tileOrder }),
-    });
-  } catch { /* non-fatal */ }
-}
-
-export async function recordSelection(
-  adventureId: string,
-  dayNumber: number,
-  category: "route" | "accommodation",
-  selectedIndex: number,
-  optionType?: string
-) {
-  try {
-    await fetch(`${BASE}/api/adventures/${adventureId}/select`, {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify({ day_number: dayNumber, category, selected_index: selectedIndex, option_type: optionType }),
     });
   } catch { /* non-fatal */ }
 }

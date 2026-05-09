@@ -2364,7 +2364,6 @@ function AddItemModal({
 }) {
   const insets = useSafeAreaInsets();
   const { showAlert: showAddAlert, modal: addModal } = useAppAlert();
-  const [mode, setMode]         = useState<"pick" | "discover" | "manual">("pick");
   const [selectedType, setSelectedType] = useState<ItemType>("activity");
   const [link, setLink]         = useState("");
   const [scraping, setScraping] = useState(false);
@@ -2375,11 +2374,6 @@ function AddItemModal({
   const [photos, setPhotos]     = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving]     = useState(false);
-  // Discover chat state
-  const [discoverQuery, setDiscoverQuery] = useState("");
-  const [discoverLoading, setDiscoverLoading] = useState(false);
-  const [discoverResult, setDiscoverResult] = useState<{ name: string; type: ItemType; description: string; location: string } | null>(null);
-  const [discoverError, setDiscoverError] = useState("");
 
   async function handleScrape() {
     const url = link.trim();
@@ -2404,49 +2398,6 @@ function AddItemModal({
     } finally {
       setScraping(false);
     }
-  }
-
-  async function handleDiscover() {
-    if (!discoverQuery.trim()) return;
-    setDiscoverLoading(true);
-    setDiscoverError("");
-    setDiscoverResult(null);
-    try {
-      const regionCtx = adventureRegion ? ` in ${adventureRegion}` : "";
-      const prompt = `I'm planning a trip${regionCtx} and want to add something to Day ${dayNumber} of my itinerary. ${discoverQuery.trim()}. Suggest ONE specific place. Respond ONLY with valid JSON (no other text): {"name":"...","type":"stay|restaurant|activity","description":"...","location":"..."}`;
-      const { sendChatMessage } = await import("../../../lib/api");
-      const result = await sendChatMessage([{ role: "user", content: prompt }]);
-      // Parse JSON from response
-      const text: string = typeof result === "string" ? result : (result.message ?? result.content ?? JSON.stringify(result));
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("no JSON");
-      const parsed = JSON.parse(jsonMatch[0]) as { name?: string; type?: string; description?: string; location?: string };
-      const validTypes: ItemType[] = ["stay", "restaurant", "activity"];
-      setDiscoverResult({
-        name: parsed.name ?? "Suggested place",
-        type: (validTypes.includes(parsed.type as ItemType) ? parsed.type : "activity") as ItemType,
-        description: parsed.description ?? "",
-        location: parsed.location ?? "",
-      });
-    } catch {
-      setDiscoverError("Couldn't get a suggestion. Try rephrasing or add manually.");
-    } finally {
-      setDiscoverLoading(false);
-    }
-  }
-
-  function handleAddDiscoverResult() {
-    if (!discoverResult) return;
-    onSave({
-      id: `custom_${Date.now()}`,
-      name: discoverResult.name,
-      type: discoverResult.type,
-      location: discoverResult.location || null,
-      notes: discoverResult.description || null,
-      photos: [],
-      rating: null,
-      sourceUrl: null,
-    });
   }
 
   async function handleAddPhoto() {
@@ -2485,118 +2436,15 @@ function AddItemModal({
         <View style={[addItemStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={addItemStyles.handle} />
           <View style={addItemStyles.headerRow}>
-            <TouchableOpacity onPress={mode === "pick" ? onClose : () => setMode("pick")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name={mode === "pick" ? "x" : "arrow-left"} size={20} color={colors.muted} />
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="x" size={20} color={colors.muted} />
             </TouchableOpacity>
-            <Text style={addItemStyles.title}>
-              {mode === "pick" ? `Add to Day ${dayNumber}` : mode === "discover" ? "Ask Discover" : "Add Manually"}
-            </Text>
+            <Text style={addItemStyles.title}>Add to Day {dayNumber}</Text>
             <View style={{ width: 28 }} />
           </View>
 
-          {/* ── Picker screen ── */}
-          {mode === "pick" && (
-            <View style={addItemStyles.pickerScreen}>
-              <Text style={addItemStyles.pickerSubtitle}>How do you want to add a place?</Text>
-              <TouchableOpacity style={addItemStyles.pickerOptionDiscover} onPress={() => setMode("discover")} activeOpacity={0.85}>
-                <View style={addItemStyles.pickerOptionIcon}>
-                  <MaterialCommunityIcons name="robot-outline" size={22} color="#FFFFFF" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={addItemStyles.pickerOptionTitle}>Ask Discover</Text>
-                  <Text style={addItemStyles.pickerOptionSub}>Let AI suggest a place based on your query</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
-              </TouchableOpacity>
-              <TouchableOpacity style={addItemStyles.pickerOptionManual} onPress={() => setMode("manual")} activeOpacity={0.85}>
-                <View style={[addItemStyles.pickerOptionIcon, { backgroundColor: colors.sheet }]}>
-                  <Feather name="edit-3" size={20} color={colors.text} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[addItemStyles.pickerOptionTitle, { color: colors.text }]}>Add Manually</Text>
-                  <Text style={[addItemStyles.pickerOptionSub, { color: colors.muted }]}>Fill in the details yourself</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={colors.muted} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ── Discover chat screen ── */}
-          {mode === "discover" && (
-            <View style={addItemStyles.discoverScreen}>
-              <Text style={addItemStyles.discoverHint}>
-                Ask for a specific type of place, e.g. "find me a cosy restaurant near the old town" or "suggest a morning hike under 3 hours"
-              </Text>
-              <View style={addItemStyles.discoverInputRow}>
-                <TextInput
-                  style={addItemStyles.discoverInput}
-                  value={discoverQuery}
-                  onChangeText={setDiscoverQuery}
-                  placeholder="What are you looking for?"
-                  placeholderTextColor={colors.subtle}
-                  multiline
-                  maxLength={200}
-                  onSubmitEditing={handleDiscover}
-                />
-              </View>
-              <TouchableOpacity
-                style={[addItemStyles.discoverBtn, (!discoverQuery.trim() || discoverLoading) && { opacity: 0.5 }]}
-                onPress={handleDiscover}
-                disabled={!discoverQuery.trim() || discoverLoading}
-                activeOpacity={0.85}
-              >
-                {discoverLoading
-                  ? <ActivityIndicator color="#FFFFFF" size="small" />
-                  : <>
-                      <MaterialCommunityIcons name="robot-outline" size={16} color="#FFFFFF" />
-                      <Text style={addItemStyles.discoverBtnText}>Find a place</Text>
-                    </>
-                }
-              </TouchableOpacity>
-
-              {discoverError !== "" && (
-                <Text style={addItemStyles.discoverError}>{discoverError}</Text>
-              )}
-
-              {discoverResult && (
-                <View style={addItemStyles.discoverCard}>
-                  <View style={addItemStyles.discoverCardHeader}>
-                    <Text style={addItemStyles.discoverCardEmoji}>
-                      {discoverResult.type === "restaurant" ? "🍽️" : discoverResult.type === "stay" ? "🏨" : "🏃"}
-                    </Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={addItemStyles.discoverCardName}>{discoverResult.name}</Text>
-                      {discoverResult.location !== "" && (
-                        <Text style={addItemStyles.discoverCardLocation}>📍 {discoverResult.location}</Text>
-                      )}
-                    </View>
-                  </View>
-                  {discoverResult.description !== "" && (
-                    <Text style={addItemStyles.discoverCardDesc}>{discoverResult.description}</Text>
-                  )}
-                  <View style={addItemStyles.discoverCardActions}>
-                    <TouchableOpacity style={addItemStyles.discoverCardEdit} onPress={() => {
-                      setName(discoverResult.name);
-                      setSelectedType(discoverResult.type);
-                      setLocation(discoverResult.location);
-                      setNotes(discoverResult.description);
-                      setMode("manual");
-                    }}>
-                      <Text style={addItemStyles.discoverCardEditText}>Edit first</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={addItemStyles.discoverCardAdd} onPress={handleAddDiscoverResult} activeOpacity={0.85}>
-                      <Text style={addItemStyles.discoverCardAddText}>Add to Day {dayNumber}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* ── Manual form screen ── */}
-          {mode === "manual" && (
-            <>
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* Type selector */}
                 <View style={addItemStyles.typeRow}>
                   {ITEM_TYPES.map(t => (
@@ -2704,8 +2552,8 @@ function AddItemModal({
 
               {/* Actions */}
               <View style={addItemStyles.actionRow}>
-                <TouchableOpacity style={addItemStyles.cancelBtn} onPress={() => setMode("pick")}>
-                  <Text style={addItemStyles.cancelText}>Back</Text>
+                <TouchableOpacity style={addItemStyles.cancelBtn} onPress={onClose}>
+                  <Text style={addItemStyles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[addItemStyles.saveBtn, saving && { opacity: 0.6 }]}
@@ -2719,7 +2567,6 @@ function AddItemModal({
                 </TouchableOpacity>
               </View>
             </>
-          )}
         </View>
       </View>
     </Modal>

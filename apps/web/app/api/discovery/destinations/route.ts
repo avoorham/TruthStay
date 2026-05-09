@@ -169,17 +169,55 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     return Response.json({ error: "AI generation failed", detail: msg }, { status: 500 });
   }
 
+  // For each AI-suggested destination, fetch images via a dedicated broad query
+  // (no verified/status gate — any real photo is fine for display)
+  const destNames = aiDestinations.map(d => d.name);
+
+  type ImageRow = { id: string; region: string; name: string; image_url: string };
+  let imageRows: ImageRow[] = [];
+  if (destNames.length > 0) {
+    const imageFilters = destNames
+      .map(n => `region.ilike.%${n}%,name.ilike.%${n}%`)
+      .join(",");
+    const { data: imageEntries } = await db
+      .from("content_entries")
+      .select("id, region, name, image_url")
+      .not("image_url", "is", null)
+      .or(imageFilters)
+      .limit(Math.max(destNames.length * 5, 20));
+    imageRows = (imageEntries ?? []) as ImageRow[];
+  }
+
+  // Build a map: lowercased dest name → image URLs
+  const imagesByDest = new Map<string, string[]>();
+  for (const row of imageRows) {
+    for (const destName of destNames) {
+      const key = destName.toLowerCase();
+      if (
+        row.region?.toLowerCase().includes(key) ||
+        row.name?.toLowerCase().includes(key)
+      ) {
+        if (!imagesByDest.has(key)) imagesByDest.set(key, []);
+        if (row.image_url && imagesByDest.get(key)!.length < 3) {
+          imagesByDest.get(key)!.push(row.image_url);
+        }
+      }
+    }
+  }
+
   // Attach source_entry_ids and hero_images per destination
   const destinations: DestinationTile[] = aiDestinations.map(dest => {
+    const key = dest.name.toLowerCase();
     const matching = contentRows.filter(e =>
-      e.region?.toLowerCase().includes(dest.name.toLowerCase()) ||
-      e.name?.toLowerCase().includes(dest.name.toLowerCase())
+      e.region?.toLowerCase().includes(key) ||
+      e.name?.toLowerCase().includes(key)
     );
     const sourceEntryIds = [...new Set(matching.map(e => e.id))].slice(0, 10);
-    const heroImages = matching
-      .filter(e => e.image_url)
-      .slice(0, 3)
-      .map(e => e.image_url!);
+    const heroImages = imagesByDest.get(key) ?? [];
+
+    if (heroImages.length === 0) {
+      console.warn(`[destinations] No hero photo for "${dest.name}" (region: ${dest.region}) — falling back to stock`);
+    }
 
     return {
       name:             dest.name,

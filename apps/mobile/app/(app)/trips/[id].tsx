@@ -12,13 +12,299 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, shareAdventurePublic, updateAdventure, deleteAdventure, moveActivity, updateTileOrder, getCollaborators, inviteCollaborator, updateCollaboratorPermission, removeCollaborator, updateDayCustomItems, createActivityPost, type AdventureRow, type AdventureDayRow, type CustomItem, type Collaborator as ApiCollaborator } from "../../../lib/api";
-import { TripDetailSkeletonView } from "../../../components/TripDetailSkeleton";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { supabase } from "../../../lib/supabase";
 import { colors, fontSize, fonts, radius, spacing, shadow } from "../../../lib/theme";
 import { useAppAlert } from "../../../components/AppAlertModal";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
+
+const BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+
+async function apiHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return {
+    "Content-Type": "application/json",
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+}
+
+// ─── Wizard-day types ──────────────────────────────────────────────────────────
+
+type WizardContentType = "accommodation" | "restaurant" | "activity" | "things_to_do";
+
+interface WizardContentEntry {
+  id: string;
+  name: string;
+  type: string;
+  region: string;
+  country: string | null;
+  description: string | null;
+  trust_score: number;
+  save_count: number;
+  image_url: string | null;
+}
+
+interface WizardDayContent {
+  accommodation: WizardContentEntry | null;
+  meals: WizardContentEntry[];
+  activities: WizardContentEntry[];
+  things_to_do: WizardContentEntry[];
+}
+
+const WIZARD_CONTENT_TYPES: { key: WizardContentType; label: string; role: string; icon: React.ComponentProps<typeof Feather>["name"] }[] = [
+  { key: "accommodation", label: "Add accommodation", role: "accommodation", icon: "home" },
+  { key: "restaurant",    label: "Add restaurant",    role: "meal",          icon: "coffee" },
+  { key: "activity",      label: "Add activity",      role: "activity",      icon: "zap" },
+  { key: "things_to_do", label: "Add things to do",  role: "activity",      icon: "map-pin" },
+];
+
+const pickerStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.lg, color: colors.text },
+  closeBtn: { padding: 4 },
+  subtitle: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.xl },
+  emptyText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.muted },
+  emptyHint: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center", lineHeight: 18 },
+  list: { flex: 1 },
+  entryCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: radius.md, overflow: "hidden", gap: spacing.sm },
+  entryImage: { width: 64, height: 64 },
+  entryBody: { flex: 1, gap: 2, paddingVertical: spacing.sm },
+  entryName: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text },
+  entryDesc: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 17 },
+  entryMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  entryScore: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent },
+  entrySaves: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginRight: spacing.sm },
+});
+
+const wizardStyles = StyleSheet.create({
+  sectionLabel: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted, marginBottom: spacing.xs, marginTop: spacing.sm },
+  filledItem: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 10, paddingHorizontal: spacing.sm, backgroundColor: colors.sheet, borderRadius: radius.md },
+  filledName: { flex: 1, fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.text },
+  addButton: {
+    flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    paddingVertical: 12, paddingHorizontal: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.accent, borderStyle: "dashed",
+    borderRadius: radius.md, marginBottom: spacing.xs,
+  },
+  addButtonText: { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.accent },
+});
+
+// ─── Content picker sheet (used by wizard-day empty-state) ───────────────────
+
+function ContentPickerSheet({
+  visible, adventureId, dayNumber, adventureDayId, type, destination, onClose, onAdded,
+}: {
+  visible: boolean;
+  adventureId: string;
+  dayNumber: number;
+  adventureDayId: string;
+  type: WizardContentType | null;
+  destination: string;
+  onClose: () => void;
+  onAdded: (entry: WizardContentEntry, role: string) => void;
+}) {
+  const { showAlert: showPickerAlert, modal: pickerModal } = useAppAlert();
+  const [entries, setEntries] = useState<WizardContentEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!visible || !type || !adventureDayId) return;
+    setLoading(true);
+    setEntries([]);
+    fetch(`${BASE}/api/discovery/content-for-day?adventure_day_id=${encodeURIComponent(adventureDayId)}&type=${type}`)
+      .then(r => r.json())
+      .then((j: { entries?: WizardContentEntry[] }) => setEntries(j.entries ?? []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false));
+  }, [visible, type, adventureDayId]);
+
+  if (!visible || !type) return null;
+
+  const typeInfo = WIZARD_CONTENT_TYPES.find(c => c.key === type);
+
+  async function handleAdd(entry: WizardContentEntry) {
+    if (!typeInfo) return;
+    setAdding(entry.id);
+    try {
+      const res = await fetch(`${BASE}/api/adventures/${adventureId}/days/${dayNumber}/content`, {
+        method: "POST",
+        headers: await apiHeaders(),
+        body: JSON.stringify({ content_entry_id: entry.id, role: typeInfo.role }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      onAdded(entry, typeInfo.role);
+      onClose();
+    } catch {
+      showPickerAlert("Error", "Could not add this item. Please try again.");
+    } finally {
+      setAdding(null);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      {pickerModal}
+      <View style={pickerStyles.container}>
+        <View style={pickerStyles.header}>
+          <Text style={pickerStyles.title}>{typeInfo?.label ?? "Pick content"}</Text>
+          <TouchableOpacity onPress={onClose} style={pickerStyles.closeBtn}>
+            <Feather name="x" size={20} color={colors.muted} />
+          </TouchableOpacity>
+        </View>
+        {destination ? <Text style={pickerStyles.subtitle}>Near {destination}</Text> : null}
+        {loading && (
+          <View style={pickerStyles.centered}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        )}
+        {!loading && entries.length === 0 && (
+          <View style={pickerStyles.centered}>
+            <Feather name="inbox" size={36} color={colors.border} />
+            <Text style={pickerStyles.emptyText}>No content here yet</Text>
+            <Text style={pickerStyles.emptyHint}>More will appear as the community adds recommendations</Text>
+          </View>
+        )}
+        {!loading && entries.length > 0 && (
+          <ScrollView style={pickerStyles.list} contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
+            {entries.map(entry => (
+              <View key={entry.id} style={pickerStyles.entryCard}>
+                {entry.image_url && (
+                  <Image source={{ uri: entry.image_url }} style={pickerStyles.entryImage} resizeMode="cover" />
+                )}
+                <View style={pickerStyles.entryBody}>
+                  <Text style={pickerStyles.entryName} numberOfLines={1}>{entry.name}</Text>
+                  {entry.description ? (
+                    <Text style={pickerStyles.entryDesc} numberOfLines={2}>{entry.description}</Text>
+                  ) : null}
+                  <View style={pickerStyles.entryMeta}>
+                    <Feather name="star" size={11} color={colors.accent} />
+                    <Text style={pickerStyles.entryScore}>{entry.trust_score.toFixed(1)}</Text>
+                    {entry.save_count > 0 && (
+                      <Text style={pickerStyles.entrySaves}>{entry.save_count} saves</Text>
+                    )}
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={[pickerStyles.addBtn, adding === entry.id && { opacity: 0.6 }]}
+                  onPress={() => handleAdd(entry)}
+                  disabled={adding === entry.id}
+                >
+                  {adding === entry.id
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Feather name="plus" size={18} color="#fff" />
+                  }
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Wizard-day content (empty-state placeholders) ────────────────────────────
+
+function WizardDaySection({
+  day,
+  adventure,
+}: {
+  day: AdventureDayRow;
+  adventure: AdventureRow;
+}) {
+  const [pickerType, setPickerType] = useState<WizardContentType | null>(null);
+  const [dayContent, setDayContent] = useState<WizardDayContent>({
+    accommodation: null,
+    meals: [],
+    activities: [],
+    things_to_do: [],
+  });
+
+  const destination = (day.alternatives as { destination?: string } | null)?.destination ?? "";
+
+  function handleAdded(entry: WizardContentEntry, role: string) {
+    setDayContent(prev => {
+      if (role === "accommodation") return { ...prev, accommodation: entry };
+      if (role === "meal") return { ...prev, meals: [...prev.meals, entry] };
+      if (role === "activity") {
+        if (pickerType === "things_to_do") return { ...prev, things_to_do: [...prev.things_to_do, entry] };
+        return { ...prev, activities: [...prev.activities, entry] };
+      }
+      return prev;
+    });
+    setPickerType(null);
+  }
+
+  return (
+    <>
+      {/* WHERE YOU'RE STAYING */}
+      <Text style={wizardStyles.sectionLabel}>Where you're staying</Text>
+      {dayContent.accommodation ? (
+        <View style={wizardStyles.filledItem}>
+          <Feather name="home" size={14} color={colors.accent} />
+          <Text style={wizardStyles.filledName} numberOfLines={1}>{dayContent.accommodation.name}</Text>
+        </View>
+      ) : (
+        <TouchableOpacity style={wizardStyles.addButton} onPress={() => setPickerType("accommodation")}>
+          <Feather name="plus" size={14} color={colors.accent} />
+          <Text style={wizardStyles.addButtonText}>Add accommodation</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* THINGS PLANNED */}
+      <Text style={wizardStyles.sectionLabel}>Things planned</Text>
+
+      {dayContent.meals.map((m, i) => (
+        <View key={`meal_${i}`} style={wizardStyles.filledItem}>
+          <Feather name="coffee" size={14} color={colors.accent} />
+          <Text style={wizardStyles.filledName} numberOfLines={1}>{m.name}</Text>
+        </View>
+      ))}
+      <TouchableOpacity style={wizardStyles.addButton} onPress={() => setPickerType("restaurant")}>
+        <Feather name="plus" size={14} color={colors.accent} />
+        <Text style={wizardStyles.addButtonText}>Add restaurant</Text>
+      </TouchableOpacity>
+
+      {dayContent.activities.map((a, i) => (
+        <View key={`act_${i}`} style={wizardStyles.filledItem}>
+          <Feather name="zap" size={14} color={colors.accent} />
+          <Text style={wizardStyles.filledName} numberOfLines={1}>{a.name}</Text>
+        </View>
+      ))}
+      <TouchableOpacity style={wizardStyles.addButton} onPress={() => setPickerType("activity")}>
+        <Feather name="plus" size={14} color={colors.accent} />
+        <Text style={wizardStyles.addButtonText}>Add activity</Text>
+      </TouchableOpacity>
+
+      {dayContent.things_to_do.map((t, i) => (
+        <View key={`todo_${i}`} style={wizardStyles.filledItem}>
+          <Feather name="map-pin" size={14} color={colors.accent} />
+          <Text style={wizardStyles.filledName} numberOfLines={1}>{t.name}</Text>
+        </View>
+      ))}
+      <TouchableOpacity style={wizardStyles.addButton} onPress={() => setPickerType("things_to_do")}>
+        <Feather name="plus" size={14} color={colors.accent} />
+        <Text style={wizardStyles.addButtonText}>Add things to do</Text>
+      </TouchableOpacity>
+
+      <ContentPickerSheet
+        visible={pickerType !== null}
+        adventureId={adventure.id}
+        dayNumber={day.dayNumber}
+        adventureDayId={day.id}
+        type={pickerType}
+        destination={destination}
+        onClose={() => setPickerType(null)}
+        onAdded={handleAdded}
+      />
+    </>
+  );
+}
 
 // ─── Local types (replacing mock-trips / mock-users) ──────────────────────────
 
@@ -108,11 +394,12 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
   };
 }
 
-const SCREEN_W    = Dimensions.get("window").width;
-const SCREEN_H    = Dimensions.get("window").height;
-const HERO_IMG_H  = Math.round(SCREEN_H * 0.26);
-const HERO_TEXT_H = 72;
-const HERO_H      = HERO_IMG_H + HERO_TEXT_H;
+const SCREEN_W       = Dimensions.get("window").width;
+const SCREEN_H       = Dimensions.get("window").height;
+const HERO_IMG_H     = Math.round(SCREEN_H * 0.26);
+const HERO_TEXT_H    = 72;
+const HERO_H         = HERO_IMG_H + HERO_TEXT_H;
+const HERO_CAROUSEL_W = SCREEN_W - spacing.md * 2 - 16;
 
 // ─── Activity icon map ────────────────────────────────────────────────────────
 
@@ -2619,10 +2906,10 @@ export default function TripDetailScreen() {
   const { showAlert, modal } = useAppAlert();
 
   const [adventure, setAdventure]         = useState<AdventureRow | null>(null);
-  const [allAdventures, setAllAdventures] = useState<AdventureRow[]>([]);
   const [loadError, setLoadError]         = useState(false);
   const [isOwnAdventure, setIsOwnAdventure] = useState(false);
   const [selectedDay, setSelectedDay]     = useState(1);
+  const [heroSlide, setHeroSlide]         = useState(0);
   const [mapVisible, setMapVisible]       = useState(false);
   const [inviteVisible, setInviteVisible] = useState(false);
   const [routeModal, setRouteModal]       = useState(false);
@@ -2641,7 +2928,9 @@ export default function TripDetailScreen() {
   const [dragOverDelete, setDragOverDelete] = useState(false);
   const [toast, setToast]                 = useState("");
   const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
-  const heroCarouselRef = useRef<FlatList<AdventureRow>>(null);
+  type DestSlide = { name: string; photo_url: string | null };
+  const heroCarouselRef = useRef<FlatList<DestSlide>>(null);
+  const heroAutoTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipScrollRef   = useRef(false);
   const heroOffset      = useRef(new Animated.Value(0)).current;
@@ -2661,6 +2950,33 @@ export default function TripDetailScreen() {
     [adventure],
   );
 
+  // Trip destinations for hero carousel — one slide per unique destination
+  const tripDestinations = React.useMemo((): DestSlide[] => {
+    if (!adventure) return [];
+    if (adventure.destinations && adventure.destinations.length > 0) {
+      return adventure.destinations.map(d => ({ name: d.name, photo_url: d.hero_photo_url }));
+    }
+    // Legacy trip: single slide with cover photo
+    return [{ name: adventure.region ?? "", photo_url: coverUrl ?? adventure.coverImageUrl ?? null }];
+  }, [adventure, coverUrl]);
+
+  // Auto-advance hero carousel every 5 s (pause on touch, restart after scroll ends)
+  useEffect(() => {
+    if (tripDestinations.length <= 1) return;
+    const start = () => {
+      if (heroAutoTimer.current) clearInterval(heroAutoTimer.current);
+      heroAutoTimer.current = setInterval(() => {
+        setHeroSlide(prev => {
+          const next = (prev + 1) % tripDestinations.length;
+          heroCarouselRef.current?.scrollToIndex({ index: next, animated: true });
+          return next;
+        });
+      }, 5000);
+    };
+    start();
+    return () => { if (heroAutoTimer.current) clearInterval(heroAutoTimer.current); };
+  }, [tripDestinations.length]);
+
   // Sync FlatList position when selectedDay changes via chip tap
   useEffect(() => {
     if (skipScrollRef.current) { skipScrollRef.current = false; return; }
@@ -2675,23 +2991,12 @@ export default function TripDetailScreen() {
     setLoadError(false);
     async function load() {
       try {
-        // Try own adventures first (may fail if not logged in — that's fine)
         let isOwn = false;
-        let myAdventures: AdventureRow[] = [];
         try {
-          myAdventures = await getMyAdventures();
+          const myAdventures = await getMyAdventures();
           isOwn = myAdventures.some(a => a.id === id);
         } catch { /* not logged in or no adventures */ }
 
-        // Sort: current → upcoming → past (same order as My Trips screen)
-        const sorted = [...myAdventures].sort((a, b) => {
-          const sa = a.startDate ? (new Date(a.startDate) <= new Date() ? 0 : 1) : 1;
-          const sb = b.startDate ? (new Date(b.startDate) <= new Date() ? 0 : 1) : 1;
-          return sa - sb || (a.startDate ?? "").localeCompare(b.startDate ?? "");
-        });
-        setAllAdventures(sorted);
-
-        // Always load via getAdventureById so we get isPublic for owners
         const adv = await getAdventureById(id ?? "");
         setIsOwnAdventure(isOwn);
         setIsPublicState(adv.isPublic ?? false);
@@ -2713,7 +3018,6 @@ export default function TripDetailScreen() {
           onPress={async () => {
             setLoadError(false);
             try {
-              let found = null;
               let isOwn = false;
               try { const list = await getMyAdventures(); isOwn = list.some(a => a.id === id); } catch { /* not logged in */ }
               const adv = await getAdventureById(id ?? "");
@@ -2735,17 +3039,8 @@ export default function TripDetailScreen() {
     );
   }
 
-  // Skeleton trips (new Discovery flow): all distanceKm are NULL and no legacy routes array
-  const isLegacy = (adventure.adventure_days ?? []).some(
-    d => d.distanceKm != null || Array.isArray((d.alternatives as { routes?: unknown[] } | null)?.routes),
-  );
-  if (!isLegacy) {
-    return <TripDetailSkeletonView adventure={adventure} />;
-  }
-
   const meta        = deriveMetaMeta(adventure);
   const actIconName = (ACTIVITY_ICON[adventure.activityType] ?? "map-marker-outline") as React.ComponentProps<typeof MaterialCommunityIcons>["name"];
-  const heroDisplayUrl = coverUrl ?? adventure.coverImageUrl ?? `https://picsum.photos/seed/${adventure.id}/800/600`;
   const isOwner     = isOwnAdventure;
   const today       = new Date().toISOString().split("T")[0];
   const isActive    = !!(adventure.startDate && adventure.endDate && today >= adventure.startDate && today <= adventure.endDate);
@@ -3121,33 +3416,57 @@ export default function TripDetailScreen() {
         backgroundColor: colors.card,
       }}>
         <View style={detailStyles.heroCard}>
-          {/* Photo carousel — inset with margin + rounded corners */}
+          {/* Photo carousel — one slide per destination */}
           <View style={detailStyles.heroImageWrap}>
-            {allAdventures.length > 0 ? (
-              <FlatList
-                ref={heroCarouselRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                data={allAdventures}
-                initialScrollIndex={Math.max(0, allAdventures.findIndex(a => a.id === id))}
-                getItemLayout={(_, i) => ({ length: SCREEN_W - spacing.md * 2 - 16, offset: (SCREEN_W - spacing.md * 2 - 16) * i, index: i })}
-                keyExtractor={a => a.id}
-                renderItem={({ item }) => (
+            <FlatList<DestSlide>
+              ref={heroCarouselRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              data={tripDestinations}
+              keyExtractor={(_, i) => String(i)}
+              getItemLayout={(_, i) => ({ length: HERO_CAROUSEL_W, offset: HERO_CAROUSEL_W * i, index: i })}
+              renderItem={({ item }) => (
+                <View style={{ width: HERO_CAROUSEL_W, height: HERO_IMG_H }}>
                   <Image
-                    source={{ uri: item.coverImageUrl ?? `https://picsum.photos/seed/${item.id}/800/600` }}
-                    style={{ width: SCREEN_W - spacing.md * 2 - 16, height: HERO_IMG_H }}
+                    source={{ uri: item.photo_url ?? `https://picsum.photos/seed/${adventure.id}/800/600` }}
+                    style={StyleSheet.absoluteFill}
                     resizeMode="cover"
                   />
-                )}
-                onMomentumScrollEnd={e => {
-                  const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - spacing.md * 2 - 16));
-                  const target = allAdventures[idx];
-                  if (target && target.id !== id) router.replace(`/(app)/trips/${target.id}` as never);
-                }}
-              />
-            ) : (
-              <Image source={{ uri: heroDisplayUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                  <LinearGradient
+                    colors={["transparent", "rgba(0,0,0,0.55)"]}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                  {item.name ? (
+                    <Text style={detailStyles.heroDestLabel} numberOfLines={1}>{item.name}</Text>
+                  ) : null}
+                </View>
+              )}
+              onScrollBeginDrag={() => {
+                if (heroAutoTimer.current) { clearInterval(heroAutoTimer.current); heroAutoTimer.current = null; }
+              }}
+              onMomentumScrollEnd={e => {
+                const idx = Math.round(e.nativeEvent.contentOffset.x / HERO_CAROUSEL_W);
+                setHeroSlide(idx);
+                // restart auto-advance
+                if (tripDestinations.length > 1) {
+                  heroAutoTimer.current = setInterval(() => {
+                    setHeroSlide(prev => {
+                      const next = (prev + 1) % tripDestinations.length;
+                      heroCarouselRef.current?.scrollToIndex({ index: next, animated: true });
+                      return next;
+                    });
+                  }, 5000);
+                }
+              }}
+            />
+            {tripDestinations.length > 1 && (
+              <View style={detailStyles.heroDotRow}>
+                {tripDestinations.map((_, i) => (
+                  <View key={i} style={[detailStyles.heroDot, i === heroSlide && detailStyles.heroDotActive]} />
+                ))}
+              </View>
             )}
           </View>
           {/* Text below image */}
@@ -3166,31 +3485,6 @@ export default function TripDetailScreen() {
         </View>
       </Animated.View>
 
-      {/* Share / public status banner (own adventures only) */}
-      {isOwner && (
-        isPublicState ? (
-          <View style={detailStyles.publicBadge}>
-            <Feather name="globe" size={13} color={colors.accent} />
-            <Text style={detailStyles.publicBadgeText}>Public · visible on Explore</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={detailStyles.shareBanner}
-            onPress={handleShareToExplore}
-            disabled={sharing}
-            activeOpacity={0.8}
-          >
-            {sharing
-              ? <ActivityIndicator size="small" color={colors.inverse} />
-              : <>
-                  <Feather name="globe" size={13} color={colors.inverse} />
-                  <Text style={detailStyles.shareBannerText}>Share to Explore</Text>
-                  <Feather name="arrow-right" size={13} color={colors.inverse} />
-                </>
-            }
-          </TouchableOpacity>
-        )
-      )}
 
       {/* Day chips — fixed */}
       <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
@@ -3227,6 +3521,11 @@ export default function TripDetailScreen() {
           const isPast = adventure.startDate
             ? (() => { const d = new Date(adventure.startDate); d.setDate(d.getDate() + day.dayNumber - 1); return d < new Date(); })()
             : false;
+          const dayAlts = day.alternatives as { destination?: string; accommodationStop?: { options?: unknown[] }; restaurants?: unknown[] } | null;
+          const dayDestination = dayAlts?.destination ?? null;
+          const isWizardDay = day.distanceKm == null &&
+            !(dayAlts?.accommodationStop?.options?.length) &&
+            !(dayAlts?.restaurants?.length);
           return (
             <ScrollView
               style={{ width: SCREEN_W }}
@@ -3243,7 +3542,12 @@ export default function TripDetailScreen() {
               }
             >
               <View style={detailStyles.dateLabelRow}>
-                <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, day.dayNumber)}</Text>
+                <View>
+                  <Text style={detailStyles.dateLabel}>{formatDayDate(adventure.startDate, day.dayNumber)}</Text>
+                  {dayDestination ? (
+                    <Text style={detailStyles.dayDestinationLabel}>{dayDestination}</Text>
+                  ) : null}
+                </View>
                 {isPast && (
                   <TouchableOpacity style={detailStyles.rateBtn} onPress={() => setFeedbackDay(day.dayNumber)}>
                     <MaterialCommunityIcons name="star-outline" size={14} color={colors.accent} />
@@ -3252,7 +3556,11 @@ export default function TripDetailScreen() {
                 )}
               </View>
 
-              {tileOrder.map((tileId, orderIdx) => {
+              {isWizardDay ? (
+                <WizardDaySection day={day} adventure={adventure} />
+              ) : null}
+
+              {!isWizardDay && tileOrder.map((tileId, orderIdx) => {
                 const canUp   = orderIdx > 0;
                 const canDown = orderIdx < tileOrder.length - 1;
                 const isLast  = orderIdx === tileOrder.length - 1;
@@ -3389,8 +3697,7 @@ export default function TripDetailScreen() {
                 return null;
               })}
 
-              {/* Custom items added via the "+" button */}
-              {((day.alternatives?.customItems ?? []) as CustomItem[]).map(item => (
+              {!isWizardDay && ((day.alternatives?.customItems ?? []) as CustomItem[]).map(item => (
                 <CustomItemCard
                   key={item.id}
                   item={item}
@@ -3398,8 +3705,8 @@ export default function TripDetailScreen() {
                 />
               ))}
 
-              {/* Add item button — owners only */}
-              {isOwner && (
+              {/* Add item button — owners only, legacy days */}
+              {!isWizardDay && isOwner && (
                 <TouchableOpacity
                   style={detailStyles.addItemBtn}
                   onPress={() => setAddItemDay(day.dayNumber)}
@@ -3536,6 +3843,16 @@ const detailStyles = StyleSheet.create({
   heroMeta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
   heroMetaText: { fontFamily: fonts.sans, color: colors.muted, fontSize: fontSize.sm, textTransform: "capitalize" },
   heroMetaDot: { color: colors.border, fontSize: fontSize.sm },
+  heroDestLabel: {
+    position: "absolute", bottom: 10, left: 10, right: 10,
+    fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: "#fff",
+  },
+  heroDotRow: {
+    position: "absolute", bottom: 8, left: 0, right: 0,
+    flexDirection: "row", justifyContent: "center", gap: 4,
+  },
+  heroDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: "rgba(255,255,255,0.5)" },
+  heroDotActive: { width: 14, borderRadius: 3, backgroundColor: "#fff" },
   dayTabWrap: {
     borderBottomWidth: 1, borderBottomColor: colors.border,
     backgroundColor: colors.card,
@@ -3556,8 +3873,9 @@ const detailStyles = StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.border },
   dotActive: { backgroundColor: colors.text, width: 14, borderRadius: 3 },
   dayContent: { padding: spacing.md, gap: spacing.md },
-  dateLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  dateLabelRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: spacing.xs },
   dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  dayDestinationLabel: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
   rateBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.accent },
   rateBtnText: { fontSize: fontSize.xs, fontWeight: "600", color: colors.accent },
   shareFeedBtn: {

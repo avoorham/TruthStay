@@ -298,6 +298,7 @@ export interface AdventureRow {
   coverImageUrl?: string | null;
   meta?: { coords?: [number, number]; country?: string; [key: string]: unknown } | null;
   adventure_days: AdventureDayRow[];
+  destinations?: { name: string; hero_photo_url: string | null }[];
 }
 
 export interface PublicAdventureMeta {

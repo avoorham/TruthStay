@@ -61,7 +61,44 @@ export async function GET(
     };
   });
 
-  const response: Record<string, unknown> = { ...adv, adventure_days };
+  // Enrich with per-destination hero photos for the carousel
+  const uniqueDestinations: string[] = [];
+  for (const d of adventure_days) {
+    const dest = (d.alternatives as Record<string, unknown> | null)?.destination as string | undefined;
+    if (dest && !uniqueDestinations.includes(dest)) uniqueDestinations.push(dest);
+  }
+
+  let destinations: { name: string; hero_photo_url: string | null }[] = [];
+  if (uniqueDestinations.length > 0) {
+    const imageFilters = uniqueDestinations
+      .map(n => `region.ilike.%${n}%,name.ilike.%${n}%`)
+      .join(",");
+    const { data: imageRows } = await db
+      .from("content_entries")
+      .select("name, region, image_url")
+      .not("image_url", "is", null)
+      .or(imageFilters)
+      .limit(uniqueDestinations.length * 3);
+
+    const imageByDest = new Map<string, string>();
+    for (const row of (imageRows ?? []) as { name: string; region: string; image_url: string }[]) {
+      for (const dest of uniqueDestinations) {
+        if (!imageByDest.has(dest)) {
+          const lc = dest.toLowerCase();
+          if (row.region?.toLowerCase().includes(lc) || row.name?.toLowerCase().includes(lc)) {
+            imageByDest.set(dest, row.image_url);
+          }
+        }
+      }
+    }
+
+    destinations = uniqueDestinations.map(name => ({
+      name,
+      hero_photo_url: imageByDest.get(name) ?? null,
+    }));
+  }
+
+  const response: Record<string, unknown> = { ...adv, adventure_days, destinations };
   if (!isOwner) delete response.isPublic; // only expose isPublic to the owner
   delete response.userId;
   return NextResponse.json(response);

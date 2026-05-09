@@ -1,17 +1,19 @@
 import {
-  ActivityIndicator, Alert, Linking, StyleSheet,
+  ActivityIndicator, Linking, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { colors, fontSize, radius, spacing } from "../../lib/theme";
+import { useAppAlert } from "../../components/AppAlertModal";
 
 const TOS_URL     = "https://truthstay.com/terms";
 const PRIVACY_URL = "https://truthstay.com/privacy";
 
 export default function ConsentScreen() {
   const [agreeing, setAgreeing] = useState(false);
+  const { showAlert, modal } = useAppAlert();
 
   const handleAgree = async () => {
     setAgreeing(true);
@@ -23,13 +25,14 @@ export default function ConsentScreen() {
       // onAuthStateChange fires automatically and updates the auth context.
       // The auth layout will then redirect to onboarding or the app.
     } catch {
-      Alert.alert("Error", "Could not record your acceptance. Please try again.");
+      showAlert("Error", "Could not record your acceptance. Please try again.");
       setAgreeing(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {modal}
       <View style={styles.content}>
         <Text style={styles.heading}>Review and agree</Text>
 

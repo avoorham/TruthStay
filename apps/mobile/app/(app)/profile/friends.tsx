@@ -1,5 +1,5 @@
 import {
-  ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Linking, Modal,
+  ActivityIndicator, Dimensions, Image, KeyboardAvoidingView, Linking, Modal,
   Platform, Pressable, SectionList, Share, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from "react-native";
@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { useAppAlert } from "../../../components/AppAlertModal";
 import { getFollows, followUser, unfollowUser, searchUsers, type FeedAuthor } from "../../../lib/api";
 
 function FriendRow({
@@ -62,6 +63,7 @@ function InviteModal({
   onClose: () => void;
 }) {
   const [inviteEmail, setInviteEmail] = useState("");
+  const { showAlert, modal } = useAppAlert();
 
   function handleClose() {
     setInviteEmail("");
@@ -88,7 +90,7 @@ function InviteModal({
       await Linking.openURL(`mailto:${email}?subject=${subject}&body=${body}`);
       handleClose();
     } catch {
-      Alert.alert("Could not open mail app", "Please check that a mail app is configured on your device.");
+      showAlert("Could not open mail app", "Please check that a mail app is configured on your device.");
     }
   }
 
@@ -96,6 +98,7 @@ function InviteModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      {modal}
       <Pressable style={styles.sheetBackdrop} onPress={handleClose} />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.sheetKAV}>
         <View style={styles.sheet}>

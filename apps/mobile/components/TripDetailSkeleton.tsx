@@ -1,5 +1,5 @@
 import {
-  ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet,
+  ActivityIndicator, Image, Modal, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { colors, fonts, fontSize, radius, spacing, shadow } from "../lib/theme";
+import { useAppAlert } from "./AppAlertModal";
 import type { AdventureRow, AdventureDayRow } from "../lib/api";
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -71,6 +72,7 @@ function ContentPickerSheet({
   onClose: () => void;
   onAdded: (entry: ContentEntry, role: string) => void;
 }) {
+  const { showAlert, modal: alertModal } = useAppAlert();
   const [entries, setEntries] = useState<ContentEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
@@ -118,7 +120,7 @@ function ContentPickerSheet({
       onAdded(entry, typeInfo.role);
       onClose();
     } catch {
-      Alert.alert("Error", "Could not add this item. Please try again.");
+      showAlert("Error", "Could not add this item. Please try again.");
     } finally {
       setAdding(null);
     }
@@ -126,6 +128,7 @@ function ContentPickerSheet({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      {alertModal}
       <View style={sheetStyles.container}>
         <View style={sheetStyles.header}>
           <Text style={sheetStyles.title}>{typeInfo?.label ?? "Pick content"}</Text>
@@ -203,6 +206,7 @@ function DayCard({
   isOnlyDay: boolean;
   onRemove: (dayNumber: number) => void;
 }) {
+  const { showAlert, modal: dayAlertModal } = useAppAlert();
   const [pickerType, setPickerType] = useState<ContentType | null>(null);
   const [dayContent, setDayContent] = useState<DayContent>({
     accommodation: null,
@@ -229,7 +233,7 @@ function DayCard({
 
   function handleRemoveDay() {
     if (isOnlyDay) return;
-    Alert.alert(
+    showAlert(
       "Remove day",
       `Remove Day ${day.dayNumber} from this trip?`,
       [
@@ -243,6 +247,7 @@ function DayCard({
 
   return (
     <View style={dayStyles.card}>
+      {dayAlertModal}
       {/* Day header */}
       <View style={dayStyles.header}>
         <View>
@@ -338,6 +343,7 @@ export function TripDetailSkeletonView({
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showAlert, modal } = useAppAlert();
   const [adventure, setAdventure] = useState<AdventureRow>(initialAdventure);
   const [removing, setRemoving] = useState(false);
 
@@ -362,7 +368,7 @@ export function TripDetailSkeletonView({
         return { ...prev, durationDays: json.newDurationDays ?? prev.durationDays - 1, adventure_days: filtered };
       });
     } catch (e) {
-      Alert.alert("Error", e instanceof Error ? e.message : "Could not remove day");
+      showAlert("Error", e instanceof Error ? e.message : "Could not remove day");
     } finally {
       setRemoving(false);
     }
@@ -370,6 +376,7 @@ export function TripDetailSkeletonView({
 
   return (
     <View style={skelStyles.container}>
+      {modal}
       {/* Header */}
       <View style={[skelStyles.header, { paddingTop: insets.top + spacing.sm }]}>
         <TouchableOpacity onPress={() => router.back()} style={skelStyles.backBtn}>

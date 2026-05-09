@@ -1,5 +1,5 @@
 import {
-  ActivityIndicator, Alert, Animated, FlatList, Image, StyleSheet,
+  ActivityIndicator, Animated, FlatList, Image, StyleSheet,
   Text, TouchableOpacity, View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { getMyAdventures, deleteAdventure, type AdventureRow } from "../../../lib/api";
 import { colors, fonts, fontSize, radius, spacing, shadow } from "../../../lib/theme";
+import { useAppAlert } from "../../../components/AppAlertModal";
 
 const ACTIVITY_ICON: Record<string, string> = {
   cycling:       "bike",
@@ -183,6 +184,7 @@ const EMPTY_MESSAGES: Record<TabKey, string> = {
 export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showAlert, modal } = useAppAlert();
   const [adventures, setAdventures] = useState<AdventureRow[]>([]);
   const [tab, setTab] = useState<TabKey>("upcoming");
   const [loading, setLoading] = useState(true);
@@ -244,7 +246,7 @@ export default function TripsScreen() {
   }
 
   async function handleDeleteSelected() {
-    Alert.alert(
+    showAlert(
       "Delete trips",
       `Delete ${selectedIds.size} trip${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`,
       [
@@ -259,7 +261,7 @@ export default function TripsScreen() {
               await load();
               exitEditMode();
             } catch {
-              Alert.alert("Error", "Some trips could not be deleted. Please try again.");
+              showAlert("Error", "Some trips could not be deleted. Please try again.");
             } finally {
               setDeleting(false);
             }
@@ -271,6 +273,7 @@ export default function TripsScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {modal}
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerRow}>

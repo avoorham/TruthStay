@@ -2,7 +2,7 @@ import React, {
   useEffect, useRef, useState,
 } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Keyboard, LayoutAnimation,
+  ActivityIndicator, Animated, Dimensions, FlatList, Image, Keyboard, LayoutAnimation,
   Linking, Modal, PanResponder, Platform, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, Vibration, View,
 } from "react-native";
@@ -16,6 +16,7 @@ import { TripDetailSkeletonView } from "../../../components/TripDetailSkeleton";
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { supabase } from "../../../lib/supabase";
 import { colors, fontSize, fonts, radius, spacing, shadow } from "../../../lib/theme";
+import { useAppAlert } from "../../../components/AppAlertModal";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -1655,6 +1656,7 @@ function PostCreationSheet({
   adventureTitle: string;
   onClose: () => void;
 }) {
+  const { showAlert: showPostAlert, modal: postModal } = useAppAlert();
   const [caption, setCaption]     = useState("");
   const [photos, setPhotos]       = useState<string[]>([]);
   const [posting, setPosting]     = useState(false);
@@ -1686,7 +1688,7 @@ function PostCreationSheet({
         caption:      caption.trim() || `Day ${dayNumber} — ${adventureTitle}`,
         media_urls:   photos,
       });
-      Alert.alert("Posted!", "Your update was shared to the feed.");
+      showPostAlert("Posted!", "Your update was shared to the feed.");
       onClose();
     } catch {
       setPostError("Upload failed — tap to retry");
@@ -1697,6 +1699,7 @@ function PostCreationSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {postModal}
       <View style={postStyles.overlay}>
         <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={onClose} activeOpacity={1} />
         <View style={postStyles.sheet}>
@@ -1827,6 +1830,7 @@ function FeedbackSheet({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { showAlert: showFeedbackAlert, modal: feedbackModal } = useAppAlert();
   const [routeRating, setRouteRating]         = useState(0);
   const [accommodationRating, setAccommodationRating] = useState(0);
   const [restaurantRating, setRestaurantRating]       = useState(0);
@@ -1850,7 +1854,7 @@ function FeedbackSheet({
       setRouteRating(0); setAccommodationRating(0); setRestaurantRating(0); setNotes("");
       onClose();
     } catch (err) {
-      Alert.alert("Save failed", err instanceof Error ? err.message : "Please try again.");
+      showFeedbackAlert("Save failed", err instanceof Error ? err.message : "Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -1858,6 +1862,7 @@ function FeedbackSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {feedbackModal}
       <TouchableOpacity style={fbStyles.overlay} activeOpacity={1} onPress={onClose} />
       <View style={[fbStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
         <View style={fbStyles.handle} />
@@ -1922,6 +1927,7 @@ function EditTripModal({
   onSave: (fields: { title: string; startDate: string | null; description: string }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const { showAlert: showEditAlert, modal: editModal } = useAppAlert();
   const [title, setTitle]           = useState(adventure.title);
   const [startDate, setStartDate]   = useState(adventure.startDate ?? "");
   const [description, setDescription] = useState(adventure.description ?? "");
@@ -1936,7 +1942,7 @@ function EditTripModal({
   }, [visible, adventure]);
 
   function handleDelete() {
-    Alert.alert(
+    showEditAlert(
       "Delete trip",
       "This will permanently delete your trip. This cannot be undone.",
       [
@@ -1948,6 +1954,7 @@ function EditTripModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {editModal}
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
         <View style={editStyles.sheet}>
@@ -1994,7 +2001,7 @@ function EditTripModal({
                 await onSave({ title, startDate: startDate.trim() || null, description });
                 onClose();
               } catch {
-                Alert.alert("Error", "Could not save changes. Please try again.");
+                showEditAlert("Error", "Could not save changes. Please try again.");
               } finally {
                 setSaving(false);
               }
@@ -2069,6 +2076,7 @@ function AddItemModal({
   onClose: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { showAlert: showAddAlert, modal: addModal } = useAppAlert();
   const [mode, setMode]         = useState<"pick" | "discover" | "manual">("pick");
   const [selectedType, setSelectedType] = useState<ItemType>("activity");
   const [link, setLink]         = useState("");
@@ -2164,7 +2172,7 @@ function AddItemModal({
   }
 
   async function handleSave() {
-    if (!name.trim()) { Alert.alert("Name required", "Please enter a name for this item."); return; }
+    if (!name.trim()) { showAddAlert("Name required", "Please enter a name for this item."); return; }
     setSaving(true);
     try {
       onSave({
@@ -2184,6 +2192,7 @@ function AddItemModal({
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
+      {addModal}
       <View style={addItemStyles.overlay}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
         <View style={[addItemStyles.sheet, { paddingBottom: insets.bottom + 16 }]}>
@@ -2607,6 +2616,7 @@ export default function TripDetailScreen() {
   const { id }   = useLocalSearchParams<{ id: string }>();
   const insets   = useSafeAreaInsets();
   const router   = useRouter();
+  const { showAlert, modal } = useAppAlert();
 
   const [adventure, setAdventure]         = useState<AdventureRow | null>(null);
   const [allAdventures, setAllAdventures] = useState<AdventureRow[]>([]);
@@ -2747,7 +2757,7 @@ export default function TripDetailScreen() {
       await shareAdventurePublic(adventure.id);
       setIsPublicState(true);
     } catch {
-      Alert.alert("Error", "Could not share adventure. Please try again.");
+      showAlert("Error", "Could not share adventure. Please try again.");
     } finally {
       setSharing(false);
     }
@@ -2913,12 +2923,12 @@ export default function TripDetailScreen() {
   }
 
   function handleDeleteTileConfirm(dayNumber: number, tileId: string, tileName: string) {
-    Alert.alert(
+    showAlert(
       `Delete ${tileName}?`,
       `Are you sure you want to remove ${tileName} from your itinerary?`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Yes, Delete", style: "destructive", onPress: () => doDeleteTile(dayNumber, tileId, tileName) },
+        { text: "Delete", style: "destructive", onPress: () => doDeleteTile(dayNumber, tileId, tileName) },
       ],
     );
   }
@@ -3039,11 +3049,11 @@ export default function TripDetailScreen() {
   async function handleShareToFeed() {
     const allPhotos = Object.values(reviewPhotos).flat();
     if (allPhotos.length === 0) {
-      Alert.alert("No photos yet", "Add photos to your activities first using the camera icon on each tile.");
+      showAlert("No photos yet", "Add photos to your activities first using the camera icon on each tile.");
       return;
     }
-    Alert.alert(
-      "Share to Feed",
+    showAlert(
+      "Share to feed",
       `Share ${allPhotos.length} photo${allPhotos.length !== 1 ? "s" : ""} from this trip to your feed?`,
       [
         { text: "Cancel", style: "cancel" },
@@ -3056,9 +3066,9 @@ export default function TripDetailScreen() {
                 caption: adventure!.title,
                 media_urls: allPhotos,
               });
-              Alert.alert("Shared!", "Your trip photos have been posted to the feed.");
+              showAlert("Shared!", "Your trip photos have been posted to the feed.");
             } catch {
-              Alert.alert("Error", "Could not share to feed. Please try again.");
+              showAlert("Error", "Could not share to feed. Please try again.");
             }
           },
         },
@@ -3078,6 +3088,7 @@ export default function TripDetailScreen() {
 
   return (
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
+      {modal}
       {/* Header */}
       <View style={detailStyles.header}>
         <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.navigate("/(app)/trips")}>

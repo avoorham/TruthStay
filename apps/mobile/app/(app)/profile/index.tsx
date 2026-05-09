@@ -1,5 +1,5 @@
 import {
-  Alert, Animated, Image, Keyboard, Modal, Platform,
+  Animated, Image, Keyboard, Modal, Platform,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from "react-native";
@@ -12,6 +12,7 @@ import { supabase } from "../../../lib/supabase";
 import { pickImage, uploadAvatar } from "../../../lib/storage";
 import { colors, fonts, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../../../lib/theme";
 import { getProfileStats, getBookmarkedAdventures, type BookmarkedAdventure } from "../../../lib/api";
+import { useAppAlert } from "../../../components/AppAlertModal";
 
 const ACTIVITY_OPTIONS = [
   "cycling", "hiking", "trail_running", "climbing", "skiing", "kayaking", "other",
@@ -82,6 +83,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { session } = useAuth();
+  const { showAlert, modal } = useAppAlert();
   const user = session?.user;
 
   const displayName = user?.user_metadata?.display_name ?? user?.email?.split("@")[0] ?? "Adventurer";
@@ -140,13 +142,13 @@ export default function ProfileScreen() {
         favorite_activities: editActivities,
       },
     });
-    if (error) { Alert.alert("Update failed", error.message); return; }
+    if (error) { showAlert("Update failed", error.message); return; }
     setEditVisible(false);
   }
 
   function handleDeleteAccount() {
-    Alert.alert(
-      "Delete Account",
+    showAlert(
+      "Delete account",
       "This will permanently delete your account and all your data. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
@@ -174,12 +176,14 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Centered profile header */}
+    <>
+      {modal}
+      <ScrollView
+        style={[styles.container, { paddingTop: insets.top }]}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Centered profile header */}
       <View style={styles.profileCenter}>
         <TouchableOpacity onPress={() => setEditVisible(true)} activeOpacity={0.85} style={styles.avatarWrap}>
           {!avatarError ? (
@@ -378,7 +382,8 @@ export default function ProfileScreen() {
           </Animated.View>
         </View>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useMemo, useEffect } from "react";
 import {
-  ActivityIndicator, Alert, Animated, Dimensions, FlatList, Image, Modal, PanResponder,
+  ActivityIndicator, Animated, Dimensions, FlatList, Image, Modal, PanResponder,
   ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import Mapbox, {
 } from "@rnmapbox/maps";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing, ACTIVITY_COLOR } from "../../../lib/theme";
+import { useAppAlert } from "../../../components/AppAlertModal";
 import {
   getPublicAdventures, getPublicRestaurants, getPublicActivities,
   bookmarkAdventure, unbookmarkAdventure, forkAdventure,
@@ -1587,6 +1588,7 @@ function AdventureExpandedModal({
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { showAlert, modal } = useAppAlert();
   const [photoIndex, setPhotoIndex] = useState(0);
   const [forking, setForking] = useState(false);
 
@@ -1598,7 +1600,7 @@ function AdventureExpandedModal({
       onClose();
       router.push(`/(app)/trips/${id}` as any);
     } catch (e) {
-      Alert.alert("Couldn't copy itinerary", e instanceof Error ? e.message : "Please try again.");
+      showAlert("Couldn't copy itinerary", e instanceof Error ? e.message : "Please try again.");
     } finally {
       setForking(false);
     }
@@ -1608,6 +1610,7 @@ function AdventureExpandedModal({
 
   return (
     <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+      {modal}
       {adventure && (
         <View style={[modalStyles.container, { paddingTop: insets.top }]}>
           {/* Top bar */}

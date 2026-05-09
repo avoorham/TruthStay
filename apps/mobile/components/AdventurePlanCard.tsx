@@ -1,10 +1,11 @@
 import {
-  StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert,
+  StyleSheet, Text, TouchableOpacity, View, ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { colors, fonts, fontSize, radius, spacing, shadow, ACTIVITY_EMOJI } from "../lib/theme";
 import { saveAdventure, shareAdventurePublic } from "../lib/api";
+import { useAppAlert } from "./AppAlertModal";
 import type {
   GeneratedAdventure, DayAlternativesMap,
   AccommodationStop,
@@ -21,12 +22,13 @@ interface Props {
 
 export function AdventurePlanCard({ adventure, accommodationStops, adventureId }: Props) {
   const router = useRouter();
+  const { showAlert, modal } = useAppAlert();
   const [saving, setSaving]   = useState(false);
   const [sharing, setSharing] = useState(false);
 
   const handleSave = async () => {
     if (!adventureId) {
-      Alert.alert("Couldn't save", "The adventure wasn't saved to your account. Please start a new chat and try again.");
+      showAlert("Couldn't save", "The adventure wasn't saved to your account. Please start a new chat and try again.");
       return;
     }
     setSaving(true);
@@ -35,7 +37,7 @@ export function AdventurePlanCard({ adventure, accommodationStops, adventureId }
       router.push(`/(app)/trips/${adventureId}` as never);
     } catch (err) {
       setSaving(false);
-      Alert.alert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
+      showAlert("Save failed", err instanceof Error ? err.message : "Please check your connection and try again.");
     }
   };
 
@@ -44,11 +46,11 @@ export function AdventurePlanCard({ adventure, accommodationStops, adventureId }
     setSharing(true);
     try {
       await shareAdventurePublic(adventureId);
-      Alert.alert("Live on Explore!", "Your adventure is now visible to everyone on the Explore screen.", [
+      showAlert("Live on Explore!", "Your adventure is now visible to everyone on the Explore screen.", [
         { text: "View my trips", onPress: () => router.push("/(app)/trips") },
       ]);
     } catch {
-      Alert.alert("Error", "Could not share adventure. Please try again.");
+      showAlert("Error", "Could not share adventure. Please try again.");
     } finally {
       setSharing(false);
     }
@@ -57,7 +59,9 @@ export function AdventurePlanCard({ adventure, accommodationStops, adventureId }
   const emoji = ACTIVITY_EMOJI[adventure.activity_type] ?? "🏔️";
 
   return (
-    <View style={styles.card}>
+    <>
+      {modal}
+      <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>{adventure.title}</Text>
@@ -128,6 +132,7 @@ export function AdventurePlanCard({ adventure, accommodationStops, adventureId }
         }
       </TouchableOpacity>
     </View>
+    </>
   );
 }
 

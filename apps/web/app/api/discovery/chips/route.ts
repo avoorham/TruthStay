@@ -10,12 +10,20 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  const { data: chips, error } = await db
+  let dbQuery = db
     .from("destination_chips")
     .select("id, name, type, parent_region, country, save_count, description")
-    .ilike("name", query.length > 0 ? `%${query}%` : "%")
     .order("save_count", { ascending: false })
     .limit(limit);
+
+  if (query.length > 0) {
+    // Match against name, parent_region, or country so e.g. "france" returns Provence
+    dbQuery = dbQuery.or(
+      `name.ilike.%${query}%,parent_region.ilike.%${query}%,country.ilike.%${query}%`
+    );
+  }
+
+  const { data: chips, error } = await dbQuery;
 
   if (error) return Response.json({ error: error.message }, { status: 500 });
 

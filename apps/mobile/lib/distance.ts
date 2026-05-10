@@ -1,5 +1,32 @@
 // TODO(design-sweep): distance label colours — review after blue sweep
 
+export interface DestinationTimesResult {
+  results: Record<string, { travel_seconds: number | null; source: string; reason?: string }>;
+}
+
+/**
+ * Batch driving-time lookup from one text-address origin to many destinations.
+ * Never throws — returns empty results on any network/API failure.
+ */
+export async function fetchDestinationTimes(
+  baseUrl: string,
+  originName: string,
+  destinationNames: string[],
+  authHeaders: Record<string, string>,
+): Promise<DestinationTimesResult> {
+  try {
+    const res = await fetch(`${baseUrl}/api/discovery/destination-times`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ origin_name: originName, destination_names: destinationNames }),
+    });
+    if (!res.ok) return { results: {} };
+    return (await res.json()) as DestinationTimesResult;
+  } catch {
+    return { results: {} };
+  }
+}
+
 /** Hours of travel per trip day before the running-total banner goes amber. */
 export const TRAVEL_HOURS_PER_DAY_WARNING = 1.5;
 

@@ -9,6 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing } from "../../../lib/theme";
 import { supabase } from "../../../lib/supabase";
 import { InlineCalendar, diffDays } from "../../../components/InlineCalendar";
+import { formatTravelTime, warningThresholdSeconds, fetchDestinationTimes } from "../../../lib/distance";
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -127,8 +128,9 @@ export default function DiscoverScreen() {
   const [regionsError, setRegionsError]     = useState<string | null>(null);
   const [regionSearch, setRegionSearch]     = useState("");
 
-  // Step 4 — Destinations
+  // Step 4 — Destinations + travel times
   const [destinations, setDestinations]               = useState<DestinationTile[]>([]);
+  const [destTimes, setDestTimes]                     = useState<Record<string, number | null>>({});
   const [destinationsLoading, setDestinationsLoading] = useState(false);
   const [destinationsError, setDestinationsError]     = useState<string | null>(null);
   const [selectedDestNames, setSelectedDestNames]     = useState<Set<string>>(new Set());
@@ -186,11 +188,28 @@ export default function DiscoverScreen() {
     }
   }
 
+  async function loadDestinationTimes(originName: string, dests: DestinationTile[]) {
+    if (!originName || dests.length === 0) return;
+    try {
+      const destNames = dests.map(d => [d.name, d.country].filter(Boolean).join(", "));
+      const result = await fetchDestinationTimes(BASE, originName, destNames, await discoveryHeaders());
+      const times: Record<string, number | null> = {};
+      for (const dest of dests) {
+        const key = [dest.name, dest.country].filter(Boolean).join(", ");
+        times[dest.name] = result.results[key]?.travel_seconds ?? null;
+      }
+      setDestTimes(times);
+    } catch {
+      // Non-critical — tiles show "—" if destTimes is empty
+    }
+  }
+
   async function loadDestinations(regionOverride?: string) {
     const region = regionOverride ?? selectedRegion;
     if (regionOverride !== undefined) setSelectedRegion(regionOverride);
     setDestinationsLoading(true);
     setDestinationsError(null);
+    setDestTimes({});
     setStep(4);
     try {
       const res = await fetch(`${BASE}/api/discovery/destinations`, {
@@ -203,7 +222,10 @@ export default function DiscoverScreen() {
       });
       const json = await res.json() as { destinations?: DestinationTile[]; error?: string };
       if (!res.ok) throw new Error(json.error ?? "Failed");
-      setDestinations(json.destinations ?? []);
+      const dests = json.destinations ?? [];
+      setDestinations(dests);
+      // Fire travel-time lookup in background — doesn't block the tile render
+      if (region) loadDestinationTimes(region, dests);
     } catch (e) {
       setDestinationsError(e instanceof Error ? e.message : "Could not load destinations");
     } finally {
@@ -296,6 +318,18 @@ export default function DiscoverScreen() {
     }
   }
 
+  function moveAlloc(dest: string, direction: -1 | 1) {
+    setNightAllocations(prev => {
+      const idx = prev.findIndex(a => a.destination === dest);
+      if (idx < 0) return prev;
+      const next = idx + direction;
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  }
+
   function resetWizard() {
     setStep(1);
     setVacationStyle([]);
@@ -308,6 +342,7 @@ export default function DiscoverScreen() {
     setRegions([]);
     setRegionsError(null);
     setRegionSearch("");
+    setDestTimes({});
     setSelectedDestNames(new Set());
     setSkeleton(null);
     setNightAllocations([]);
@@ -320,6 +355,15 @@ export default function DiscoverScreen() {
   const totalNights = nightAllocations.reduce((s, a) => s + a.nights, 0);
   const nightsMatch = duration > 0 && totalNights === duration;
   const datesValid  = !!startDate && !!endDate && duration > 0;
+
+  // Running total travel time for selected destinations
+  const selectedTravelSeconds = [...selectedDestNames].reduce((sum, name) => {
+    const t = destTimes[name];
+    return (t !== null && t !== undefined) ? sum + t : sum;
+  }, 0);
+  const travelWarning = selectedDestNames.size > 0
+    && Object.keys(destTimes).length > 0
+    && selectedTravelSeconds > warningThresholdSeconds(duration);
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
@@ -615,7 +659,19 @@ export default function DiscoverScreen() {
                     </View>
                     <View style={styles.destBody}>
                       <Text style={styles.destName}>{dest.name}</Text>
-                      <Text style={styles.destCountry}>{dest.country ?? dest.region}</Text>
+                      <View style={styles.destMeta}>
+                        <Text style={styles.destCountry}>{dest.country ?? dest.region}</Text>
+                        {destTimes[dest.name] !== undefined && (
+                          <View style={styles.destTimeChip}>
+                            <Feather name="navigation" size={10} color={colors.muted} />
+                            <Text style={styles.destTimeText}>
+                              {destTimes[dest.name] !== null
+                                ? `${formatTravelTime(destTimes[dest.name]!)} drive`
+                                : "—"}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       {dest.matched_style_tags?.length > 0 && (
                         <View style={styles.matchedTagRow}>
                           {dest.matched_style_tags.map(tag => (
@@ -652,6 +708,21 @@ export default function DiscoverScreen() {
 
           {!destinationsLoading && !destinationsError && (
             <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+              {selectedDestNames.size > 0 && Object.keys(destTimes).length > 0 && (
+                <View style={[styles.travelBanner, travelWarning && styles.travelBannerWarn]}>
+                  <Feather
+                    name="clock"
+                    size={12}
+                    color={travelWarning ? colors.gold : colors.muted}
+                  />
+                  <Text style={[styles.travelBannerText, travelWarning && styles.travelBannerTextWarn]}>
+                    {selectedTravelSeconds > 0
+                      ? `~${formatTravelTime(selectedTravelSeconds)} total driving`
+                      : "Travel time unavailable for some destinations"}
+                    {travelWarning ? " · heavy transit for this trip length" : ""}
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={[styles.ctaBtn, selectedDestNames.size === 0 && styles.ctaBtnDisabled]}
                 disabled={selectedDestNames.size === 0}
@@ -689,8 +760,24 @@ export default function DiscoverScreen() {
                 <Text style={styles.skeletonTitle}>{skeleton.title}</Text>
               ) : null}
 
-              {nightAllocations.map(alloc => (
+              {nightAllocations.map((alloc, idx) => (
                 <View key={alloc.destination} style={styles.allocRow}>
+                  <View style={styles.allocReorder}>
+                    <TouchableOpacity
+                      onPress={() => moveAlloc(alloc.destination, -1)}
+                      disabled={idx === 0}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Feather name="chevron-up" size={18} color={idx === 0 ? colors.border : colors.text} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => moveAlloc(alloc.destination, 1)}
+                      disabled={idx === nightAllocations.length - 1}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    >
+                      <Feather name="chevron-down" size={18} color={idx === nightAllocations.length - 1 ? colors.border : colors.text} />
+                    </TouchableOpacity>
+                  </View>
                   <Text style={styles.allocDest} numberOfLines={1}>{alloc.destination}</Text>
                   <View style={styles.allocControls}>
                     <TouchableOpacity
@@ -954,8 +1041,25 @@ const styles = StyleSheet.create({
   destCheckboxSelected: { backgroundColor: colors.text, borderColor: colors.text },
   destBody:    { padding: spacing.md, gap: spacing.xs },
   destName:    { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
+  destMeta:    { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
   destCountry: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  destTimeChip: { flexDirection: "row", alignItems: "center", gap: 3 },
+  destTimeText: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
   destDesc:    { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19 },
+
+  travelBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.sheet,
+    borderRadius: radius.md,
+  },
+  travelBannerWarn:     { backgroundColor: "#FEF3C7" },
+  travelBannerText:     { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 16 },
+  travelBannerTextWarn: { color: "#92400E" } as object,
   expandBtn:   { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
   expandBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.accent },
   reasonRow:    { flexDirection: "row", gap: spacing.xs, paddingTop: 4 },
@@ -980,6 +1084,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  allocReorder:  { gap: 2, marginRight: spacing.xs },
   allocDest:     { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text, flex: 1 },
   allocControls: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   allocBtn: {

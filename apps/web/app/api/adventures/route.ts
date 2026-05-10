@@ -102,7 +102,8 @@ export async function GET(request: NextRequest) {
     .eq("authId", user.id)
     .maybeSingle();
 
-  const userId = (oldUser as OldUserRow | null)?.id ?? user.id;
+  if (!oldUser) return NextResponse.json([]);
+  const userId = (oldUser as OldUserRow).id;
 
   const { data, error } = await adminDb
     .from("adventures")

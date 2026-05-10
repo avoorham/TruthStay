@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
     .eq("authId", user.id)
     .maybeSingle();
 
-  const userId = (oldUser as OldUserRow | null)?.id ?? user.id;
+  if (!oldUser) return Response.json({ error: "User not found" }, { status: 404 });
+  const userId = (oldUser as OldUserRow).id;
 
   const requestPrompt = `${skeleton.duration_days}-day trip to ${region}`;
 

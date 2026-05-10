@@ -13,8 +13,7 @@ interface Filters {
   duration_days: number;
   budget?: string;
   travelers?: number;
-  vacation_type?: string;
-  preferences?: string[];
+  vacation_style?: string[];
 }
 
 interface RequestBody {
@@ -30,6 +29,7 @@ interface DestinationTile {
   hero_images: string[];
   description: string;
   why_it_fits: string[];
+  matched_style_tags: string[];
   source_entry_ids: string[];
 }
 
@@ -40,6 +40,7 @@ interface ClaudeDestination {
   region: string;
   description: string;
   why_it_fits: string[];
+  matched_style_tags: string[];
 }
 
 // POST /api/discovery/destinations
@@ -112,23 +113,31 @@ export async function POST(request: NextRequest) {
     })
     .join("\n\n");
 
-  const vacationType = filters.vacation_type ?? "mixed";
   const budget = filters.budget ?? "mid";
   const duration = filters.duration_days;
+  const vacationStyle = filters.vacation_style ?? [];
 
   let instruction = "";
   if (input.type === "region") {
-    instruction = `Propose 5–8 cities or towns within the ${input.name} region that suit a ${duration}-day ${vacationType} trip.`;
+    instruction = `Propose 5–8 cities or towns within the ${input.name} region that suit a ${duration}-day trip.`;
   } else if (input.type === "city") {
-    instruction = `Propose the city of ${input.name} plus 2–4 nearby destinations that pair well for a ${duration}-day ${vacationType} trip.`;
+    instruction = `Propose the city of ${input.name} plus 2–4 nearby destinations that pair well for a ${duration}-day trip.`;
   } else {
     instruction = `The user wants to follow the "${input.name}" route. Decompose it into its natural stops (towns/villages the route passes through), treating each stop as a destination tile.`;
   }
 
+  const styleSection = vacationStyle.length > 0
+    ? `\nVacation style signals (use as soft ranking — prioritise destinations that genuinely match multiple of these, but don't exclude destinations that only match a few):
+${vacationStyle.map(s => `  - ${s}`).join("\n")}
+
+For each destination include "matched_style_tags": an array of 2–4 tags from the list above that this destination genuinely matches. Only include tags that are a real, honest fit — don't force matches.
+
+Rewrite "why_it_fits" as 2–3 plain-English sentences that cite the matched style traits naturally (e.g. "Matches your taste for a local-town feel and romantic evenings — Sagres is quiet enough for slow mornings but has enough character to fill your days."). Do not use bullet points in why_it_fits; write in flowing prose.`
+    : "";
+
   const prompt = `You are a travel planner. ${instruction}
 
-Trip parameters: ${duration} days, ${vacationType} style, ${budget} budget, ${filters.travelers ?? 2} travellers.
-${filters.preferences?.length ? `Preferences: ${filters.preferences.join(", ")}.` : ""}
+Trip parameters: ${duration} days, ${budget} budget, ${filters.travelers ?? 2} travellers.${styleSection}
 
 Use the source data below as your knowledge base. Synthesise accurate, specific descriptions.
 
@@ -144,7 +153,8 @@ Respond with ONLY valid JSON (no markdown, no extra text):
       "country": "Country name",
       "region": "${input.name}",
       "description": "2–3 sentence description of what makes this destination special and why it suits this traveller",
-      "why_it_fits": ["Reason 1 (be specific)", "Reason 2", "Reason 3"]
+      "why_it_fits": ["Plain-English sentence citing matched style traits", "Another reason"],
+      "matched_style_tags": ["Tag 1", "Tag 2"]
     }
   ]
 }`;
@@ -205,7 +215,7 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     }
   }
 
-  // Attach source_entry_ids and hero_images per destination
+  // Attach source_entry_ids, hero_images, and matched_style_tags per destination
   const destinations: DestinationTile[] = aiDestinations.map(dest => {
     const key = dest.name.toLowerCase();
     const matching = contentRows.filter(e =>
@@ -220,14 +230,15 @@ Respond with ONLY valid JSON (no markdown, no extra text):
     }
 
     return {
-      name:             dest.name,
-      type:             dest.type as "city" | "region" | "stop",
-      country:          dest.country,
-      region:           dest.region,
-      hero_images:      heroImages,
-      description:      dest.description,
-      why_it_fits:      dest.why_it_fits ?? [],
-      source_entry_ids: sourceEntryIds,
+      name:              dest.name,
+      type:              dest.type as "city" | "region" | "stop",
+      country:           dest.country,
+      region:            dest.region,
+      hero_images:       heroImages,
+      description:       dest.description,
+      why_it_fits:       dest.why_it_fits ?? [],
+      matched_style_tags: dest.matched_style_tags ?? [],
+      source_entry_ids:  sourceEntryIds,
     };
   });
 

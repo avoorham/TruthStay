@@ -15,28 +15,28 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
+  const { data: me } = await db.from("users").select("id").eq("authId", user.id).maybeSingle();
+  const myId = (me as { id: string } | null)?.id ?? "";
+
   if (q.length < 2) {
-    // Return top 10 users by follower count (suggested) — excluding self
     const { data, error } = await db
       .from("users")
       .select(`id, username, "displayName", "avatarUrl"`)
-      .neq("id", user.id)
+      .neq("id", myId)
       .limit(10);
 
     if (error) {
       console.error("[users/search] DB error:", error.message);
       return NextResponse.json({ error: "Request failed" }, { status: 500 });
     }
-
     return NextResponse.json({ users: (data ?? []).map(toAuthor) });
   }
 
-  // Search by username prefix or displayName contains
   const pattern = `%${q}%`;
   const { data, error } = await db
     .from("users")
     .select(`id, username, "displayName", "avatarUrl"`)
-    .neq("id", user.id)
+    .neq("id", myId)
     .or(`username.ilike.${pattern},"displayName".ilike.${pattern}`)
     .limit(20);
 
@@ -44,7 +44,6 @@ export async function GET(request: NextRequest) {
     console.error("[users/search] DB error:", error.message);
     return NextResponse.json({ error: "Request failed" }, { status: 500 });
   }
-
   return NextResponse.json({ users: (data ?? []).map(toAuthor) });
 }
 

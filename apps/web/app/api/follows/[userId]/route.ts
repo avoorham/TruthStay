@@ -5,6 +5,12 @@ import { getAuthUser } from "@/lib/auth/get-user";
 // POST   /api/follows/[userId] — follow a user
 // DELETE /api/follows/[userId] — unfollow a user
 
+async function resolveAppId(authId: string): Promise<string | null> {
+  const db = createAdminClient();
+  const { data } = await db.from("users").select("id").eq("authId", authId).maybeSingle();
+  return (data as { id: string } | null)?.id ?? null;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> },
@@ -13,17 +19,14 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { userId } = await params;
-  if (userId === user.id) {
-    return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
-  }
+  const myId = await resolveAppId(user.id);
+  if (!myId) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (myId === userId) return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
 
   const db = createAdminClient();
   const { error } = await db
     .from("follows")
-    .upsert(
-      { followerId: user.id, followingId: userId },
-      { onConflict: "followerId,followingId" },
-    );
+    .upsert({ followerId: myId, followingId: userId }, { onConflict: '"followerId","followingId"' });
 
   if (error) {
     console.error("[follows] upsert error:", error.message);
@@ -40,12 +43,14 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { userId } = await params;
+  const myId = await resolveAppId(user.id);
+  if (!myId) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const db = createAdminClient();
   const { error } = await db
     .from("follows")
     .delete()
-    .eq("followerId", user.id)
+    .eq("followerId", myId)
     .eq("followingId", userId);
 
   if (error) {

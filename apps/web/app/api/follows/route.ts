@@ -10,10 +10,14 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
+  const { data: me } = await db.from("users").select("id").eq("authId", user.id).maybeSingle();
+  const myId = (me as { id: string } | null)?.id;
+  if (!myId) return NextResponse.json({ following: [] });
+
   const { data: followRows } = await db
     .from("follows")
     .select("followingId")
-    .eq("followerId", user.id);
+    .eq("followerId", myId);
 
   const followingIds = (followRows ?? []).map(
     r => (r as { followingId: string }).followingId,

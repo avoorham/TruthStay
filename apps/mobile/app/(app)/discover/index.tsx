@@ -519,7 +519,7 @@ export default function DiscoverScreen() {
                 return (
                   <TouchableOpacity
                     style={[styles.regionTile, isSelected && styles.regionTileSelected]}
-                    onPress={() => loadDestinations(reg.name)}
+                    onPress={() => setSelectedRegion(prev => prev === reg.name ? null : reg.name)}
                     activeOpacity={0.85}
                   >
                     <View style={styles.regionImageBox}>
@@ -528,11 +528,9 @@ export default function DiscoverScreen() {
                         <Text style={styles.regionName}>{reg.name}</Text>
                         <Text style={styles.regionCountry}>{reg.country}</Text>
                       </View>
-                      {isSelected && (
-                        <View style={styles.regionCheckmark}>
-                          <Feather name="check" size={14} color="#fff" />
-                        </View>
-                      )}
+                      <View style={[styles.destCheckbox, isSelected && styles.destCheckboxSelected]}>
+                        {isSelected && <Feather name="check" size={13} color="#fff" />}
+                      </View>
                     </View>
                     {reg.matched_style_tags?.length > 0 && (
                       <View style={styles.regionTagRow}>
@@ -548,6 +546,19 @@ export default function DiscoverScreen() {
                 );
               }}
             />
+          )}
+
+          {!regionsLoading && !regionsError && (
+            <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
+              <TouchableOpacity
+                style={[styles.ctaBtn, !selectedRegion && styles.ctaBtnDisabled]}
+                disabled={!selectedRegion}
+                onPress={() => { if (selectedRegion) loadDestinations(selectedRegion); }}
+              >
+                <Text style={styles.ctaBtnText}>Continue</Text>
+                <Feather name="arrow-right" size={16} color={colors.inverse} />
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
@@ -905,7 +916,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: "hidden",
   },
-  regionTileSelected: { borderColor: colors.accent },
+  regionTileSelected: { borderColor: colors.text },
   regionImageBox: { height: 140, backgroundColor: colors.sheet, position: "relative" },
   regionImage:    { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
   regionOverlay: {
@@ -917,13 +928,6 @@ const styles = StyleSheet.create({
   },
   regionName:    { fontFamily: fonts.display, fontSize: fontSize.base, color: "#fff", letterSpacing: -0.3 },
   regionCountry: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: "rgba(255,255,255,0.8)" },
-  regionCheckmark: {
-    position: "absolute",
-    top: spacing.sm, right: spacing.sm,
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: colors.accent,
-    alignItems: "center", justifyContent: "center",
-  },
   regionTagRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, paddingHorizontal: spacing.sm, paddingTop: spacing.xs },
   regionDesc:   { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, lineHeight: 18, padding: spacing.sm, paddingTop: spacing.xs },
 

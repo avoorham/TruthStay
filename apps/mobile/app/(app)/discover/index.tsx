@@ -1,13 +1,14 @@
 import {
   ActivityIndicator, Animated, FlatList, Image, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Text, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing } from "../../../lib/theme";
 import { supabase } from "../../../lib/supabase";
+import { InlineCalendar, diffDays } from "../../../components/InlineCalendar";
 
 const BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
@@ -20,16 +21,6 @@ async function discoveryHeaders(): Promise<Record<string, string>> {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Chip {
-  id: string;
-  name: string;
-  type: string;
-  parent_region: string | null;
-  country: string | null;
-  save_count: number;
-  description: string | null;
-}
 
 interface DestinationTile {
   name: string;
@@ -108,31 +99,32 @@ export default function DiscoverScreen() {
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
 
-  // Step 1 — Search
-  const [query, setQuery]           = useState("");
-  const [chips, setChips]           = useState<Chip[]>([]);
-  const [chipsLoading, setChipsLoading] = useState(false);
-  const [selectedChip, setSelectedChip] = useState<Chip | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Step 2 — Vacation style
+  // Step 1 — Vacation style
   const [vacationStyle, setVacationStyle] = useState<string[]>([]);
 
-  // Step 3 — Practical details
-  const [duration, setDuration]   = useState(7);
+  // Step 2 — Practical details
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate]     = useState<Date | null>(null);
+  const [adults, setAdults]       = useState(2);
+  const [children, setChildren]   = useState(0);
   const [budget, setBudget]       = useState<"low" | "mid" | "high">("mid");
-  const [travelers, setTravelers] = useState(2);
+
+  // Derived from date selection (0 when dates not yet chosen)
+  const duration = startDate && endDate ? diffDays(startDate, endDate) : 0;
+
+  // Step 3 — Regions (placeholder; populated by step 3 UI added in commit 4)
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
   // Step 4 — Destinations
-  const [destinations, setDestinations]           = useState<DestinationTile[]>([]);
+  const [destinations, setDestinations]               = useState<DestinationTile[]>([]);
   const [destinationsLoading, setDestinationsLoading] = useState(false);
-  const [destinationsError, setDestinationsError] = useState<string | null>(null);
-  const [selectedDestNames, setSelectedDestNames] = useState<Set<string>>(new Set());
-  const [expandedTile, setExpandedTile]           = useState<string | null>(null);
+  const [destinationsError, setDestinationsError]     = useState<string | null>(null);
+  const [selectedDestNames, setSelectedDestNames]     = useState<Set<string>>(new Set());
+  const [expandedTile, setExpandedTile]               = useState<string | null>(null);
 
   // Step 5 — Skeleton / night allocation
-  const [skeleton, setSkeleton]               = useState<Skeleton | null>(null);
-  const [skeletonLoading, setSkeletonLoading] = useState(false);
+  const [skeleton, setSkeleton]                 = useState<Skeleton | null>(null);
+  const [skeletonLoading, setSkeletonLoading]   = useState(false);
   const [nightAllocations, setNightAllocations] = useState<{ destination: string; nights: number }[]>([]);
 
   // Step 6 — Saving
@@ -157,27 +149,6 @@ export default function DiscoverScreen() {
     setVacationStyle(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   }
 
-  // ─── Chip fetch (debounced 200ms) ───────────────────────────────────────────
-
-  const fetchChips = useCallback(async (q: string) => {
-    setChipsLoading(true);
-    try {
-      const res = await fetch(`${BASE}/api/discovery/chips?q=${encodeURIComponent(q)}&limit=8`);
-      const json = await res.json() as { chips?: Chip[] };
-      setChips(json.chips ?? []);
-    } catch {
-      setChips([]);
-    } finally {
-      setChipsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchChips(query), 200);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [query, fetchChips]);
-
   // ─── Step transitions ────────────────────────────────────────────────────────
 
   async function loadDestinations() {
@@ -185,15 +156,12 @@ export default function DiscoverScreen() {
     setDestinationsError(null);
     setStep(4);
     try {
-      const input = selectedChip
-        ? { name: selectedChip.name, type: selectedChip.type }
-        : { name: query.trim(), type: "region" };
       const res = await fetch(`${BASE}/api/discovery/destinations`, {
         method: "POST",
         headers: await discoveryHeaders(),
         body: JSON.stringify({
-          input,
-          filters: { duration_days: duration, budget, travelers, vacation_style: vacationStyle },
+          ...(selectedRegion ? { input: { name: selectedRegion, type: "region" } } : {}),
+          filters: { duration_days: duration, budget, adults, children, vacation_style: vacationStyle },
         }),
       });
       const json = await res.json() as { destinations?: DestinationTile[]; error?: string };
@@ -217,7 +185,7 @@ export default function DiscoverScreen() {
         body: JSON.stringify({
           destinations: selectedDests.map(d => ({ name: d.name, type: d.type })),
           duration_days: duration,
-          filters: { budget, vacation_style: vacationStyle },
+          filters: { budget, adults, children, vacation_style: vacationStyle },
         }),
       });
       const json = await res.json() as { skeleton?: Skeleton; error?: string };
@@ -267,11 +235,20 @@ export default function DiscoverScreen() {
         sk = { ...sk, accommodation_stops: stops, days, duration_days: totalNights };
       }
 
-      const region = selectedChip?.name ?? query.trim();
+      const region = selectedRegion
+        ?? (selectedDests.length > 0 ? selectedDests.map(d => d.name).join(", ") : "Trip");
       const res = await fetch(`${BASE}/api/discovery/save-skeleton`, {
         method: "POST",
         headers: await discoveryHeaders(),
-        body: JSON.stringify({ skeleton: sk, region, source_entry_ids: sourceIds }),
+        body: JSON.stringify({
+          skeleton: sk,
+          region,
+          source_entry_ids: sourceIds,
+          start_date: startDate ? startDate.toISOString().split("T")[0] : null,
+          end_date:   endDate   ? endDate.toISOString().split("T")[0]   : null,
+          adults,
+          children,
+        }),
       });
       const json = await res.json() as { adventureId?: string; error?: string };
       if (!res.ok) throw new Error(json.error ?? "Save failed");
@@ -284,9 +261,13 @@ export default function DiscoverScreen() {
 
   function resetWizard() {
     setStep(1);
-    setQuery("");
-    setSelectedChip(null);
     setVacationStyle([]);
+    setStartDate(null);
+    setEndDate(null);
+    setAdults(2);
+    setChildren(0);
+    setBudget("mid");
+    setSelectedRegion(null);
     setSelectedDestNames(new Set());
     setSkeleton(null);
     setNightAllocations([]);
@@ -297,126 +278,19 @@ export default function DiscoverScreen() {
   }
 
   const totalNights = nightAllocations.reduce((s, a) => s + a.nights, 0);
-  const nightsMatch = totalNights === duration;
+  const nightsMatch = duration > 0 && totalNights === duration;
+  const datesValid  = !!startDate && !!endDate && duration > 0;
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
 
-      {/* ── Step 1 — Search ──────────────────────────────────────────────────── */}
+      {/* ── Step 1 — Vacation style ──────────────────────────────────────────── */}
       {step === 1 && (
         <View style={styles.flex}>
           <View style={styles.wizardHeader}>
-            <Text style={styles.wizardTitle}>Where to?</Text>
-          </View>
-
-          <View style={styles.searchBox}>
-            <Feather name="search" size={18} color={colors.muted} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search destinations..."
-              placeholderTextColor={colors.subtle}
-              value={query}
-              onChangeText={text => { setQuery(text); setSelectedChip(null); }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => { setQuery(""); setSelectedChip(null); }}>
-                <Feather name="x" size={16} color={colors.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {chipsLoading ? (
-            <ActivityIndicator style={{ marginTop: spacing.lg }} color={colors.accent} />
-          ) : (
-            <FlatList
-              data={chips}
-              keyExtractor={c => c.id}
-              style={styles.chipList}
-              contentContainerStyle={styles.chipListContent}
-              renderItem={({ item }) => {
-                const selected = selectedChip?.id === item.id;
-                const regionLabel = [item.parent_region, item.country].filter(Boolean).join(" / ");
-                return (
-                  <TouchableOpacity
-                    style={[styles.chipRow, selected && styles.chipRowSelected]}
-                    onPress={() => setSelectedChip(selected ? null : item)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={styles.chipRowLeft}>
-                      <Text style={[styles.chipName, selected && styles.chipNameSelected]}>{item.name}</Text>
-                      {regionLabel ? (
-                        <Text style={[styles.chipDesc, selected && { color: colors.inverse + "99" }]} numberOfLines={1}>{regionLabel}</Text>
-                      ) : item.description ? (
-                        <Text style={styles.chipDesc} numberOfLines={1}>{item.description}</Text>
-                      ) : null}
-                    </View>
-                    <View style={styles.chipMeta}>
-                      <Text style={[styles.chipType, selected && { color: colors.inverse + "99" }]}>{item.type}</Text>
-                      {selected && <Feather name="check" size={14} color={colors.inverse} style={{ marginLeft: 4 }} />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                query.trim().length >= 3 ? (
-                  <TouchableOpacity
-                    style={styles.fallbackChip}
-                    onPress={() => {
-                      const freeChip: Chip = {
-                        id: `free:${query.trim()}`,
-                        name: query.trim(),
-                        type: "region",
-                        parent_region: null,
-                        country: null,
-                        save_count: 0,
-                        description: null,
-                      };
-                      setSelectedChip(freeChip);
-                      // Fire background Scout for this unknown destination
-                      fetch(`${BASE}/api/discovery/scout-region`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ region: query.trim() }),
-                      }).catch(() => {});
-                      setStep(2);
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <Feather name="plus" size={14} color={colors.accent} />
-                    <Text style={styles.fallbackChipText}>"{query.trim()}"</Text>
-                    <Text style={styles.fallbackChipSub}>Search this destination</Text>
-                  </TouchableOpacity>
-                ) : query.length > 0 ? (
-                  <Text style={styles.emptyText}>Keep typing to search…</Text>
-                ) : null
-              }
-            />
-          )}
-
-          <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
-            <TouchableOpacity
-              style={[styles.ctaBtn, !(selectedChip || query.trim().length > 1) && styles.ctaBtnDisabled]}
-              disabled={!(selectedChip || query.trim().length > 1)}
-              onPress={() => setStep(2)}
-            >
-              <Text style={styles.ctaBtnText}>Next</Text>
-              <Feather name="arrow-right" size={16} color={colors.inverse} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* ── Step 2 — Vacation style ──────────────────────────────────────────── */}
-      {step === 2 && (
-        <View style={styles.flex}>
-          <View style={styles.wizardHeader}>
-            <TouchableOpacity onPress={() => setStep(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="arrow-left" size={20} color={colors.text} />
-            </TouchableOpacity>
+            <View style={{ width: 20 }} />
             <Text style={styles.wizardTitle}>Vacation style</Text>
             <View style={{ width: 20 }} />
           </View>
@@ -453,7 +327,7 @@ export default function DiscoverScreen() {
             <TouchableOpacity
               style={[styles.ctaBtn, vacationStyle.length < 3 && styles.ctaBtnDisabled]}
               disabled={vacationStyle.length < 3}
-              onPress={() => setStep(3)}
+              onPress={() => setStep(2)}
             >
               <Text style={styles.ctaBtnText}>Continue</Text>
               <Feather name="arrow-right" size={16} color={colors.inverse} />
@@ -465,11 +339,11 @@ export default function DiscoverScreen() {
         </View>
       )}
 
-      {/* ── Step 3 — Practical details ───────────────────────────────────────── */}
-      {step === 3 && (
+      {/* ── Step 2 — Practical details ───────────────────────────────────────── */}
+      {step === 2 && (
         <View style={styles.flex}>
           <View style={styles.wizardHeader}>
-            <TouchableOpacity onPress={() => setStep(2)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setStep(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="arrow-left" size={20} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.wizardTitle}>Practical details</Text>
@@ -477,16 +351,12 @@ export default function DiscoverScreen() {
           </View>
 
           <ScrollView style={styles.flex} contentContainerStyle={styles.filtersContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.filterLabel}>Duration</Text>
-            <View style={styles.stepperRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => setDuration(d => Math.max(1, d - 1))}>
-                <Feather name="minus" size={16} color={colors.text} />
-              </TouchableOpacity>
-              <Text style={styles.stepValue}>{duration} days</Text>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => setDuration(d => Math.min(28, d + 1))}>
-                <Feather name="plus" size={16} color={colors.text} />
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.filterLabel}>When</Text>
+            <InlineCalendar
+              startDate={startDate}
+              endDate={endDate}
+              onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
+            />
 
             <Text style={styles.filterLabel}>Budget</Text>
             <View style={styles.pillRow}>
@@ -501,32 +371,50 @@ export default function DiscoverScreen() {
               ))}
             </View>
 
-            <Text style={styles.filterLabel}>Travelers</Text>
+            <Text style={styles.filterLabel}>Adults</Text>
             <View style={styles.stepperRow}>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => setTravelers(t => Math.max(1, t - 1))}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setAdults(a => Math.max(1, a - 1))}>
                 <Feather name="minus" size={16} color={colors.text} />
               </TouchableOpacity>
-              <Text style={styles.stepValue}>{travelers}</Text>
-              <TouchableOpacity style={styles.stepBtn} onPress={() => setTravelers(t => Math.min(20, t + 1))}>
+              <Text style={styles.stepValue}>{adults}</Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setAdults(a => Math.min(20, a + 1))}>
+                <Feather name="plus" size={16} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.filterLabel}>Children</Text>
+            <View style={styles.stepperRow}>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setChildren(c => Math.max(0, c - 1))}>
+                <Feather name="minus" size={16} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.stepValue}>{children}</Text>
+              <TouchableOpacity style={styles.stepBtn} onPress={() => setChildren(c => Math.min(20, c + 1))}>
                 <Feather name="plus" size={16} color={colors.text} />
               </TouchableOpacity>
             </View>
           </ScrollView>
 
           <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.md }]}>
-            <TouchableOpacity style={styles.ctaBtn} onPress={loadDestinations}>
-              <Text style={styles.ctaBtnText}>Generate destinations</Text>
+            <TouchableOpacity
+              style={[styles.ctaBtn, !datesValid && styles.ctaBtnDisabled]}
+              disabled={!datesValid}
+              onPress={loadDestinations}
+            >
+              <Text style={styles.ctaBtnText}>Find regions</Text>
               <Feather name="arrow-right" size={16} color={colors.inverse} />
             </TouchableOpacity>
+            {!datesValid && (
+              <Text style={styles.styleMinHint}>Select a date range to continue</Text>
+            )}
           </View>
         </View>
       )}
 
-      {/* ── Step 4 — Destination tiles ───────────────────────────────────────── */}
+      {/* ── Step 4 — Destination tiles ── step 3 (regions) added in commit 4 ── */}
       {step === 4 && (
         <View style={styles.flex}>
           <View style={styles.wizardHeader}>
-            <TouchableOpacity onPress={() => setStep(3)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setStep(2)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="arrow-left" size={20} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.wizardTitle}>Choose destinations</Text>
@@ -678,12 +566,12 @@ export default function DiscoverScreen() {
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={[styles.totalValue, nightsMatch && styles.totalValueOk]}>
-                  {totalNights} / {duration} days {nightsMatch ? "✓" : ""}
+                  {totalNights} / {duration} nights {nightsMatch ? "✓" : ""}
                 </Text>
               </View>
               {!nightsMatch && (
                 <Text style={styles.totalHint}>
-                  Adjust nights so the total equals {duration} days.
+                  Adjust nights so the total equals {duration}.
                 </Text>
               )}
             </ScrollView>
@@ -739,9 +627,9 @@ export default function DiscoverScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container:   { flex: 1, backgroundColor: colors.bg },
-  flex:        { flex: 1 },
-  centered:    { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.bg },
+  flex:      { flex: 1 },
+  centered:  { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
 
   wizardHeader: {
     flexDirection: "row",
@@ -754,63 +642,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   wizardTitle: { fontFamily: fonts.display, fontSize: fontSize.xl, color: colors.text, letterSpacing: -0.4 },
-
-  // ── Search ───────────────────────────────────────────────────────────────────
-  searchBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    margin: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    backgroundColor: colors.sheet,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
-  },
-  searchIcon:  { flexShrink: 0 },
-  searchInput: {
-    flex: 1,
-    fontFamily: fonts.sans,
-    fontSize: fontSize.base,
-    color: colors.text,
-    padding: 0,
-  },
-  chipList:        { flex: 1 },
-  chipListContent: { paddingHorizontal: spacing.md, gap: spacing.xs },
-  chipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  chipRowSelected: { backgroundColor: colors.text, borderColor: colors.text },
-  chipRowLeft:     { flex: 1, gap: 2 },
-  chipName:        { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text },
-  chipNameSelected:{ color: colors.inverse },
-  chipDesc:        { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
-  chipMeta:        { flexDirection: "row", alignItems: "center" },
-  chipType:        { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textTransform: "capitalize" },
-  emptyText:       { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center", padding: spacing.xl },
-  fallbackChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.sm + 2,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    borderStyle: "dashed",
-  },
-  fallbackChipText:{ fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.accent, flex: 1 },
-  fallbackChipSub: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
 
   // ── CTA bar ──────────────────────────────────────────────────────────────────
   ctaBar: {
@@ -868,17 +699,17 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // ── Practical details (slimmed filters) ──────────────────────────────────────
+  // ── Practical details ─────────────────────────────────────────────────────────
   filtersContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
-  filterLabel:    { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 },
-  stepperRow:     { flexDirection: "row", alignItems: "center", gap: spacing.lg },
+  filterLabel: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted, textTransform: "uppercase", letterSpacing: 0.5 },
+  stepperRow:  { flexDirection: "row", alignItems: "center", gap: spacing.lg },
   stepBtn: {
     width: 36, height: 36, borderRadius: radius.full,
     borderWidth: 1.5, borderColor: colors.border,
     alignItems: "center", justifyContent: "center",
   },
-  stepValue:      { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, minWidth: 60, textAlign: "center" },
-  pillRow:        { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  stepValue: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, minWidth: 60, textAlign: "center" },
+  pillRow:   { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   pill: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
@@ -918,11 +749,10 @@ const styles = StyleSheet.create({
   destDesc:    { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19 },
   expandBtn:   { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.xs },
   expandBtnText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.accent },
-  reasonRow:   { flexDirection: "row", gap: spacing.xs, paddingTop: 4 },
-  reasonBullet:{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent, width: 10 },
-  reasonText:  { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 18 },
+  reasonRow:    { flexDirection: "row", gap: spacing.xs, paddingTop: 4 },
+  reasonBullet: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent, width: 10 },
+  reasonText:   { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, flex: 1, lineHeight: 18 },
 
-  // Matched style tags on destination tile
   matchedTagRow:  { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2, marginBottom: 2 },
   matchedTagChip: { backgroundColor: colors.accentLight, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 2 },
   matchedTagText: { fontFamily: fonts.sansSemiBold, fontSize: 10, color: colors.accent },
@@ -948,7 +778,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
     alignItems: "center", justifyContent: "center",
   },
-  allocNights:   { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.text, minWidth: 64, textAlign: "center" },
+  allocNights: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.text, minWidth: 64, textAlign: "center" },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",

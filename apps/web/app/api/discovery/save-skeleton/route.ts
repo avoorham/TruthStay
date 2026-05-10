@@ -26,6 +26,9 @@ interface Skeleton {
 interface RequestBody {
   skeleton: Skeleton;
   start_date?: string | null;
+  end_date?: string | null;
+  adults?: number;
+  children?: number;
   region: string;
   source_entry_ids?: string[];
 }
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { skeleton, start_date, region, source_entry_ids } = body;
+  const { skeleton, start_date, end_date, adults, children, region, source_entry_ids } = body;
   if (!skeleton?.title || !skeleton?.duration_days || !region) {
     return Response.json({ error: "skeleton.title, skeleton.duration_days, region required" }, { status: 400 });
   }
@@ -60,7 +63,11 @@ export async function POST(request: NextRequest) {
   if (!oldUser) return Response.json({ error: "User not found" }, { status: 404 });
   const userId = (oldUser as OldUserRow).id;
 
-  const requestPrompt = `${skeleton.duration_days}-day trip to ${region}`;
+  const durationDays = (start_date && end_date)
+    ? Math.round((new Date(end_date).getTime() - new Date(start_date).getTime()) / 86_400_000)
+    : skeleton.duration_days;
+
+  const requestPrompt = `${durationDays}-day trip to ${region}`;
 
   const { data: adventureRow, error: advErr } = await db
     .from("adventures")
@@ -70,8 +77,11 @@ export async function POST(request: NextRequest) {
       description:  skeleton.description ?? null,
       region,
       activityType: skeleton.activity_type ?? "other",
-      durationDays: skeleton.duration_days,
+      durationDays,
       startDate:    start_date ?? null,
+      endDate:      end_date ?? null,
+      adults:       adults ?? 2,
+      children:     children ?? 0,
       requestPrompt,
       isSaved:      true,
     })

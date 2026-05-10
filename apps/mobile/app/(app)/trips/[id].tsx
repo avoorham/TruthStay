@@ -59,6 +59,19 @@ const WIZARD_CONTENT_TYPES: { key: WizardContentType; label: string; role: strin
   { key: "things_to_do", label: "Add things to do",  role: "activity",      icon: "map-pin" },
 ];
 
+const ACCOM_TYPE_CONFIG: Record<string, { icon: string; gradient: [string, string] }> = {
+  camping:    { icon: "⛺", gradient: ["#3D7A50", "#1E4D33"] },
+  hostel:     { icon: "🛏", gradient: ["#4A7FA5", "#2D5F80"] },
+  hotel:      { icon: "🏨", gradient: ["#B08A50", "#7A5C30"] },
+  guesthouse: { icon: "🏡", gradient: ["#7B6FA5", "#5A4A80"] },
+  luxury:     { icon: "✦", gradient: ["#2C2C2C", "#111111"] },
+};
+
+const ACCOM_TYPE_LABEL: Record<string, string> = {
+  camping: "Campsite", hostel: "Hostel", hotel: "Hotel",
+  guesthouse: "Guesthouse", luxury: "Luxury Hotel",
+};
+
 const pickerStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -78,6 +91,39 @@ const pickerStyles = StyleSheet.create({
   entryScore: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent },
   entrySaves: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
   addBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginRight: spacing.sm },
+
+  // ── Accommodation card (picker) ───────────────────────────────────────────────
+  accomCard: {
+    flexDirection: "row", backgroundColor: colors.card,
+    borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.border,
+    overflow: "hidden", ...shadow.sm,
+  },
+  accomImageWrap: { width: 110, position: "relative" },
+  accomImagePlaceholder: { width: 110, flex: 1, minHeight: 130, alignItems: "center", justifyContent: "center" },
+  accomImage: { width: 110, flex: 1, minHeight: 130 },
+  accomTypeIcon: { fontSize: 30 },
+  accomTrustBadge: {
+    position: "absolute", top: spacing.sm, left: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.55)", borderRadius: radius.full,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  accomTrustText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: "#FFD700" },
+  accomLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center", justifyContent: "center",
+  },
+  accomBody: { flex: 1, padding: spacing.sm + 2, gap: 3, justifyContent: "space-between" },
+  accomName: { fontFamily: fonts.display, fontSize: fontSize.sm, color: colors.text, lineHeight: 18, letterSpacing: -0.2 },
+  accomTypeLabel: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  accomDesc: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, lineHeight: 16 },
+  accomFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.xs },
+  accomPricingNote: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, fontStyle: "italic" },
+  accomBookBtn: {
+    backgroundColor: colors.border, borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm, paddingVertical: spacing.xs,
+    flexDirection: "row", alignItems: "center", gap: 3,
+  },
+  accomBookText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted },
 });
 
 const wizardStyles = StyleSheet.create({
@@ -96,7 +142,7 @@ const wizardStyles = StyleSheet.create({
 // ─── Content picker sheet (used by wizard-day empty-state) ───────────────────
 
 function ContentPickerSheet({
-  visible, adventureId, dayNumber, adventureDayId, type, destination, onClose, onAdded,
+  visible, adventureId, dayNumber, adventureDayId, type, destination, nightCount, allDayNumbers, onClose, onAdded,
 }: {
   visible: boolean;
   adventureId: string;
@@ -104,10 +150,13 @@ function ContentPickerSheet({
   adventureDayId: string;
   type: WizardContentType | null;
   destination: string;
+  nightCount: number;
+  allDayNumbers: number[];
   onClose: () => void;
   onAdded: (entry: WizardContentEntry, role: string) => void;
 }) {
   const { showAlert: showPickerAlert, modal: pickerModal } = useAppAlert();
+  const { top: safeTop } = useSafeAreaInsets();
   const [entries, setEntries] = useState<WizardContentEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
@@ -126,17 +175,32 @@ function ContentPickerSheet({
   if (!visible || !type) return null;
 
   const typeInfo = WIZARD_CONTENT_TYPES.find(c => c.key === type);
+  const isAccom = type === "accommodation";
 
   async function handleAdd(entry: WizardContentEntry) {
     if (!typeInfo) return;
     setAdding(entry.id);
     try {
-      const res = await fetch(`${BASE}/api/adventures/${adventureId}/days/${dayNumber}/content`, {
-        method: "POST",
-        headers: await apiHeaders(),
-        body: JSON.stringify({ content_entry_id: entry.id, role: typeInfo.role }),
-      });
-      if (!res.ok) throw new Error("Failed");
+      const headers = await apiHeaders();
+      if (isAccom && allDayNumbers.length > 0) {
+        // Write to every day sharing this destination
+        await Promise.all(
+          allDayNumbers.map(dn =>
+            fetch(`${BASE}/api/adventures/${adventureId}/days/${dn}/content`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ content_entry_id: entry.id, role: typeInfo.role }),
+            }),
+          ),
+        );
+      } else {
+        const res = await fetch(`${BASE}/api/adventures/${adventureId}/days/${dayNumber}/content`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content_entry_id: entry.id, role: typeInfo.role }),
+        });
+        if (!res.ok) throw new Error("Failed");
+      }
       onAdded(entry, typeInfo.role);
       onClose();
     } catch {
@@ -146,17 +210,35 @@ function ContentPickerSheet({
     }
   }
 
+  const headerTitle = isAccom && destination
+    ? `Accommodation in ${destination}`
+    : (typeInfo?.label ?? "Pick content");
+  const headerSubtitle = isAccom && nightCount > 0
+    ? `${nightCount} night${nightCount !== 1 ? "s" : ""} · applies to all days here`
+    : destination ? `Near ${destination}` : null;
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       {pickerModal}
       <View style={pickerStyles.container}>
+        {/* Status bar gap */}
+        <View style={{ height: safeTop }} />
+
+        {/* Header */}
         <View style={pickerStyles.header}>
-          <Text style={pickerStyles.title}>{typeInfo?.label ?? "Pick content"}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={pickerStyles.title} numberOfLines={1}>{headerTitle}</Text>
+            {headerSubtitle ? (
+              <Text style={[pickerStyles.subtitle, { paddingHorizontal: 0, paddingTop: 2 }]} numberOfLines={1}>
+                {headerSubtitle}
+              </Text>
+            ) : null}
+          </View>
           <TouchableOpacity onPress={onClose} style={pickerStyles.closeBtn}>
             <Feather name="x" size={20} color={colors.muted} />
           </TouchableOpacity>
         </View>
-        {destination ? <Text style={pickerStyles.subtitle}>Near {destination}</Text> : null}
+
         {loading && (
           <View style={pickerStyles.centered}>
             <ActivityIndicator color={colors.accent} />
@@ -171,36 +253,93 @@ function ContentPickerSheet({
         )}
         {!loading && entries.length > 0 && (
           <ScrollView style={pickerStyles.list} contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
-            {entries.map(entry => (
-              <View key={entry.id} style={pickerStyles.entryCard}>
-                {entry.image_url && (
-                  <Image source={{ uri: entry.image_url }} style={pickerStyles.entryImage} resizeMode="cover" />
-                )}
-                <View style={pickerStyles.entryBody}>
-                  <Text style={pickerStyles.entryName} numberOfLines={1}>{entry.name}</Text>
-                  {entry.description ? (
-                    <Text style={pickerStyles.entryDesc} numberOfLines={2}>{entry.description}</Text>
-                  ) : null}
-                  <View style={pickerStyles.entryMeta}>
-                    <Feather name="star" size={11} color={colors.accent} />
-                    <Text style={pickerStyles.entryScore}>{entry.trust_score.toFixed(1)}</Text>
-                    {entry.save_count > 0 && (
-                      <Text style={pickerStyles.entrySaves}>{entry.save_count} saves</Text>
-                    )}
+            {entries.map(entry => {
+              if (isAccom) {
+                const accomConfig = ACCOM_TYPE_CONFIG[entry.type] ?? ACCOM_TYPE_CONFIG.hotel;
+                const isAdding = adding === entry.id;
+                return (
+                  // TODO(design-sweep): accommodation picker card — finalise when booking partner live
+                  <TouchableOpacity
+                    key={entry.id}
+                    style={pickerStyles.accomCard}
+                    onPress={() => handleAdd(entry)}
+                    activeOpacity={0.88}
+                    disabled={!!adding}
+                  >
+                    {/* Left: image or gradient */}
+                    <View style={pickerStyles.accomImageWrap}>
+                      {entry.image_url ? (
+                        <Image source={{ uri: entry.image_url }} style={pickerStyles.accomImage} resizeMode="cover" />
+                      ) : (
+                        <LinearGradient
+                          colors={accomConfig.gradient}
+                          style={pickerStyles.accomImagePlaceholder}
+                          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        >
+                          <Text style={pickerStyles.accomTypeIcon}>{accomConfig.icon}</Text>
+                        </LinearGradient>
+                      )}
+                      <View style={pickerStyles.accomTrustBadge}>
+                        <Text style={pickerStyles.accomTrustText}>★ {entry.trust_score.toFixed(1)}</Text>
+                      </View>
+                      {isAdding && (
+                        <View style={pickerStyles.accomLoadingOverlay}>
+                          <ActivityIndicator color="#fff" />
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Right: content */}
+                    <View style={pickerStyles.accomBody}>
+                      <Text style={pickerStyles.accomName} numberOfLines={1}>{entry.name}</Text>
+                      <Text style={pickerStyles.accomTypeLabel}>{ACCOM_TYPE_LABEL[entry.type] ?? entry.type}</Text>
+                      {entry.description ? (
+                        <Text style={pickerStyles.accomDesc} numberOfLines={2}>{entry.description}</Text>
+                      ) : null}
+                      <View style={pickerStyles.accomFooter}>
+                        <Text style={pickerStyles.accomPricingNote}>Pricing coming soon</Text>
+                        {/* TODO(booking-partner): replace with live price + Book button when affiliate approved */}
+                        <View style={pickerStyles.accomBookBtn}>
+                          <Text style={pickerStyles.accomBookText}>Book · Coming soon</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+
+              // Generic tile for non-accommodation types
+              return (
+                <View key={entry.id} style={pickerStyles.entryCard}>
+                  {entry.image_url && (
+                    <Image source={{ uri: entry.image_url }} style={pickerStyles.entryImage} resizeMode="cover" />
+                  )}
+                  <View style={pickerStyles.entryBody}>
+                    <Text style={pickerStyles.entryName} numberOfLines={1}>{entry.name}</Text>
+                    {entry.description ? (
+                      <Text style={pickerStyles.entryDesc} numberOfLines={2}>{entry.description}</Text>
+                    ) : null}
+                    <View style={pickerStyles.entryMeta}>
+                      <Feather name="star" size={11} color={colors.accent} />
+                      <Text style={pickerStyles.entryScore}>{entry.trust_score.toFixed(1)}</Text>
+                      {entry.save_count > 0 && (
+                        <Text style={pickerStyles.entrySaves}>{entry.save_count} saves</Text>
+                      )}
+                    </View>
                   </View>
+                  <TouchableOpacity
+                    style={[pickerStyles.addBtn, adding === entry.id && { opacity: 0.6 }]}
+                    onPress={() => handleAdd(entry)}
+                    disabled={adding === entry.id}
+                  >
+                    {adding === entry.id
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Feather name="plus" size={18} color="#fff" />
+                    }
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[pickerStyles.addBtn, adding === entry.id && { opacity: 0.6 }]}
-                  onPress={() => handleAdd(entry)}
-                  disabled={adding === entry.id}
-                >
-                  {adding === entry.id
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Feather name="plus" size={18} color="#fff" />
-                  }
-                </TouchableOpacity>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
         )}
       </View>
@@ -213,13 +352,20 @@ function ContentPickerSheet({
 function WizardDaySection({
   day,
   adventure,
+  sharedAccommodation,
+  onAccommodationPicked,
+  destinationDayNumbers,
+  nightCount,
 }: {
   day: AdventureDayRow;
   adventure: AdventureRow;
+  sharedAccommodation: WizardContentEntry | null;
+  onAccommodationPicked: (entry: WizardContentEntry) => void;
+  destinationDayNumbers: number[];
+  nightCount: number;
 }) {
   const [pickerType, setPickerType] = useState<WizardContentType | null>(null);
-  const [dayContent, setDayContent] = useState<WizardDayContent>({
-    accommodation: null,
+  const [dayContent, setDayContent] = useState<Omit<WizardDayContent, "accommodation">>({
     meals: [],
     activities: [],
     things_to_do: [],
@@ -228,15 +374,18 @@ function WizardDaySection({
   const destination = (day.alternatives as { destination?: string } | null)?.destination ?? "";
 
   function handleAdded(entry: WizardContentEntry, role: string) {
-    setDayContent(prev => {
-      if (role === "accommodation") return { ...prev, accommodation: entry };
-      if (role === "meal") return { ...prev, meals: [...prev.meals, entry] };
-      if (role === "activity") {
-        if (pickerType === "things_to_do") return { ...prev, things_to_do: [...prev.things_to_do, entry] };
-        return { ...prev, activities: [...prev.activities, entry] };
-      }
-      return prev;
-    });
+    if (role === "accommodation") {
+      onAccommodationPicked(entry);
+    } else {
+      setDayContent(prev => {
+        if (role === "meal") return { ...prev, meals: [...prev.meals, entry] };
+        if (role === "activity") {
+          if (pickerType === "things_to_do") return { ...prev, things_to_do: [...prev.things_to_do, entry] };
+          return { ...prev, activities: [...prev.activities, entry] };
+        }
+        return prev;
+      });
+    }
     setPickerType(null);
   }
 
@@ -244,10 +393,10 @@ function WizardDaySection({
     <>
       {/* WHERE YOU'RE STAYING */}
       <Text style={wizardStyles.sectionLabel}>Where you're staying</Text>
-      {dayContent.accommodation ? (
+      {sharedAccommodation ? (
         <View style={wizardStyles.filledItem}>
           <Feather name="home" size={14} color={colors.accent} />
-          <Text style={wizardStyles.filledName} numberOfLines={1}>{dayContent.accommodation.name}</Text>
+          <Text style={wizardStyles.filledName} numberOfLines={1}>{sharedAccommodation.name}</Text>
         </View>
       ) : (
         <TouchableOpacity style={wizardStyles.addButton} onPress={() => setPickerType("accommodation")}>
@@ -299,6 +448,8 @@ function WizardDaySection({
         adventureDayId={day.id}
         type={pickerType}
         destination={destination}
+        nightCount={nightCount}
+        allDayNumbers={pickerType === "accommodation" ? destinationDayNumbers : [day.dayNumber]}
         onClose={() => setPickerType(null)}
         onAdded={handleAdded}
       />
@@ -2774,6 +2925,7 @@ export default function TripDetailScreen() {
   const [anyDragging, setAnyDragging]     = useState(false);
   const [dragOverDelete, setDragOverDelete] = useState(false);
   const [toast, setToast]                 = useState("");
+  const [destinationAccommodations, setDestinationAccommodations] = useState<Record<string, WizardContentEntry | null>>({});
   const dayListRef      = useRef<FlatList<AdventureDayRow>>(null);
   type DestSlide = { name: string; photo_url: string | null };
   const heroCarouselRef = useRef<FlatList<DestSlide>>(null);
@@ -3400,9 +3552,26 @@ export default function TripDetailScreen() {
                 )}
               </View>
 
-              {isWizardDay ? (
-                <WizardDaySection day={day} adventure={adventure} />
-              ) : null}
+              {isWizardDay ? (() => {
+                const dest = dayAlts?.destination ?? "";
+                const destDayNumbers = sortedDays
+                  .filter(d => ((d.alternatives as { destination?: string } | null)?.destination ?? "") === dest)
+                  .map(d => d.dayNumber);
+                const accomNights = (dayAlts as { accommodationStop?: { night_numbers?: number[] } } | null)
+                  ?.accommodationStop?.night_numbers?.length ?? destDayNumbers.length;
+                return (
+                  <WizardDaySection
+                    day={day}
+                    adventure={adventure}
+                    sharedAccommodation={dest ? (destinationAccommodations[dest] ?? null) : null}
+                    onAccommodationPicked={entry => {
+                      if (dest) setDestinationAccommodations(prev => ({ ...prev, [dest]: entry }));
+                    }}
+                    destinationDayNumbers={destDayNumbers}
+                    nightCount={accomNights}
+                  />
+                );
+              })() : null}
 
               {!isWizardDay && tileOrder.map((tileId, orderIdx) => {
                 const canUp   = orderIdx > 0;

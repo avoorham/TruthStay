@@ -1,6 +1,6 @@
 import {
   ActivityIndicator, Animated, FlatList, Image, ScrollView, StyleSheet,
-  Text, TouchableOpacity, View,
+  Text, TextInput, TouchableOpacity, View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useRef } from "react";
@@ -21,6 +21,14 @@ async function discoveryHeaders(): Promise<Record<string, string>> {
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface RegionTile {
+  name: string;
+  country: string;
+  hero_images: string[];
+  description: string;
+  matched_style_tags: string[];
+}
 
 interface DestinationTile {
   name: string;
@@ -112,8 +120,12 @@ export default function DiscoverScreen() {
   // Derived from date selection (0 when dates not yet chosen)
   const duration = startDate && endDate ? diffDays(startDate, endDate) : 0;
 
-  // Step 3 — Regions (placeholder; populated by step 3 UI added in commit 4)
+  // Step 3 — Regions
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const [regions, setRegions]               = useState<RegionTile[]>([]);
+  const [regionsLoading, setRegionsLoading] = useState(false);
+  const [regionsError, setRegionsError]     = useState<string | null>(null);
+  const [regionSearch, setRegionSearch]     = useState("");
 
   // Step 4 — Destinations
   const [destinations, setDestinations]               = useState<DestinationTile[]>([]);
@@ -151,7 +163,32 @@ export default function DiscoverScreen() {
 
   // ─── Step transitions ────────────────────────────────────────────────────────
 
-  async function loadDestinations() {
+  async function loadRegions() {
+    setRegionsLoading(true);
+    setRegionsError(null);
+    setRegions([]);
+    setStep(3);
+    try {
+      const res = await fetch(`${BASE}/api/discovery/regions`, {
+        method: "POST",
+        headers: await discoveryHeaders(),
+        body: JSON.stringify({
+          filters: { vacation_style: vacationStyle, duration_days: duration, budget, adults, children },
+        }),
+      });
+      const json = await res.json() as { regions?: RegionTile[]; error?: string };
+      if (!res.ok) throw new Error(json.error ?? "Failed");
+      setRegions(json.regions ?? []);
+    } catch (e) {
+      setRegionsError(e instanceof Error ? e.message : "Could not load regions");
+    } finally {
+      setRegionsLoading(false);
+    }
+  }
+
+  async function loadDestinations(regionOverride?: string) {
+    const region = regionOverride ?? selectedRegion;
+    if (regionOverride !== undefined) setSelectedRegion(regionOverride);
     setDestinationsLoading(true);
     setDestinationsError(null);
     setStep(4);
@@ -160,7 +197,7 @@ export default function DiscoverScreen() {
         method: "POST",
         headers: await discoveryHeaders(),
         body: JSON.stringify({
-          ...(selectedRegion ? { input: { name: selectedRegion, type: "region" } } : {}),
+          ...(region ? { input: { name: region, type: "region" } } : {}),
           filters: { duration_days: duration, budget, adults, children, vacation_style: vacationStyle },
         }),
       });
@@ -268,6 +305,9 @@ export default function DiscoverScreen() {
     setChildren(0);
     setBudget("mid");
     setSelectedRegion(null);
+    setRegions([]);
+    setRegionsError(null);
+    setRegionSearch("");
     setSelectedDestNames(new Set());
     setSkeleton(null);
     setNightAllocations([]);
@@ -398,7 +438,7 @@ export default function DiscoverScreen() {
             <TouchableOpacity
               style={[styles.ctaBtn, !datesValid && styles.ctaBtnDisabled]}
               disabled={!datesValid}
-              onPress={loadDestinations}
+              onPress={loadRegions}
             >
               <Text style={styles.ctaBtnText}>Find regions</Text>
               <Feather name="arrow-right" size={16} color={colors.inverse} />
@@ -410,11 +450,113 @@ export default function DiscoverScreen() {
         </View>
       )}
 
-      {/* ── Step 4 — Destination tiles ── step 3 (regions) added in commit 4 ── */}
-      {step === 4 && (
+      {/* ── Step 3 — Suggested regions ───────────────────────────────────────── */}
+      {step === 3 && (
         <View style={styles.flex}>
           <View style={styles.wizardHeader}>
             <TouchableOpacity onPress={() => setStep(2)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Feather name="arrow-left" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={styles.wizardTitle}>Where to?</Text>
+            <View style={{ width: 20 }} />
+          </View>
+
+          {/* Search override */}
+          <View style={styles.searchBox}>
+            <Feather name="search" size={18} color={colors.muted} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Or type a specific region…"
+              placeholderTextColor={colors.muted}
+              value={regionSearch}
+              onChangeText={setRegionSearch}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            {regionSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setRegionSearch("")}>
+                <Feather name="x" size={16} color={colors.muted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Custom region submit row */}
+          {regionSearch.trim().length >= 2 && (
+            <TouchableOpacity
+              style={styles.searchOverrideRow}
+              onPress={() => { const q = regionSearch.trim(); setRegionSearch(""); loadDestinations(q); }}
+              activeOpacity={0.75}
+            >
+              <Feather name="search" size={14} color={colors.accent} />
+              <Text style={styles.searchOverrideText}>Search "{regionSearch.trim()}"</Text>
+              <Feather name="arrow-right" size={14} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+
+          {regionsLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.accent} />
+              <Text style={styles.loadingText}>Finding regions for you…</Text>
+            </View>
+          ) : regionsError ? (
+            <View style={styles.centered}>
+              <Feather name="alert-circle" size={40} color={colors.muted} />
+              <Text style={styles.errorText}>{regionsError}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={loadRegions}>
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={regions}
+              keyExtractor={r => r.name}
+              contentContainerStyle={{ padding: spacing.md, paddingBottom: 40, gap: spacing.sm }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item: reg }) => {
+                const heroUri = reg.hero_images[0]
+                  || `https://picsum.photos/seed/${encodeURIComponent(reg.name)}/400/180`;
+                const isSelected = selectedRegion === reg.name;
+                return (
+                  <TouchableOpacity
+                    style={[styles.regionTile, isSelected && styles.regionTileSelected]}
+                    onPress={() => loadDestinations(reg.name)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.regionImageBox}>
+                      <Image source={{ uri: heroUri }} style={styles.regionImage} />
+                      <View style={styles.regionOverlay}>
+                        <Text style={styles.regionName}>{reg.name}</Text>
+                        <Text style={styles.regionCountry}>{reg.country}</Text>
+                      </View>
+                      {isSelected && (
+                        <View style={styles.regionCheckmark}>
+                          <Feather name="check" size={14} color="#fff" />
+                        </View>
+                      )}
+                    </View>
+                    {reg.matched_style_tags?.length > 0 && (
+                      <View style={styles.regionTagRow}>
+                        {reg.matched_style_tags.map(tag => (
+                          <View key={tag} style={styles.matchedTagChip}>
+                            <Text style={styles.matchedTagText}>{tag}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    <Text style={styles.regionDesc} numberOfLines={2}>{reg.description}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
+      )}
+
+      {/* ── Step 4 — Destination tiles ───────────────────────────────────────── */}
+      {step === 4 && (
+        <View style={styles.flex}>
+          <View style={styles.wizardHeader}>
+            <TouchableOpacity onPress={() => setStep(3)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="arrow-left" size={20} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.wizardTitle}>Choose destinations</Text>
@@ -430,7 +572,7 @@ export default function DiscoverScreen() {
             <View style={styles.centered}>
               <Feather name="alert-circle" size={40} color={colors.muted} />
               <Text style={styles.errorText}>{destinationsError}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={loadDestinations}>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => loadDestinations()}>
                 <Text style={styles.retryText}>Try again</Text>
               </TouchableOpacity>
             </View>
@@ -721,6 +863,70 @@ const styles = StyleSheet.create({
   pillText:       { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
   pillTextActive: { color: colors.inverse },
 
+  // ── Regions step ──────────────────────────────────────────────────────────────
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    margin: spacing.md,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    backgroundColor: colors.sheet,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  searchIcon:  { flexShrink: 0 },
+  searchInput: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: fontSize.base,
+    color: colors.text,
+    padding: 0,
+  },
+  searchOverrideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.accentLight,
+    borderRadius: radius.md,
+  },
+  searchOverrideText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.accent, flex: 1 },
+
+  regionTile: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  regionTileSelected: { borderColor: colors.accent },
+  regionImageBox: { height: 140, backgroundColor: colors.sheet, position: "relative" },
+  regionImage:    { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
+  regionOverlay: {
+    position: "absolute",
+    bottom: 0, left: 0, right: 0,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: "rgba(0,0,0,0.48)",
+  },
+  regionName:    { fontFamily: fonts.display, fontSize: fontSize.base, color: "#fff", letterSpacing: -0.3 },
+  regionCountry: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: "rgba(255,255,255,0.8)" },
+  regionCheckmark: {
+    position: "absolute",
+    top: spacing.sm, right: spacing.sm,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.accent,
+    alignItems: "center", justifyContent: "center",
+  },
+  regionTagRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, paddingHorizontal: spacing.sm, paddingTop: spacing.xs },
+  regionDesc:   { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, lineHeight: 18, padding: spacing.sm, paddingTop: spacing.xs },
+
   // ── Destination tiles ─────────────────────────────────────────────────────────
   destTile: {
     borderRadius: radius.lg,
@@ -734,8 +940,7 @@ const styles = StyleSheet.create({
   destImage:        { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
   destCheckbox: {
     position: "absolute",
-    top: spacing.sm,
-    right: spacing.sm,
+    top: spacing.sm, right: spacing.sm,
     width: 28, height: 28,
     borderRadius: 14,
     borderWidth: 2, borderColor: "#fff",

@@ -2779,7 +2779,6 @@ export default function TripDetailScreen() {
   const heroCarouselRef = useRef<FlatList<DestSlide>>(null);
   const heroAutoTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipScrollRef   = useRef(false);
   const heroOffset      = useRef(new Animated.Value(0)).current;
   const toastTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragOverDeleteRef = useRef(false);
@@ -2826,7 +2825,6 @@ export default function TripDetailScreen() {
 
   // Sync FlatList position when selectedDay changes via chip tap
   useEffect(() => {
-    if (skipScrollRef.current) { skipScrollRef.current = false; return; }
     const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
     if (idx >= 0) dayListRef.current?.scrollToIndex({ index: idx, animated: true });
   }, [selectedDay, sortedDays]);
@@ -3154,8 +3152,6 @@ export default function TripDetailScreen() {
     const idx = sortedDays.findIndex(d => d.dayNumber === selectedDay);
     const targetIdx = dir === "left" ? idx - 1 : idx + 1;
     if (targetIdx >= 0 && targetIdx < sortedDays.length) {
-      skipScrollRef.current = true;   // suppress useEffect double-scroll
-      dayListRef.current?.scrollToIndex({ index: targetIdx, animated: true });
       setSelectedDay(sortedDays[targetIdx].dayNumber);
     }
   }
@@ -3220,8 +3216,7 @@ export default function TripDetailScreen() {
 
   function handleDaySwipe(idx: number) {
     const day = sortedDays[idx];
-    if (!day) return;
-    skipScrollRef.current = true;   // suppress useEffect double-scroll after user swipe
+    if (!day || day.dayNumber === selectedDay) return;
     setSelectedDay(day.dayNumber);
     setSwipeEnabled(false);
     if (swipeCooldown.current) clearTimeout(swipeCooldown.current);
@@ -3231,6 +3226,7 @@ export default function TripDetailScreen() {
   return (
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {modal}
+      {/* TODO(design-sweep): header chrome — black/white palette needs TruthStay-blue accent sweep */}
       {/* Header */}
       <View style={detailStyles.header}>
         <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.navigate("/(app)/trips")}>
@@ -3333,6 +3329,7 @@ export default function TripDetailScreen() {
       </Animated.View>
 
 
+      {/* TODO(design-sweep): day tab strip — active pill color and typography need TruthStay-blue sweep */}
       {/* Day chips — fixed */}
       <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
 

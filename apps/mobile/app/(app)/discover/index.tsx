@@ -631,6 +631,7 @@ export default function DiscoverScreen() {
       )}
 
       {/* Step 5 — Confirmation */}
+      {/* LEAVE-ALONE: save success screen design is approved — do not redesign */}
       {step === 5 && (
         <View style={[styles.flex, styles.centered]}>
           <View style={styles.successIcon}>

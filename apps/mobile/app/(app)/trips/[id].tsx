@@ -3459,19 +3459,29 @@ export default function TripDetailScreen() {
               </View>
             )}
           </View>
-          {/* Text below image */}
-          <View style={detailStyles.heroText}>
-            <Text style={detailStyles.heroTitle} numberOfLines={2}>{adventure.title}</Text>
-            <View style={detailStyles.heroMeta}>
-              <Feather name="map-pin" size={12} color={colors.muted} />
-              <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
-              <Text style={detailStyles.heroMetaDot}>·</Text>
-              <MaterialCommunityIcons name={actIconName} size={14} color={colors.muted} />
-              <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
-              <Text style={detailStyles.heroMetaDot}>·</Text>
-              <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
+          {/* Text below image — long-press (owner only) opens edit/delete sheet */}
+          <TouchableOpacity
+            activeOpacity={1}
+            delayLongPress={500}
+            onLongPress={() => {
+              if (!isOwner) return;
+              Vibration.vibrate(30);
+              setEditVisible(true);
+            }}
+          >
+            <View style={detailStyles.heroText}>
+              <Text style={detailStyles.heroTitle} numberOfLines={2}>{adventure.title}</Text>
+              <View style={detailStyles.heroMeta}>
+                <Feather name="map-pin" size={12} color={colors.muted} />
+                <Text style={detailStyles.heroMetaText}>{adventure.region}</Text>
+                <Text style={detailStyles.heroMetaDot}>·</Text>
+                <MaterialCommunityIcons name={actIconName} size={14} color={colors.muted} />
+                <Text style={detailStyles.heroMetaText}>{adventure.activityType.replace(/_/g, " ")}</Text>
+                <Text style={detailStyles.heroMetaDot}>·</Text>
+                <Text style={detailStyles.heroMetaText}>{adventure.durationDays} days</Text>
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       </Animated.View>
 

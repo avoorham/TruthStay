@@ -43,6 +43,9 @@ interface WizardContentEntry {
   trust_score: number;
   save_count: number;
   image_url: string | null;
+  website_url: string | null;
+  menu_url: string | null;
+  booking_url: string | null;
 }
 
 interface WizardDayContent {
@@ -124,6 +127,46 @@ const pickerStyles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 3,
   },
   accomBookText: { fontFamily: fonts.sansBold, fontSize: fontSize.xs, color: colors.muted },
+
+  // ── Tile card (content picker redesign) ──────────────────────────────────────
+  tileCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    overflow: "hidden",
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.sm,
+  },
+  tileHeroWrap: { height: 140, position: "relative" },
+  tileHeroPhoto: { width: "100%", height: 140 },
+  tileHeroPlaceholder: { width: "100%", height: 140, backgroundColor: colors.border },
+  tileAddBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  tileBody: { padding: spacing.md },
+  tileName: { fontFamily: fonts.display, fontSize: fontSize.base, color: colors.text, marginBottom: 4 },
+  tileStarRow: { flexDirection: "row", alignItems: "center", gap: 2, marginBottom: 6 },
+  tileStarLabel: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginLeft: 2 },
+  tileDesc: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19, marginBottom: 10 },
+  tileActions: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+  tileActionBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
+  tileActionBtnDisabled: { borderColor: colors.border },
+  tileActionText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.text },
+  tileActionTextDisabled: { color: colors.muted },
 });
 
 const wizardStyles = StyleSheet.create({
@@ -140,6 +183,35 @@ const wizardStyles = StyleSheet.create({
 });
 
 // ─── Content picker sheet (used by wizard-day empty-state) ───────────────────
+
+type UrlFieldKey = "website_url" | "menu_url" | "booking_url";
+
+const ACTION_BUTTONS: Record<WizardContentType, Array<{ label: string; urlField: UrlFieldKey }>> = {
+  restaurant:    [{ label: "Website", urlField: "website_url" }, { label: "Menu", urlField: "menu_url" }, { label: "Book", urlField: "booking_url" }],
+  accommodation: [{ label: "Website", urlField: "website_url" }, { label: "Book", urlField: "booking_url" }],
+  activity:      [{ label: "Website", urlField: "website_url" }, { label: "Book", urlField: "booking_url" }],
+  things_to_do:  [{ label: "Website", urlField: "website_url" }, { label: "Book", urlField: "booking_url" }],
+};
+
+function EntryStarRating({ trustScore }: { trustScore: number }) {
+  const rating = trustScore * 5;
+  const rounded = Math.round(rating * 2) / 2;
+  const filled = Math.floor(rounded);
+  const hasHalf = (rounded % 1) === 0.5;
+  const empty = 5 - filled - (hasHalf ? 1 : 0);
+  return (
+    <View style={pickerStyles.tileStarRow}>
+      {Array.from({ length: filled }).map((_, i) => (
+        <MaterialCommunityIcons key={`f${i}`} name="star" size={13} color={colors.accent} />
+      ))}
+      {hasHalf && <MaterialCommunityIcons name="star-half-full" size={13} color={colors.accent} />}
+      {Array.from({ length: empty }).map((_, i) => (
+        <MaterialCommunityIcons key={`e${i}`} name="star-outline" size={13} color={colors.muted} />
+      ))}
+      <Text style={pickerStyles.tileStarLabel}>{rounded.toFixed(1)} · 0 reviews</Text>
+    </View>
+  );
+}
 
 function ContentPickerSheet({
   visible, adventureId, dayNumber, adventureDayId, type, destination, nightCount, allDayNumbers, onClose, onAdded,
@@ -175,14 +247,13 @@ function ContentPickerSheet({
   if (!visible || !type) return null;
 
   const typeInfo = WIZARD_CONTENT_TYPES.find(c => c.key === type);
-  const isAccom = type === "accommodation";
 
   async function handleAdd(entry: WizardContentEntry) {
     if (!typeInfo) return;
     setAdding(entry.id);
     try {
       const headers = await apiHeaders();
-      if (isAccom && allDayNumbers.length > 0) {
+      if (type === "accommodation" && allDayNumbers.length > 0) {
         // Write to every day sharing this destination
         await Promise.all(
           allDayNumbers.map(dn =>
@@ -210,10 +281,10 @@ function ContentPickerSheet({
     }
   }
 
-  const headerTitle = isAccom && destination
+  const headerTitle = type === "accommodation" && destination
     ? `Accommodation in ${destination}`
     : (typeInfo?.label ?? "Pick content");
-  const headerSubtitle = isAccom && nightCount > 0
+  const headerSubtitle = type === "accommodation" && nightCount > 0
     ? `${nightCount} night${nightCount !== 1 ? "s" : ""} · applies to all days here`
     : destination ? `Near ${destination}` : null;
 
@@ -252,90 +323,69 @@ function ContentPickerSheet({
           </View>
         )}
         {!loading && entries.length > 0 && (
-          <ScrollView style={pickerStyles.list} contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}>
+          <ScrollView style={pickerStyles.list} contentContainerStyle={{ padding: spacing.md }}>
             {entries.map(entry => {
-              if (isAccom) {
-                const accomConfig = ACCOM_TYPE_CONFIG[entry.type] ?? ACCOM_TYPE_CONFIG.hotel;
-                const isAdding = adding === entry.id;
-                return (
-                  <TouchableOpacity
-                    key={entry.id}
-                    style={pickerStyles.accomCard}
-                    onPress={() => handleAdd(entry)}
-                    activeOpacity={0.88}
-                    disabled={!!adding}
-                  >
-                    {/* Left: image or gradient */}
-                    <View style={pickerStyles.accomImageWrap}>
-                      {entry.image_url ? (
-                        <Image source={{ uri: entry.image_url }} style={pickerStyles.accomImage} resizeMode="cover" />
-                      ) : (
-                        <LinearGradient
-                          colors={accomConfig.gradient}
-                          style={pickerStyles.accomImagePlaceholder}
-                          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                        >
-                          <Text style={pickerStyles.accomTypeIcon}>{accomConfig.icon}</Text>
-                        </LinearGradient>
-                      )}
-                      <View style={pickerStyles.accomTrustBadge}>
-                        <Text style={pickerStyles.accomTrustText}>★ {entry.trust_score.toFixed(1)}</Text>
-                      </View>
-                      {isAdding && (
-                        <View style={pickerStyles.accomLoadingOverlay}>
-                          <ActivityIndicator color="#fff" />
-                        </View>
-                      )}
-                    </View>
-
-                    {/* Right: content */}
-                    <View style={pickerStyles.accomBody}>
-                      <Text style={pickerStyles.accomName} numberOfLines={1}>{entry.name}</Text>
-                      <Text style={pickerStyles.accomTypeLabel}>{ACCOM_TYPE_LABEL[entry.type] ?? entry.type}</Text>
-                      {entry.description ? (
-                        <Text style={pickerStyles.accomDesc} numberOfLines={2}>{entry.description}</Text>
-                      ) : null}
-                      <View style={pickerStyles.accomFooter}>
-                        <Text style={pickerStyles.accomPricingNote}>Pricing coming soon</Text>
-                        {/* TODO(booking-partner): replace with live price + Book button when affiliate approved */}
-                        <View style={pickerStyles.accomBookBtn}>
-                          <Text style={pickerStyles.accomBookText}>Book · Coming soon</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }
-
-              // Generic tile for non-accommodation types
+              const buttons = ACTION_BUTTONS[type ?? "restaurant"];
+              const isAdding = adding === entry.id;
               return (
-                <View key={entry.id} style={pickerStyles.entryCard}>
-                  {entry.image_url && (
-                    <Image source={{ uri: entry.image_url }} style={pickerStyles.entryImage} resizeMode="cover" />
-                  )}
-                  <View style={pickerStyles.entryBody}>
-                    <Text style={pickerStyles.entryName} numberOfLines={1}>{entry.name}</Text>
+                <View key={entry.id} style={pickerStyles.tileCard}>
+                  {/* Hero */}
+                  <View style={pickerStyles.tileHeroWrap}>
+                    {entry.image_url
+                      ? <Image source={{ uri: entry.image_url }} style={pickerStyles.tileHeroPhoto} resizeMode="cover" />
+                      : <View style={pickerStyles.tileHeroPlaceholder} />
+                    }
+                    <TouchableOpacity
+                      style={pickerStyles.tileAddBtn}
+                      onPress={() => handleAdd(entry)}
+                      disabled={!!adding}
+                      activeOpacity={0.8}
+                    >
+                      {isAdding
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Feather name="plus" size={16} color="#fff" />
+                      }
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Body */}
+                  <View style={pickerStyles.tileBody}>
+                    <Text style={pickerStyles.tileName} numberOfLines={1}>{entry.name}</Text>
+                    {/* TODO(reviews-distinction): when real review data exists, split into "Verified ★ X.X"
+                        (from trust_score) and "Reviews ★ Y.Y · N reviews" (from user data). For now use
+                        trust-score-derived rating only. */}
+                    <EntryStarRating trustScore={entry.trust_score} />
                     {entry.description ? (
-                      <Text style={pickerStyles.entryDesc} numberOfLines={2}>{entry.description}</Text>
+                      <Text style={pickerStyles.tileDesc} numberOfLines={2}>{entry.description}</Text>
                     ) : null}
-                    <View style={pickerStyles.entryMeta}>
-                      <Feather name="star" size={11} color={colors.accent} />
-                      <Text style={pickerStyles.entryScore}>{entry.trust_score.toFixed(1)}</Text>
-                      {entry.save_count > 0 && (
-                        <Text style={pickerStyles.entrySaves}>{entry.save_count} saves</Text>
-                      )}
+                    <View style={pickerStyles.tileActions}>
+                      {buttons.map(btn => {
+                        const url = entry[btn.urlField];
+                        const enabled = !!url;
+                        return (
+                          <TouchableOpacity
+                            key={btn.label}
+                            style={[pickerStyles.tileActionBtn, !enabled && pickerStyles.tileActionBtnDisabled]}
+                            onPress={() => {
+                              if (enabled) {
+                                Linking.openURL(url!);
+                              } else {
+                                const msg = btn.urlField === "website_url"
+                                  ? "No link yet — try a web search."
+                                  : "Not yet available. Visit the website for more info.";
+                                showPickerAlert("Not available", msg);
+                              }
+                            }}
+                            activeOpacity={enabled ? 0.7 : 1}
+                          >
+                            <Text style={[pickerStyles.tileActionText, !enabled && pickerStyles.tileActionTextDisabled]}>
+                              {btn.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={[pickerStyles.addBtn, adding === entry.id && { opacity: 0.6 }]}
-                    onPress={() => handleAdd(entry)}
-                    disabled={adding === entry.id}
-                  >
-                    {adding === entry.id
-                      ? <ActivityIndicator size="small" color="#fff" />
-                      : <Feather name="plus" size={18} color="#fff" />
-                    }
-                  </TouchableOpacity>
                 </View>
               );
             })}

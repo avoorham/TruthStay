@@ -60,12 +60,15 @@ export async function GET(request: NextRequest) {
     trust_score: number;
     save_count: number;
     image_url: string | null;
+    website_url: string | null;
+    menu_url: string | null;
+    booking_url: string | null;
     data: unknown;
   };
 
   const { data: entries, error: entriesErr } = await db
     .from("content_entries")
-    .select("id, name, type, region, country, description, trust_score, save_count, image_url, data")
+    .select("id, name, type, region, country, description, trust_score, save_count, image_url, website_url, menu_url, booking_url, data")
     .eq("type", type)
     .eq("verified", true)
     .eq("status", "approved")

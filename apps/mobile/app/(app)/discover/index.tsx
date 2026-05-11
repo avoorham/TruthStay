@@ -7,6 +7,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { colors, fonts, fontSize, radius, spacing } from "../../../lib/theme";
+import { BudgetRangeSlider } from "../../../components/BudgetRangeSlider";
 import { supabase } from "../../../lib/supabase";
 import { InlineCalendar, diffDays } from "../../../components/InlineCalendar";
 import { formatTravelTime, warningThresholdSeconds, fetchDestinationTimes } from "../../../lib/distance";
@@ -66,11 +67,6 @@ interface Skeleton {
 
 // ─── Vacation style data ──────────────────────────────────────────────────────
 
-const BUDGET_OPTIONS = [
-  { key: "low",  label: "Budget" },
-  { key: "mid",  label: "Mid"    },
-  { key: "high", label: "Luxury" },
-] as const;
 
 const VACATION_STYLE_GROUPS = [
   {
@@ -116,7 +112,10 @@ export default function DiscoverScreen() {
   const [endDate, setEndDate]     = useState<Date | null>(null);
   const [adults, setAdults]       = useState(2);
   const [children, setChildren]   = useState(0);
-  const [budget, setBudget]       = useState<"low" | "mid" | "high">("mid");
+  const [budgetMin, setBudgetMin] = useState(1500);
+  const [budgetMax, setBudgetMax] = useState(3500);
+  const [minInput, setMinInput]   = useState("1500");
+  const [maxInput, setMaxInput]   = useState("3500");
 
   // Derived from date selection (0 when dates not yet chosen)
   const duration = startDate && endDate ? diffDays(startDate, endDate) : 0;
@@ -175,7 +174,7 @@ export default function DiscoverScreen() {
         method: "POST",
         headers: await discoveryHeaders(),
         body: JSON.stringify({
-          filters: { vacation_style: vacationStyle, duration_days: duration, budget, adults, children },
+          filters: { vacation_style: vacationStyle, duration_days: duration, budget: { min: budgetMin, max: budgetMax }, adults, children },
         }),
       });
       const json = await res.json() as { regions?: RegionTile[]; error?: string };
@@ -217,7 +216,7 @@ export default function DiscoverScreen() {
         headers: await discoveryHeaders(),
         body: JSON.stringify({
           ...(region ? { input: { name: region, type: "region" } } : {}),
-          filters: { duration_days: duration, budget, adults, children, vacation_style: vacationStyle },
+          filters: { duration_days: duration, budget: { min: budgetMin, max: budgetMax }, adults, children, vacation_style: vacationStyle },
         }),
       });
       const json = await res.json() as { destinations?: DestinationTile[]; error?: string };
@@ -244,7 +243,7 @@ export default function DiscoverScreen() {
         body: JSON.stringify({
           destinations: selectedDests.map(d => ({ name: d.name, type: d.type })),
           duration_days: duration,
-          filters: { budget, adults, children, vacation_style: vacationStyle },
+          filters: { budget: { min: budgetMin, max: budgetMax }, adults, children, vacation_style: vacationStyle },
         }),
       });
       const json = await res.json() as { skeleton?: Skeleton; error?: string };
@@ -307,6 +306,8 @@ export default function DiscoverScreen() {
           end_date:   endDate   ? endDate.toISOString().split("T")[0]   : null,
           adults,
           children,
+          budget_min: budgetMin,
+          budget_max: budgetMax,
         }),
       });
       const json = await res.json() as { adventureId?: string; error?: string };
@@ -337,7 +338,10 @@ export default function DiscoverScreen() {
     setEndDate(null);
     setAdults(2);
     setChildren(0);
-    setBudget("mid");
+    setBudgetMin(1500);
+    setBudgetMax(3500);
+    setMinInput("1500");
+    setMaxInput("3500");
     setSelectedRegion(null);
     setRegions([]);
     setRegionsError(null);
@@ -428,7 +432,7 @@ export default function DiscoverScreen() {
         <View style={styles.flex}>
           <View style={styles.wizardHeader}>
             <TouchableOpacity onPress={() => setStep(1)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Feather name="arrow-left" size={20} color={colors.text} />
+              <Feather name="arrow-left" size={20} color={colors.accent} />
             </TouchableOpacity>
             <Text style={styles.wizardTitle}>Practical details</Text>
             <View style={{ width: 20 }} />
@@ -442,38 +446,98 @@ export default function DiscoverScreen() {
               onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
             />
 
-            <Text style={styles.filterLabel}>Budget</Text>
-            <View style={styles.pillRow}>
-              {BUDGET_OPTIONS.map(o => (
-                <TouchableOpacity
-                  key={o.key}
-                  style={[styles.pill, budget === o.key && styles.pillActive]}
-                  onPress={() => setBudget(o.key)}
-                >
-                  <Text style={[styles.pillText, budget === o.key && styles.pillTextActive]}>{o.label}</Text>
-                </TouchableOpacity>
-              ))}
+            <Text style={styles.filterLabel}>Total Budget</Text>
+            <View style={styles.budgetInputRow}>
+              <View style={styles.budgetInputWrap}>
+                <Text style={styles.budgetCurrency}>€</Text>
+                <TextInput
+                  style={styles.budgetInput}
+                  value={minInput}
+                  keyboardType="numeric"
+                  placeholder="Min"
+                  placeholderTextColor={colors.muted}
+                  onChangeText={text => {
+                    setMinInput(text);
+                    const v = parseInt(text, 10);
+                    if (!isNaN(v) && v >= 0 && v < budgetMax) setBudgetMin(v);
+                  }}
+                  onBlur={() => {
+                    const v = parseInt(minInput, 10);
+                    const snapped = !isNaN(v) && v >= 0
+                      ? Math.max(0, Math.min(Math.round(v / 50) * 50, budgetMax - 50))
+                      : budgetMin;
+                    setBudgetMin(snapped);
+                    setMinInput(String(snapped));
+                  }}
+                />
+              </View>
+              <Text style={styles.budgetSep}>–</Text>
+              <View style={styles.budgetInputWrap}>
+                <Text style={styles.budgetCurrency}>€</Text>
+                <TextInput
+                  style={styles.budgetInput}
+                  value={maxInput}
+                  keyboardType="numeric"
+                  placeholder="Max"
+                  placeholderTextColor={colors.muted}
+                  onChangeText={text => {
+                    setMaxInput(text);
+                    const v = parseInt(text, 10);
+                    if (!isNaN(v) && v > budgetMin) setBudgetMax(v);
+                  }}
+                  onBlur={() => {
+                    const v = parseInt(maxInput, 10);
+                    const snapped = !isNaN(v) && v > budgetMin
+                      ? Math.max(budgetMin + 50, Math.round(v / 50) * 50)
+                      : budgetMax;
+                    setBudgetMax(snapped);
+                    setMaxInput(String(snapped));
+                  }}
+                />
+              </View>
             </View>
+            {budgetMax > 10_000 && (
+              <Text style={styles.budgetOverRange}>→ Above slider range — set via input</Text>
+            )}
+            <BudgetRangeSlider
+              min={budgetMin}
+              max={budgetMax}
+              onMinChange={v => { setBudgetMin(v); setMinInput(String(v)); }}
+              onMaxChange={v => { setBudgetMax(v); setMaxInput(String(v)); }}
+            />
+            <View style={styles.budgetScaleRow}>
+              <Text style={styles.budgetScaleLabel}>€0</Text>
+              <Text style={styles.budgetScaleLabel}>€10,000</Text>
+            </View>
+            {duration > 0 && (() => {
+              const mid = (budgetMin + budgetMax) / 2;
+              const ppn = mid / duration / Math.max(adults, 1);
+              return (
+                <Text style={styles.budgetPerNight}>
+                  ≈ €{Math.round(ppn * 0.9)}–€{Math.round(ppn * 1.1)} per night per adult
+                </Text>
+              );
+            })()}
 
             <Text style={styles.filterLabel}>Adults</Text>
             <View style={styles.stepperRow}>
               <TouchableOpacity style={styles.stepBtn} onPress={() => setAdults(a => Math.max(1, a - 1))}>
-                <Feather name="minus" size={16} color={colors.text} />
+                <Feather name="minus" size={16} color={colors.accent} />
               </TouchableOpacity>
               <Text style={styles.stepValue}>{adults}</Text>
               <TouchableOpacity style={styles.stepBtn} onPress={() => setAdults(a => Math.min(20, a + 1))}>
-                <Feather name="plus" size={16} color={colors.text} />
+                <Feather name="plus" size={16} color={colors.accent} />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.filterLabel}>Children</Text>
             <View style={styles.stepperRow}>
               <TouchableOpacity style={styles.stepBtn} onPress={() => setChildren(c => Math.max(0, c - 1))}>
-                <Feather name="minus" size={16} color={colors.text} />
+                <Feather name="minus" size={16} color={colors.accent} />
               </TouchableOpacity>
               <Text style={styles.stepValue}>{children}</Text>
               <TouchableOpacity style={styles.stepBtn} onPress={() => setChildren(c => Math.min(20, c + 1))}>
-                <Feather name="plus" size={16} color={colors.text} />
+                <Feather name="plus" size={16} color={colors.accent} />
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -957,9 +1021,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
-  pillActive:     { backgroundColor: colors.text, borderColor: colors.text },
-  pillText:       { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
-  pillTextActive: { color: colors.inverse },
+  pillText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.muted },
+
+  // Budget slider
+  budgetInputRow:  { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  budgetInputWrap: {
+    flex: 1, flexDirection: "row", alignItems: "center",
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.sm, paddingVertical: 8, gap: 4,
+  },
+  budgetCurrency:  { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.accent },
+  budgetInput:     { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, padding: 0 },
+  budgetSep:       { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted },
+  budgetOverRange: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent, fontStyle: "italic" },
+  budgetScaleRow:  { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
+  budgetScaleLabel:{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted },
+  budgetPerNight:  { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, textAlign: "center", marginTop: 2 },
 
   // ── Regions step ──────────────────────────────────────────────────────────────
   searchBox: {

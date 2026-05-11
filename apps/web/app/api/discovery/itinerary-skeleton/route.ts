@@ -8,8 +8,10 @@ interface DestinationInput {
   type: string;
 }
 
+interface Budget { min: number; max: number; }
+
 interface Filters {
-  budget?: string;
+  budget?: Budget;
   travelers?: number;
   vacation_style?: string[];
 }
@@ -60,9 +62,10 @@ export async function POST(request: NextRequest) {
   }
 
   const destList = destinations.map(d => d.name).join(", ");
-  const budget = filters?.budget ?? "mid";
+  const b = filters?.budget;
+  const bLabel = b ? `€${b.min}–€${b.max}` : "mid-range";
 
-  const prompt = `You are a trip planner. The user has selected ${destinations.length} destination(s) for a ${duration_days}-day ${budget}-budget trip: ${destList}.
+  const prompt = `You are a trip planner. The user has selected ${destinations.length} destination(s) for a ${duration_days}-day trip (budget ${bLabel}): ${destList}.
 
 Propose an optimal night allocation. Consider geographic flow and travel days between stops.
 

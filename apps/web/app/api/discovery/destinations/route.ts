@@ -9,9 +9,11 @@ interface DestinationInput {
   type: "region" | "city" | "route";
 }
 
+interface Budget { min: number; max: number; }
+
 interface Filters {
   duration_days: number;
-  budget?: string;
+  budget?: Budget;
   travelers?: number;
   vacation_style?: string[];
 }
@@ -113,7 +115,12 @@ export async function POST(request: NextRequest) {
     })
     .join("\n\n");
 
-  const budget = filters.budget ?? "mid";
+  const b = filters.budget;
+  const bMin = b?.min ?? 1500;
+  const bMax = b?.max ?? 3500;
+  const bMid = Math.round((bMin + bMax) / 2);
+  const perNight = Math.round(bMid / Math.max(filters.duration_days, 1) / Math.max(filters.travelers ?? 2, 1));
+  const budgetLabel = `€${bMin}–€${bMax} total (≈€${Math.round(perNight * 0.9)}–€${Math.round(perNight * 1.1)}/night/adult)`;
   const duration = filters.duration_days;
   const vacationStyle = filters.vacation_style ?? [];
 
@@ -137,7 +144,7 @@ Rewrite "why_it_fits" as 2–3 plain-English sentences that cite the matched sty
 
   const prompt = `You are a travel planner. ${instruction}
 
-Trip parameters: ${duration} days, ${budget} budget, ${filters.travelers ?? 2} travellers.${styleSection}
+Trip parameters: ${duration} days, ${filters.travelers ?? 2} travellers, budget ${budgetLabel}.${styleSection}
 
 Use the source data below as your knowledge base. Synthesise accurate, specific descriptions.
 

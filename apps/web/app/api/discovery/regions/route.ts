@@ -4,10 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const anthropic = new Anthropic();
 
+interface Budget { min: number; max: number; }
+
 interface Filters {
   vacation_style: string[];
   duration_days: number;
-  budget: "low" | "mid" | "high";
+  budget?: Budget;
   adults?: number;
   children?: number;
 }
@@ -50,12 +52,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { vacation_style, duration_days, budget = "mid", adults = 2, children = 0 } = filters;
+  const { vacation_style, duration_days, budget, adults = 2, children = 0 } = filters;
 
-  const budgetLabel =
-    budget === "low" ? "budget / backpacker-friendly" :
-    budget === "high" ? "luxury" :
-    "mid-range";
+  const bMin = budget?.min ?? 1500;
+  const bMax = budget?.max ?? 3500;
+  const bMid = Math.round((bMin + bMax) / 2);
+  const perNight = Math.round(bMid / Math.max(duration_days, 1) / Math.max(adults, 1));
+  const budgetLabel = `€${bMin}–€${bMax} total trip (mid €${bMid}; ≈€${Math.round(perNight * 0.9)}–€${Math.round(perNight * 1.1)}/night/adult for accommodation)`;
 
   const partyParts = [`${adults} adult${adults !== 1 ? "s" : ""}`];
   if (children > 0) partyParts.push(`${children} child${children !== 1 ? "ren" : ""}`);

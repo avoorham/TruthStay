@@ -29,6 +29,8 @@ interface RequestBody {
   end_date?: string | null;
   adults?: number;
   children?: number;
+  budget_min?: number;
+  budget_max?: number;
   region: string;
   source_entry_ids?: string[];
 }
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { skeleton, start_date, end_date, adults, children, region, source_entry_ids } = body;
+  const { skeleton, start_date, end_date, adults, children, budget_min, budget_max, region, source_entry_ids } = body;
   if (!skeleton?.title || !skeleton?.duration_days || !region) {
     return Response.json({ error: "skeleton.title, skeleton.duration_days, region required" }, { status: 400 });
   }
@@ -82,6 +84,8 @@ export async function POST(request: NextRequest) {
       endDate:      end_date ?? null,
       adults:       adults ?? 2,
       children:     children ?? 0,
+      budget_min:   budget_min ?? null,
+      budget_max:   budget_max ?? null,
       requestPrompt,
       isSaved:      true,
     })

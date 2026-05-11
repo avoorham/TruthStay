@@ -547,8 +547,6 @@ function deriveMetaMeta(adventure: AdventureRow): TripMeta {
 const SCREEN_W       = Dimensions.get("window").width;
 const SCREEN_H       = Dimensions.get("window").height;
 const HERO_IMG_H     = Math.round(SCREEN_H * 0.26);
-const HERO_TEXT_H    = 72;
-const HERO_H         = HERO_IMG_H + HERO_TEXT_H;
 const HERO_CAROUSEL_W = SCREEN_W - spacing.md * 2 - 16;
 
 // ─── Activity icon map ────────────────────────────────────────────────────────
@@ -2930,7 +2928,6 @@ export default function TripDetailScreen() {
   const heroCarouselRef = useRef<FlatList<DestSlide>>(null);
   const heroAutoTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const swipeCooldown   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heroOffset      = useRef(new Animated.Value(0)).current;
   const toastTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dragOverDeleteRef = useRef(false);
   const draggedTileInfoRef = useRef<{ dayNumber: number; tileId: string; tileName: string } | null>(null);
@@ -2983,7 +2980,6 @@ export default function TripDetailScreen() {
   useEffect(() => {
     setAdventure(null);      // clear stale content immediately → shows spinner
     setSelectedDay(1);
-    heroOffset.setValue(0);
     setLoadError(false);
     async function load() {
       try {
@@ -3397,14 +3393,8 @@ export default function TripDetailScreen() {
         </View>
       </View>
 
-      {/* Hero — collapsible, driven by inner ScrollView scroll */}
-      <Animated.View style={{
-        height: heroOffset.interpolate({ inputRange: [0, HERO_H], outputRange: [HERO_H, 0], extrapolate: "clamp" }),
-        overflow: "hidden",
-        paddingHorizontal: spacing.md,
-        paddingBottom: spacing.sm,
-        backgroundColor: colors.card,
-      }}>
+      {/* Hero — pinned, always visible */}
+      <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm, backgroundColor: colors.card }}>
         <View style={detailStyles.heroCard}>
           {/* Photo carousel — one slide per destination */}
           <View style={detailStyles.heroImageWrap}>
@@ -3483,10 +3473,9 @@ export default function TripDetailScreen() {
             </View>
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
 
-
-      {/* Day chips — fixed */}
+      {/* Day chips — pinned */}
       <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
 
       {/* Dot indicators */}
@@ -3533,13 +3522,6 @@ export default function TripDetailScreen() {
               contentContainerStyle={[detailStyles.dayContent, { overflow: "visible" }]}
               scrollEventThrottle={16}
               nestedScrollEnabled
-              onScroll={day.dayNumber === selectedDay
-                ? Animated.event(
-                    [{ nativeEvent: { contentOffset: { y: heroOffset } } }],
-                    { useNativeDriver: false },
-                  )
-                : undefined
-              }
             >
               <View style={detailStyles.dateLabelRow}>
                 <View>

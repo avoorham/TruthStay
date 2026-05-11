@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Resolve the adventure_day to get its destination
+  // Resolve the adventure_day to get its destination and parent adventure
   type DayRow = { adventureId: string; alternatives: { destination?: string } | null };
   const { data: day, error: dayErr } = await db
     .from("adventure_days")
@@ -34,11 +34,22 @@ export async function GET(request: NextRequest) {
   const dayRow = day as DayRow;
   const destination = dayRow.alternatives?.destination ?? null;
 
-  if (!destination) {
+  // Fetch the adventure's broad region — content_entries are indexed by region, not by day-level town
+  const { data: adventureRow } = await db
+    .from("adventures")
+    .select("region")
+    .eq("id", dayRow.adventureId)
+    .maybeSingle();
+
+  const adventureRegion = (adventureRow as { region?: string } | null)?.region ?? null;
+
+  // Use adventure region as primary search term; fall back to day destination if region is missing
+  const searchRegion = adventureRegion ?? destination;
+  if (!searchRegion) {
     return Response.json({ entries: [] });
   }
 
-  // Query content_entries matching the destination + type
+  // Query content_entries matching the adventure's region + type
   type EntryRow = {
     id: string;
     name: string;
@@ -58,7 +69,7 @@ export async function GET(request: NextRequest) {
     .eq("type", type)
     .eq("verified", true)
     .eq("status", "approved")
-    .or(`region.ilike.%${destination}%,name.ilike.%${destination}%`)
+    .ilike("region", `%${searchRegion}%`)
     .order("trust_score", { ascending: false })
     .order("save_count", { ascending: false })
     .limit(10);

@@ -1,4 +1,3 @@
-// TODO(design-sweep): selected-date circle uses colors.text (dark) — sweep to accent blue
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { colors, fontSize, radius, spacing } from "../lib/theme";
 

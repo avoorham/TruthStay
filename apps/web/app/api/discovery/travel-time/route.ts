@@ -1,4 +1,3 @@
-// TODO(design-sweep): review response shape when Google Maps key is wired up
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 

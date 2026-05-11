@@ -1,5 +1,3 @@
-// TODO(design-sweep): distance label colours — review after blue sweep
-
 export interface DestinationTimesResult {
   results: Record<string, { travel_seconds: number | null; source: string; reason?: string }>;
 }

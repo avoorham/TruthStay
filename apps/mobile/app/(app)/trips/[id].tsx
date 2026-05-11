@@ -258,7 +258,6 @@ function ContentPickerSheet({
                 const accomConfig = ACCOM_TYPE_CONFIG[entry.type] ?? ACCOM_TYPE_CONFIG.hotel;
                 const isAdding = adding === entry.id;
                 return (
-                  // TODO(design-sweep): accommodation picker card — finalise when booking partner live
                   <TouchableOpacity
                     key={entry.id}
                     style={pickerStyles.accomCard}
@@ -3378,26 +3377,25 @@ export default function TripDetailScreen() {
   return (
     <View style={[detailStyles.container, { paddingTop: insets.top }]}>
       {modal}
-      {/* TODO(design-sweep): header chrome — black/white palette needs TruthStay-blue accent sweep */}
       {/* Header */}
       <View style={detailStyles.header}>
         <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.navigate("/(app)/trips")}>
-          <Feather name="arrow-left" size={22} color={colors.text} />
+          <Feather name="arrow-left" size={22} color={colors.accent} />
         </TouchableOpacity>
         <Text style={detailStyles.headerTitle}>Itinerary</Text>
         <View style={detailStyles.headerRight}>
           {isOwner && (
             <>
               <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setEditVisible(true)}>
-                <Feather name="edit-2" size={19} color={colors.text} />
+                <Feather name="edit-2" size={19} color={colors.accent} />
               </TouchableOpacity>
               <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
-                <Feather name="user-plus" size={20} color={colors.text} />
+                <Feather name="user-plus" size={20} color={colors.accent} />
               </TouchableOpacity>
             </>
           )}
           <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
-            <Feather name="map" size={20} color={colors.text} />
+            <Feather name="map" size={20} color={colors.accent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -3481,7 +3479,6 @@ export default function TripDetailScreen() {
       </Animated.View>
 
 
-      {/* TODO(design-sweep): day tab strip — active pill color and typography need TruthStay-blue sweep */}
       {/* Day chips — fixed */}
       <ItineraryDayTabs days={sortedDays} selectedDay={selectedDay} onSelect={setSelectedDay} />
 
@@ -3877,14 +3874,14 @@ const detailStyles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: 7,
     borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
   },
-  dayTabActive: { backgroundColor: "#0A7AFF", borderColor: "#0A7AFF" },
+  dayTabActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   dayTabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.muted },
   dayTabTextActive: { color: "#FFFFFF" },
   tabFadeLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   tabFadeRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 36, pointerEvents: "none" } as any,
   dotRow: { flexDirection: "row", justifyContent: "center", gap: 5, paddingVertical: 6, backgroundColor: colors.card },
   dot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.border },
-  dotActive: { backgroundColor: colors.text, width: 14, borderRadius: 3 },
+  dotActive: { backgroundColor: colors.accent, width: 14, borderRadius: 3 },
   dayContent: { padding: spacing.md, gap: spacing.md },
   dateLabelRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: spacing.xs },
   dateLabel: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },

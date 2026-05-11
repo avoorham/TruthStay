@@ -3380,22 +3380,19 @@ export default function TripDetailScreen() {
       {/* Header */}
       <View style={detailStyles.header}>
         <TouchableOpacity style={detailStyles.headerBtn} onPress={() => router.navigate("/(app)/trips")}>
-          <Feather name="arrow-left" size={22} color={colors.accent} />
+          <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
-        <Text style={detailStyles.headerTitle}>Itinerary</Text>
+        <View style={detailStyles.headerTitleWrap} pointerEvents="none">
+          <Text style={detailStyles.headerTitle}>Itinerary</Text>
+        </View>
         <View style={detailStyles.headerRight}>
           {isOwner && (
-            <>
-              <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setEditVisible(true)}>
-                <Feather name="edit-2" size={19} color={colors.accent} />
-              </TouchableOpacity>
-              <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
-                <Feather name="user-plus" size={20} color={colors.accent} />
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setInviteVisible(true)}>
+              <Feather name="user-plus" size={20} color={colors.text} />
+            </TouchableOpacity>
           )}
           <TouchableOpacity style={detailStyles.headerBtn} onPress={() => setMapVisible(true)}>
-            <Feather name="map" size={20} color={colors.accent} />
+            <Feather name="map" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -3837,6 +3834,7 @@ const detailStyles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerRight: { flexDirection: "row", alignItems: "center" },
+  headerTitleWrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
   headerTitle: { fontSize: fontSize.xl, fontFamily: fonts.display, color: colors.text },
   heroCard: {
     backgroundColor: colors.card,

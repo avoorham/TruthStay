@@ -2965,7 +2965,7 @@ const filterStyles = StyleSheet.create({
   },
   headerTitle: { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  resetText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.accent },
+  resetText: { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.accent, letterSpacing: -0.3 },
   closeBtn: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: colors.sheet,
@@ -2985,7 +2985,7 @@ const filterStyles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  chipActive: { backgroundColor: colors.text, borderColor: colors.text },
+  chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { fontFamily: fonts.sansMedium, fontSize: fontSize.sm, color: colors.text },
   chipTextActive: { color: colors.inverse },
 
@@ -3014,8 +3014,8 @@ const filterStyles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   catTabActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
   },
   catTabText: {
     fontFamily: fonts.sansSemiBold,

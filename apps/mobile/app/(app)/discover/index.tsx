@@ -902,7 +902,7 @@ export default function DiscoverScreen() {
       )}
 
       {/* ── Step 6 — Confirmation ────────────────────────────────────────────── */}
-      {/* LEAVE-ALONE: save success screen design is approved — do not redesign */}
+      {/* ── Step 6 — Save success ───────────────────────────────────────────── */}
       {step === 6 && (
         <View style={[styles.flex, styles.centered]}>
           <View style={styles.successIcon}>
@@ -960,7 +960,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.xs,
-    backgroundColor: colors.text,
+    backgroundColor: colors.accent,
     borderRadius: radius.md,
     paddingVertical: 14,
     paddingHorizontal: spacing.xl,
@@ -1030,7 +1030,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md,
     paddingHorizontal: spacing.sm, paddingVertical: 8, gap: 4,
   },
-  budgetCurrency:  { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.accent },
+  budgetCurrency:  { fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text },
   budgetInput:     { flex: 1, fontFamily: fonts.sansSemiBold, fontSize: fontSize.base, color: colors.text, padding: 0 },
   budgetSep:       { fontFamily: fonts.sans, fontSize: fontSize.base, color: colors.muted },
   budgetOverRange: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.accent, fontStyle: "italic" },
@@ -1080,7 +1080,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: "hidden",
   },
-  regionTileSelected: { borderColor: colors.text },
+  regionTileSelected: { borderColor: colors.accent, borderWidth: 2 },
   regionImageBox: { height: 140, backgroundColor: colors.sheet, position: "relative" },
   regionImage:    { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
   regionOverlay: {
@@ -1103,7 +1103,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: "hidden",
   },
-  destTileSelected: { borderColor: colors.text },
+  destTileSelected: { borderColor: colors.accent, borderWidth: 2 },
   destImageBox:     { height: 160, backgroundColor: colors.sheet },
   destImage:        { ...StyleSheet.absoluteFillObject, resizeMode: "cover" },
   destCheckbox: {
@@ -1115,7 +1115,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.3)",
     alignItems: "center", justifyContent: "center",
   },
-  destCheckboxSelected: { backgroundColor: colors.text, borderColor: colors.text },
+  destCheckboxSelected: { backgroundColor: colors.accent, borderColor: colors.accent },
   destBody:    { padding: spacing.md, gap: spacing.xs },
   destName:    { fontFamily: fonts.display, fontSize: fontSize.lg, color: colors.text, letterSpacing: -0.3 },
   destMeta:    { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
@@ -1186,7 +1186,7 @@ const styles = StyleSheet.create({
   // ── Confirmation ──────────────────────────────────────────────────────────────
   successIcon: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: colors.text,
+    backgroundColor: colors.accent,
     alignItems: "center", justifyContent: "center",
     marginBottom: spacing.md,
   },

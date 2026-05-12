@@ -58,6 +58,10 @@ export async function GET(request: NextRequest) {
     country: string | null;
     description: string | null;
     trust_score: number;
+    google_rating: number | null;
+    google_review_count: number | null;
+    user_review_score: number | null;
+    user_review_count: number | null;
     save_count: number;
     image_url: string | null;
     website_url: string | null;
@@ -68,7 +72,7 @@ export async function GET(request: NextRequest) {
 
   const { data: entries, error: entriesErr } = await db
     .from("content_entries")
-    .select("id, name, type, region, country, description, trust_score, save_count, image_url, website_url, menu_url, booking_url, data")
+    .select("id, name, type, region, country, description, trust_score, google_rating, google_review_count, user_review_score, user_review_count, save_count, image_url, website_url, menu_url, booking_url, data")
     .eq("type", type)
     .eq("verified", true)
     .eq("status", "approved")

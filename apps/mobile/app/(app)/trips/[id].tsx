@@ -15,6 +15,7 @@ import { getMyAdventures, getAdventureById, submitDayFeedback, createPost, share
 import { pickImage, uploadTripCover, uploadReviewPhoto, uploadPostPhoto } from "../../../lib/storage";
 import { supabase } from "../../../lib/supabase";
 import { colors, fontSize, fonts, radius, spacing, shadow } from "../../../lib/theme";
+import { computeCompositeRating } from "../../../lib/composite-rating";
 import { useAppAlert } from "../../../components/AppAlertModal";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
@@ -38,6 +39,10 @@ interface WizardContentEntry {
   name: string;
   type: string;
   region: string;
+  google_rating?: number | null;
+  google_review_count?: number | null;
+  user_review_score?: number | null;
+  user_review_count?: number | null;
   country: string | null;
   description: string | null;
   trust_score: number;
@@ -193,9 +198,16 @@ const ACTION_BUTTONS: Record<WizardContentType, Array<{ label: string; urlField:
   things_to_do:  [{ label: "Website", urlField: "website_url" }, { label: "Book", urlField: "booking_url" }],
 };
 
-function EntryStarRating({ trustScore }: { trustScore: number }) {
-  const rating = trustScore * 5;
-  const rounded = Math.round(rating * 2) / 2;
+function EntryStarRating({ entry }: { entry: Pick<WizardContentEntry, "trust_score" | "google_rating" | "user_review_score"> }) {
+  const composite = computeCompositeRating({
+    trust_score: entry.trust_score,
+    google_rating: entry.google_rating ?? null,
+    user_review_score: entry.user_review_score ?? null,
+  });
+  if (composite == null) {
+    return <Text style={pickerStyles.tileStarLabel}>Not rated yet</Text>;
+  }
+  const rounded = Math.round(composite * 5 * 2) / 2;
   const filled = Math.floor(rounded);
   const hasHalf = (rounded % 1) === 0.5;
   const empty = 5 - filled - (hasHalf ? 1 : 0);
@@ -208,7 +220,7 @@ function EntryStarRating({ trustScore }: { trustScore: number }) {
       {Array.from({ length: empty }).map((_, i) => (
         <MaterialCommunityIcons key={`e${i}`} name="star-outline" size={13} color={colors.muted} />
       ))}
-      <Text style={pickerStyles.tileStarLabel}>{rounded.toFixed(1)} · 0 reviews</Text>
+      <Text style={pickerStyles.tileStarLabel}>{rounded.toFixed(1)}</Text>
     </View>
   );
 }
@@ -239,7 +251,28 @@ function ContentPickerSheet({
     setEntries([]);
     fetch(`${BASE}/api/discovery/content-for-day?adventure_day_id=${encodeURIComponent(adventureDayId)}&type=${type}`)
       .then(r => r.json())
-      .then((j: { entries?: WizardContentEntry[] }) => setEntries(j.entries ?? []))
+      .then((j: { entries?: WizardContentEntry[] }) => {
+        const loaded = j.entries ?? [];
+        setEntries(loaded);
+        // Lazy-populate Google ratings in the background for entries missing them.
+        // Fire-and-forget: next load will serve from 30-day DB cache.
+        loaded
+          .filter(e => e.google_rating == null)
+          .forEach(e => {
+            fetch(`${BASE}/api/discovery/place-rating?content_entry_id=${encodeURIComponent(e.id)}`)
+              .then(r => r.json())
+              .then((result: { rating?: number | null; review_count?: number | null }) => {
+                if (result.rating != null) {
+                  setEntries(prev => prev.map(p =>
+                    p.id === e.id
+                      ? { ...p, google_rating: result.rating ?? null, google_review_count: result.review_count ?? null }
+                      : p,
+                  ));
+                }
+              })
+              .catch(() => { /* silently ignore — background fetch */ });
+          });
+      })
       .catch(() => setEntries([]))
       .finally(() => setLoading(false));
   }, [visible, type, adventureDayId]);
@@ -351,10 +384,7 @@ function ContentPickerSheet({
                   {/* Body */}
                   <View style={pickerStyles.tileBody}>
                     <Text style={pickerStyles.tileName} numberOfLines={1}>{entry.name}</Text>
-                    {/* TODO(reviews-distinction): when real review data exists, split into "Verified ★ X.X"
-                        (from trust_score) and "Reviews ★ Y.Y · N reviews" (from user data). For now use
-                        trust-score-derived rating only. */}
-                    <EntryStarRating trustScore={entry.trust_score} />
+                    <EntryStarRating entry={entry} />
                     {entry.description ? (
                       <Text style={pickerStyles.tileDesc} numberOfLines={2}>{entry.description}</Text>
                     ) : null}
@@ -369,7 +399,7 @@ function ContentPickerSheet({
                             onPress={() => {
                               if (enabled) {
                                 const urlToOpen = url!.startsWith("http://") || url!.startsWith("https://") ? url! : `https://${url!}`;
-                                Linking.openURL(urlToOpen).catch(() => showPickerAlert("Not available", "Could not open the link."));
+                                Linking.openURL(urlToOpen).catch(() => showPickerAlert("Not available", `Couldn't open this link. Try a web search for "${entry.name}".`));
                               } else {
                                 const msg = btn.urlField === "website_url"
                                   ? "No link yet — try a web search."

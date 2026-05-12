@@ -162,7 +162,7 @@ const pickerStyles = StyleSheet.create({
   tileStarRow: { flexDirection: "row", alignItems: "center", gap: 2, marginBottom: 6 },
   tileStarLabel: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginLeft: 2 },
   tileDesc: { fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted, lineHeight: 19, marginBottom: 10 },
-  tileActions: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+  tileActions: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", justifyContent: "center" },
   tileActionBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 6 },
   tileActionBtnDisabled: { borderColor: colors.border },
   tileActionText: { fontFamily: fonts.sansSemiBold, fontSize: fontSize.xs, color: colors.text },
@@ -368,7 +368,8 @@ function ContentPickerSheet({
                             style={[pickerStyles.tileActionBtn, !enabled && pickerStyles.tileActionBtnDisabled]}
                             onPress={() => {
                               if (enabled) {
-                                Linking.openURL(url!);
+                                const urlToOpen = url!.startsWith("http://") || url!.startsWith("https://") ? url! : `https://${url!}`;
+                                Linking.openURL(urlToOpen).catch(() => showPickerAlert("Not available", "Could not open the link."));
                               } else {
                                 const msg = btn.urlField === "website_url"
                                   ? "No link yet — try a web search."
@@ -986,7 +987,7 @@ function InviteFriendsModal({
                 >
                   <View style={invStyles.headerRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={invStyles.title}>Share trip itinerary</Text>
+                      <Text style={invStyles.title}>Share trip vacation</Text>
                       <Text style={invStyles.subtitle}>
                         Give your friends access to this trip and start collaborating in real time.
                       </Text>
@@ -3256,13 +3257,13 @@ export default function TripDetailScreen() {
       };
     });
     setAddItemDay(null);
-    showToast("Added to your itinerary! This place will be reviewed before appearing in public recommendations.");
+    showToast("Added to your vacation! This place will be reviewed before appearing in public recommendations.");
   }
 
   function handleDeleteTileConfirm(dayNumber: number, tileId: string, tileName: string) {
     showAlert(
       `Delete ${tileName}?`,
-      `Are you sure you want to remove ${tileName} from your itinerary?`,
+      `Are you sure you want to remove ${tileName} from your vacation?`,
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => doDeleteTile(dayNumber, tileId, tileName) },
@@ -3296,7 +3297,7 @@ export default function TripDetailScreen() {
       setLocalTileOrder(prev => ({ ...prev, [dayNumber]: next }));
       updateTileOrder(adventure.id, dayNumber, next).catch(() => {});
     }
-    showToast(`${tileName} removed from itinerary`);
+    showToast(`${tileName} removed from vacation`);
   }
 
   function defaultTileOrder(dayNum: number, restaurants: RestaurantStop[]): TileId[] {
@@ -3429,7 +3430,7 @@ export default function TripDetailScreen() {
           <Feather name="arrow-left" size={22} color={colors.text} />
         </TouchableOpacity>
         <View style={detailStyles.headerTitleWrap} pointerEvents="none">
-          <Text style={detailStyles.headerTitle}>Itinerary</Text>
+          <Text style={detailStyles.headerTitle}>Vacation</Text>
         </View>
         <View style={detailStyles.headerRight}>
           {isOwner && (

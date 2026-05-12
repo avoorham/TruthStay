@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     .select(`
       id, title, description, region, "activityType", "durationDays",
       "startDate", "isSaved", "createdAt",
-      level, budget, rating, "ratingCount", "coverImageUrl", meta,
+      level, rating, "ratingCount", "coverImageUrl", meta,
       adventure_days (
         id, "dayNumber", title, description,
         "distanceKm", "elevationGainM", "routeNotes", "komootTourId", alternatives

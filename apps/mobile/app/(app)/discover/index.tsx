@@ -809,7 +809,7 @@ export default function DiscoverScreen() {
             <TouchableOpacity onPress={() => setStep(4)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Feather name="arrow-left" size={20} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.wizardTitle}>Your itinerary</Text>
+            <Text style={styles.wizardTitle}>Your vacation</Text>
             <View style={{ width: 20 }} />
           </View>
 

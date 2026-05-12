@@ -60,7 +60,9 @@ const SCREEN_W      = Dimensions.get("window").width;
 const PRICE_MIN              = 0;
 const PRICE_MAX              = 3000;
 const ACCOMMODATION_PRICE_MAX = 500;
-const MEAL_PRICE_MAX          = 150;
+const MEAL_PRICE_MAX          = 200;
+const MEAL_PRICE_DEFAULT_MIN  = 20;
+const MEAL_PRICE_DEFAULT_MAX  = 60;
 const DURATION_MIN            = 1;
 const DURATION_MAX            = 30;
 // Maps adventure budget category to a representative price for range filtering
@@ -137,6 +139,7 @@ interface FilterState {
   mealTypes:           string[];
   cuisines:            string[];
   restaurantVibes:     string[];
+  minPricePerMeal:     number;
   maxPricePerMeal:     number;
 }
 
@@ -150,7 +153,7 @@ interface POIPin {
   adventureTitle?:string;
 }
 
-type FilterCategory = "vacations" | "accommodations" | "trails" | "activities" | "things_to_do" | "restaurants";
+type FilterCategory = "vacations" | "accommodations" | "activities" | "things_to_do" | "restaurants";
 type ActivityCategory =
   | "restaurants" | "bars" | "cafes"
   | "hiking" | "cycling" | "trail_running"
@@ -166,7 +169,7 @@ const DEFAULT_FILTERS: FilterState = {
   funThingsToDo: [], neighbourhoods: [], landmarks: [], highlyRated: [],
   onlinePayment: false, sustainabilityBadge: false,
   activityTypes: [], activityVibes: [], activitySubItems: [],
-  mealTypes: [], cuisines: [], restaurantVibes: [], maxPricePerMeal: MEAL_PRICE_MAX,
+  mealTypes: [], cuisines: [], restaurantVibes: [], minPricePerMeal: MEAL_PRICE_DEFAULT_MIN, maxPricePerMeal: MEAL_PRICE_DEFAULT_MAX,
 };
 
 
@@ -300,11 +303,10 @@ const RATING_OPTIONS = Array.from({ length: 10 }, (_, i) => {
 
 const FILTER_CATEGORIES: { key: FilterCategory; label: string }[] = [
   { key: "vacations",      label: "Vacations" },
-  { key: "accommodations", label: "Stays" },
-  { key: "trails",         label: "Trails" },
-  { key: "activities",     label: "Activities" },
+  { key: "accommodations", label: "Accommodations" },
+  { key: "restaurants",    label: "Restaurants" },
   { key: "things_to_do",   label: "Things to Do" },
-  { key: "restaurants",    label: "Eats" },
+  { key: "activities",     label: "Activities" },
 ];
 
 const PROPERTY_TYPES = [
@@ -540,12 +542,9 @@ function countActiveFilters(filters: FilterState): number {
     if (filters.maxPricePerNight < ACCOMMODATION_PRICE_MAX) n++;
     if (filters.onlinePayment) n++;
     if (filters.sustainabilityBadge) n++;
-  } else if (cat === "trails") {
-    n = filters.activityTypes.length + filters.activityVibes.length + filters.activitySubItems.length;
-    if (filters.level) n++;
   } else if (cat === "restaurants") {
     n = filters.mealTypes.length + filters.cuisines.length + filters.restaurantVibes.length;
-    if (filters.maxPricePerMeal < MEAL_PRICE_MAX) n++;
+    if (filters.minPricePerMeal > 0 || filters.maxPricePerMeal < MEAL_PRICE_MAX) n++;
   }
   return n;
 }
@@ -744,6 +743,145 @@ function DualRangeSlider({
     </View>
   );
 }
+
+// ─── Meal price range slider (two handles, inputs above, above-max indicator) ─
+
+const MEAL_SLIDER_MAX = MEAL_PRICE_MAX;
+const MEAL_STEP       = 5;
+
+function MealPriceRangeSlider({
+  low, high, onChange,
+}: {
+  low: number;
+  high: number;
+  onChange: (low: number, high: number) => void;
+}) {
+  const trackWidthRef = useRef(1);
+  const lowRef        = useRef(low);
+  const highRef       = useRef(high);
+  lowRef.current      = low;
+  highRef.current     = high;
+  const startLow      = useRef(low);
+  const startHigh     = useRef(high);
+  const [lowInput,  setLowInput]  = useState(String(low));
+  const [highInput, setHighInput] = useState(String(high));
+
+  useEffect(() => { setLowInput(String(low)); },  [low]);
+  useEffect(() => { setHighInput(String(high)); }, [high]);
+
+  const toPercent = (v: number) => (Math.min(v, MEAL_SLIDER_MAX)) / MEAL_SLIDER_MAX;
+  const toValue   = (p: number) =>
+    Math.round(Math.max(0, Math.min(MEAL_SLIDER_MAX, p * MEAL_SLIDER_MAX)) / MEAL_STEP) * MEAL_STEP;
+
+  const lowPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { startLow.current = lowRef.current; },
+    onPanResponderMove: (_, g) => {
+      const newLow = toValue(toPercent(startLow.current) + g.dx / trackWidthRef.current);
+      onChange(Math.min(newLow, Math.min(highRef.current, MEAL_SLIDER_MAX) - MEAL_STEP), highRef.current);
+    },
+  }), [onChange]);
+
+  const highPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { startHigh.current = highRef.current; },
+    onPanResponderMove: (_, g) => {
+      const newHigh = toValue(toPercent(startHigh.current) + g.dx / trackWidthRef.current);
+      onChange(lowRef.current, Math.max(newHigh, lowRef.current + MEAL_STEP));
+    },
+  }), [onChange]);
+
+  const lowPct    = toPercent(low)  * 100;
+  const highPct   = Math.min(toPercent(high), 1) * 100;
+  const isAboveMax = high > MEAL_SLIDER_MAX;
+  const HANDLE    = 22;
+
+  const commitLow = () => {
+    const v = Math.round(parseFloat(lowInput) / MEAL_STEP) * MEAL_STEP;
+    if (!isNaN(v)) {
+      onChange(Math.max(0, Math.min(v, Math.min(highRef.current, MEAL_SLIDER_MAX) - MEAL_STEP)), highRef.current);
+    } else { setLowInput(String(low)); }
+  };
+  const commitHigh = () => {
+    const v = Math.round(parseFloat(highInput) / MEAL_STEP) * MEAL_STEP;
+    if (!isNaN(v)) {
+      onChange(lowRef.current, Math.max(v, lowRef.current + MEAL_STEP));
+    } else { setHighInput(String(high)); }
+  };
+
+  return (
+    <View style={mealPriceStyles.wrapper}>
+      <View style={mealPriceStyles.inputRow}>
+        <View style={mealPriceStyles.inputBox}>
+          <Text style={mealPriceStyles.inputLabel}>Min</Text>
+          <View style={mealPriceStyles.inputInner}>
+            <Text style={mealPriceStyles.currency}>€</Text>
+            <TextInput
+              style={mealPriceStyles.input}
+              keyboardType="numeric"
+              value={lowInput}
+              onChangeText={setLowInput}
+              onBlur={commitLow}
+              onSubmitEditing={commitLow}
+            />
+          </View>
+        </View>
+        <View style={mealPriceStyles.sep} />
+        <View style={mealPriceStyles.inputBox}>
+          <Text style={mealPriceStyles.inputLabel}>Max</Text>
+          <View style={mealPriceStyles.inputInner}>
+            <Text style={mealPriceStyles.currency}>€</Text>
+            <TextInput
+              style={mealPriceStyles.input}
+              keyboardType="numeric"
+              value={highInput}
+              onChangeText={setHighInput}
+              onBlur={commitHigh}
+              onSubmitEditing={commitHigh}
+            />
+          </View>
+        </View>
+      </View>
+      {isAboveMax && (
+        <Text style={mealPriceStyles.aboveRange}>→ Above slider range</Text>
+      )}
+      <View
+        style={[rangeStyles.trackContainer, { marginTop: 12 }]}
+        onLayout={e => { trackWidthRef.current = e.nativeEvent.layout.width; }}
+      >
+        <View style={rangeStyles.track} />
+        <View style={[rangeStyles.selectedRange, {
+          left:  `${lowPct}%` as any,
+          width: `${highPct - lowPct}%` as any,
+        }]} />
+        <View
+          style={[rangeStyles.handle, { left: `${lowPct}%` as any, transform: [{ translateX: -(HANDLE / 2) }] }]}
+          {...lowPan.panHandlers}
+        />
+        <View
+          style={[rangeStyles.handle, { left: `${highPct}%` as any, transform: [{ translateX: -(HANDLE / 2) }] }]}
+          {...highPan.panHandlers}
+        />
+      </View>
+    </View>
+  );
+}
+
+const mealPriceStyles = StyleSheet.create({
+  wrapper:    { marginTop: 8 },
+  inputRow:   { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 4 },
+  inputBox:   { flex: 1 },
+  inputLabel: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginBottom: 4 },
+  inputInner: {
+    flexDirection: "row", alignItems: "center",
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 6,
+  },
+  currency:   { fontFamily: fonts.sansSemiBold, fontSize: fontSize.sm, color: colors.text, marginRight: 2 },
+  input:      { flex: 1, fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.text, padding: 0 },
+  sep:        { width: 12, height: 1, backgroundColor: colors.border, alignSelf: "center", marginTop: 18 },
+  aboveRange: { fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, marginBottom: 2 },
+});
 
 // ─── Location text input with autocomplete ────────────────────────────────────
 
@@ -1291,46 +1429,6 @@ function FilterSheet({
           </>}
 
           {/* ── TRAILS ───────────────────────────────────────────────────────── */}
-          {cat === "trails" && <>
-            <FilterSection title="Activity type">
-              {ACTIVITY_TYPE_OPTIONS.map(o => (
-                <FilterChip key={o.key} label={o.label}
-                  active={filters.activityTypes.includes(o.key)}
-                  onPress={() => onChange({ ...filters, activityTypes: toggle(filters.activityTypes, o.key) })}
-                />
-              ))}
-            </FilterSection>
-
-            <FilterSection title="What would you like to do?">
-              {ACTIVITY_VIBES.map(v => (
-                <FilterChip key={v} label={v}
-                  active={filters.activityVibes.includes(v)}
-                  onPress={() => toggleActivityVibe(v)}
-                />
-              ))}
-            </FilterSection>
-
-            {availableActivitySubs.length > 0 && (
-              <FilterSection title="Which activities interest you?">
-                {availableActivitySubs.map(act => (
-                  <FilterChip key={act} label={act}
-                    active={filters.activitySubItems.includes(act)}
-                    onPress={() => onChange({ ...filters, activitySubItems: toggle(filters.activitySubItems, act) })}
-                  />
-                ))}
-              </FilterSection>
-            )}
-
-            <FilterSection title="Experience level">
-              {LEVEL_OPTIONS.map(o => (
-                <FilterChip key={o.key} label={o.label}
-                  active={filters.level === o.key}
-                  onPress={() => onChange({ ...filters, level: filters.level === o.key ? null : o.key })}
-                />
-              ))}
-            </FilterSection>
-          </>}
-
           {/* ── RESTAURANTS ──────────────────────────────────────────────────── */}
           {cat === "restaurants" && <>
             <FilterSection title="Meal">
@@ -1362,10 +1460,10 @@ function FilterSheet({
 
             <View style={filterStyles.section}>
               <Text style={filterStyles.sectionTitle}>Price per person</Text>
-              <RangeSlider
-                high={filters.maxPricePerMeal} max={MEAL_PRICE_MAX} step={5}
-                labelFn={(v, isMax) => isMax ? "Any price" : `Up to €${v}/person`}
-                onChange={hi => onChange({ ...filters, maxPricePerMeal: hi })}
+              <MealPriceRangeSlider
+                low={filters.minPricePerMeal}
+                high={filters.maxPricePerMeal}
+                onChange={(lo, hi) => onChange({ ...filters, minPricePerMeal: lo, maxPricePerMeal: hi })}
               />
             </View>
           </>}
@@ -1600,7 +1698,7 @@ function AdventureExpandedModal({
       onClose();
       router.push(`/(app)/trips/${id}` as any);
     } catch (e) {
-      showAlert("Couldn't copy itinerary", e instanceof Error ? e.message : "Please try again.");
+      showAlert("Couldn't copy vacation", e instanceof Error ? e.message : "Please try again.");
     } finally {
       setForking(false);
     }
@@ -1708,7 +1806,7 @@ function AdventureExpandedModal({
               }}
               activeOpacity={0.85}
             >
-              <Text style={modalStyles.ctaText}>See full itinerary</Text>
+              <Text style={modalStyles.ctaText}>See full vacation</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1719,7 +1817,7 @@ function AdventureExpandedModal({
             >
               {forking
                 ? <ActivityIndicator size="small" color={colors.inverse} />
-                : <Text style={modalStyles.ctaTextSecondary}>Add itinerary to My Trips</Text>
+                : <Text style={modalStyles.ctaTextSecondary}>Add vacation to My Trips</Text>
               }
             </TouchableOpacity>
           </ScrollView>
@@ -1951,13 +2049,12 @@ function ImpressionsSheet({
   const countLabel = isContentMode
     ? loadingContentEntries
       ? "Loading…"
-      : `${contentEntries.length} ${filterCategory === "accommodations" ? "stays" : filterCategory === "trails" ? "trails" : filterCategory === "activities" ? "activities" : filterCategory === "things_to_do" ? "things to do" : "restaurants"}`
+      : `${contentEntries.length} ${filterCategory === "accommodations" ? "accommodations" : filterCategory === "activities" ? "activities" : filterCategory === "things_to_do" ? "things to do" : "restaurants"}`
     : isPOIMode
     ? `${poiPins.length} ${(poiPins[0] ? ACTIVITY_CATEGORIES.find(c => c.key === poiPins[0].category)?.label.toLowerCase() : null) ?? "results"}`
-    : `${adventures.length} public ${adventures.length === 1 ? "itinerary" : "itineraries"}`;
+    : `${adventures.length} public ${adventures.length === 1 ? "vacation" : "vacations"}`;
 
-  const typeLabel = filterCategory === "accommodations" ? "stays"
-    : filterCategory === "trails" ? "trails"
+  const typeLabel = filterCategory === "accommodations" ? "accommodations"
     : filterCategory === "activities" ? "activities"
     : filterCategory === "things_to_do" ? "things to do"
     : "restaurants";
@@ -2111,17 +2208,24 @@ export default function ExploreScreen() {
 
   const loadContentEntries = useCallback((category: FilterCategory, bounds?: [[number, number], [number, number]]) => {
     if (category === "vacations") { setContentEntries([]); return; }
-    const type = category === "accommodations" ? "accommodation"
-      : category === "trails" ? "route"
-      : category === "activities" ? "activity"
-      : category === "things_to_do" ? "things_to_do"
-      : "restaurant";
     let boundsOpts: { north: number; south: number; east: number; west: number } | undefined;
     if (bounds) {
       const [[maxLng, maxLat], [minLng, minLat]] = bounds;
       boundsOpts = { north: maxLat, south: minLat, east: maxLng, west: minLng };
     }
     setLoadingContentEntries(true);
+    if (category === "activities") {
+      Promise.all([
+        getExploreContentEntries({ type: "activity", bounds: boundsOpts }),
+        getExploreContentEntries({ type: "route", bounds: boundsOpts }),
+      ])
+        .then(([acts, routes]) => { setContentEntries([...acts, ...routes]); setLoadingContentEntries(false); })
+        .catch(() => { setContentEntries([]); setLoadingContentEntries(false); });
+      return;
+    }
+    const type = category === "accommodations" ? "accommodation"
+      : category === "things_to_do" ? "things_to_do"
+      : "restaurant";
     getExploreContentEntries({ type, bounds: boundsOpts })
       .then(entries => { setContentEntries(entries); setLoadingContentEntries(false); })
       .catch(() => { setContentEntries([]); setLoadingContentEntries(false); });
@@ -2554,22 +2658,6 @@ export default function ExploreScreen() {
               })));
               setMapMode("pois");
             }).catch(() => {}).finally(() => setLoadingPOIs(false));
-          } else if (fc === "trails") {
-            const primaryType = (filters.activityTypes[0] ?? null) as ActivityCategory | null;
-            if (primaryType) {
-              setActivityCategory(primaryType);
-              setLoadingPOIs(true);
-              getPublicActivities(primaryType).then(acts => {
-                setPoiPins(acts.map((a, i) => ({
-                  id: `act-f-${i}`, title: a.title, category: primaryType, coords: a.coords,
-                  subtitle: [a.difficulty, a.distanceKm ? `${a.distanceKm} km` : null].filter(Boolean).join(" · "),
-                  region: a.region, adventureTitle: a.adventureTitle,
-                })));
-                setMapMode("pois");
-              }).catch(() => {}).finally(() => setLoadingPOIs(false));
-            } else {
-              setMapMode("adventures");
-            }
           } else {
             setActivityCategory(null);
             setPoiPins([]);

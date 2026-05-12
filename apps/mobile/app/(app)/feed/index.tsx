@@ -72,7 +72,7 @@ function EmptyFeed() {
         <View style={emptyS.text}>
           <Text style={emptyS.title}>Your feed is empty</Text>
           <Text style={emptyS.sub}>
-            Follow friends to see their adventures, photos, and itineraries here.
+            Follow friends to see their adventures, photos, and vacations here.
           </Text>
           <TouchableOpacity
             style={emptyS.btn}

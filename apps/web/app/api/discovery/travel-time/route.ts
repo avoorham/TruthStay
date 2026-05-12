@@ -115,23 +115,34 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
-      url.searchParams.set("origins", `${oLat},${oLon}`);
-      url.searchParams.set("destinations", `${dLat},${dLon}`);
-      url.searchParams.set("mode", "driving");
-      url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+      const res = await fetch("https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "originIndex,destinationIndex,duration,condition",
+        },
+        body: JSON.stringify({
+          origins:      [{ waypoint: { location: { latLng: { latitude: oLat, longitude: oLon } } } }],
+          destinations: [{ waypoint: { location: { latLng: { latitude: dLat, longitude: dLon } } } }],
+          travelMode: "DRIVE",
+        }),
+      });
 
-      const res = await fetch(url.toString());
-      const json = await res.json() as {
-        status: string;
-        rows?: Array<{
-          elements?: Array<{ status: string; duration?: { value: number } }>;
-        }>;
-      };
+      if (!res.ok) {
+        return Response.json({ travel_seconds: null, source: "unavailable", reason: "api_error" });
+      }
 
-      const el = json.rows?.[0]?.elements?.[0];
-      if (el?.status === "OK" && el.duration?.value) {
-        travelSeconds = el.duration.value;
+      const matrix = await res.json() as Array<{
+        originIndex: number;
+        destinationIndex: number;
+        condition: string;
+        duration?: string;   // Routes API returns seconds as "1140s"
+      }>;
+
+      const el = matrix[0];  // 1×1 matrix — only one element
+      if (el?.condition === "ROUTE_EXISTS" && el.duration) {
+        travelSeconds = parseInt(el.duration.replace("s", ""), 10);
         source = "api";
       }
     } catch {

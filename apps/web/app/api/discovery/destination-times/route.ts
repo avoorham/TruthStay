@@ -45,34 +45,41 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const url = new URL("https://maps.googleapis.com/maps/api/distancematrix/json");
-    url.searchParams.set("origins", origin_name);
-    url.searchParams.set("destinations", destination_names.join("|"));
-    url.searchParams.set("mode", "driving");
-    url.searchParams.set("key", GOOGLE_MAPS_API_KEY);
+    const res = await fetch("https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+        "X-Goog-FieldMask": "originIndex,destinationIndex,duration,condition",
+      },
+      body: JSON.stringify({
+        origins:      [{ waypoint: { address: origin_name } }],
+        destinations: destination_names.map(name => ({ waypoint: { address: name } })),
+        travelMode: "DRIVE",
+      }),
+    });
 
-    const res = await fetch(url.toString());
-    const json = await res.json() as {
-      status: string;
-      rows?: Array<{
-        elements?: Array<{ status: string; duration?: { value: number } }>;
-      }>;
-    };
-
-    if (json.status !== "OK" || !json.rows?.[0]?.elements) {
+    if (!res.ok) {
       return Response.json({
         results: Object.fromEntries(destination_names.map(n => [n, unavailable("api_error")])),
       });
     }
 
-    const elements = json.rows[0].elements ?? [];
+    const matrix = await res.json() as Array<{
+      originIndex: number;
+      destinationIndex: number;
+      condition: string;
+      duration?: string;   // Routes API returns seconds as "1140s"
+    }>;
+
     const results: Record<string, TravelResult> = {};
     for (let i = 0; i < destination_names.length; i++) {
       const name = destination_names[i];
       if (!name) continue;
-      const el = elements[i];
-      results[name] = (el?.status === "OK" && el.duration?.value)
-        ? { travel_seconds: el.duration.value, source: "api" }
+      // Use .find() — Routes API response order is not guaranteed
+      const el = matrix.find(e => e.destinationIndex === i);
+      results[name] = (el?.condition === "ROUTE_EXISTS" && el.duration)
+        ? { travel_seconds: parseInt(el.duration.replace("s", ""), 10), source: "api" }
         : unavailable("no_route");
     }
     return Response.json({ results });

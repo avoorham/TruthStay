@@ -14,8 +14,8 @@ import { useAppAlert } from "../../../components/AppAlertModal";
 import {
   getPublicAdventures, getPublicRestaurants, getPublicActivities,
   bookmarkAdventure, unbookmarkAdventure, forkAdventure,
-  type PublicAdventureRow, type ExploreContentEntry,
-  getExploreContentEntries,
+  type PublicAdventureRow, type ExploreContentEntry, type RegionChip,
+  getExploreContentEntries, getRegionChips,
 } from "../../../lib/api";
 import { ALL_LOCATIONS } from "../../../lib/locationData";
 
@@ -1989,6 +1989,8 @@ function RestaurantCard({ entry }: { entry: ExploreContentEntry }) {
 function ImpressionsSheet({
   adventures, savedIds, onToggleSaved, onCardPress, impressionsY, poiPins, mapMode,
   filterCategory, contentEntries, loadingContentEntries,
+  subChips, activeSubChips, loadingSubChips, onToggleSubChip,
+  regionResolved,
   onContentEntryPress,
 }: {
   adventures: Adventure[];
@@ -2001,6 +2003,11 @@ function ImpressionsSheet({
   filterCategory: FilterCategory;
   contentEntries: ExploreContentEntry[];
   loadingContentEntries: boolean;
+  subChips: RegionChip[];
+  activeSubChips: string[];
+  loadingSubChips: boolean;
+  onToggleSubChip: (slug: string) => void;
+  regionResolved: boolean;
   onContentEntryPress: (entry: ExploreContentEntry) => void;
 }) {
   const insets = useSafeAreaInsets();
@@ -2059,6 +2066,8 @@ function ImpressionsSheet({
     : filterCategory === "things_to_do" ? "things to do"
     : "restaurants";
 
+  const showSubChips = isContentMode && filterCategory !== "accommodations" && regionResolved;
+
   return (
     <Animated.View style={[impStyles.sheet, { transform: [{ translateY: impressionsY }] }]}>
       <View style={impStyles.handleArea} {...panResponder.panHandlers}>
@@ -2066,21 +2075,54 @@ function ImpressionsSheet({
         <Text style={impStyles.countLabel}>{countLabel}</Text>
       </View>
 
+      {showSubChips && subChips.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={impStyles.subChipScroll}
+          contentContainerStyle={impStyles.subChipContent}
+        >
+          {subChips.map(chip => {
+            const isActive = activeSubChips.includes(chip.slug);
+            return (
+              <TouchableOpacity
+                key={chip.slug}
+                style={[impStyles.subChip, isActive && impStyles.subChipActive]}
+                onPress={() => onToggleSubChip(chip.slug)}
+                activeOpacity={0.8}
+              >
+                <Text style={[impStyles.subChipText, isActive && impStyles.subChipTextActive]}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {isContentMode ? (
         loadingContentEntries ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 40 }}>
             <ActivityIndicator size="small" color={colors.accent} />
           </View>
         ) : contentEntries.length === 0 ? (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingBottom: 40, gap: 8 }}>
-            <Feather name="map-pin" size={28} color={colors.border} />
-            <Text style={{ fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.text, textAlign: "center" }}>
-              No {typeLabel} found in this area
-            </Text>
-            <Text style={{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textAlign: "center", lineHeight: 18 }}>
-              Try zooming out or searching a different region.
-            </Text>
-          </View>
+          activeSubChips.length > 0 ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 40 }}>
+              <Text style={{ fontFamily: fonts.sans, fontSize: fontSize.sm, color: colors.muted }}>
+                No results
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingBottom: 40, gap: 8 }}>
+              <Feather name="map-pin" size={28} color={colors.border} />
+              <Text style={{ fontFamily: fonts.sansBold, fontSize: fontSize.sm, color: colors.text, textAlign: "center" }}>
+                No {typeLabel} found in this area
+              </Text>
+              <Text style={{ fontFamily: fonts.sans, fontSize: fontSize.xs, color: colors.muted, textAlign: "center", lineHeight: 18 }}>
+                Try zooming out or searching a different region.
+              </Text>
+            </View>
+          )
         ) : (
           <FlatList
             data={contentEntries}
@@ -2193,6 +2235,13 @@ export default function ExploreScreen() {
   const [loadingContentEntries, setLoadingContentEntries] = useState(false);
   const contentEntriesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sub-chips — region-aware filter row below main category chips
+  const [subChips, setSubChips]             = useState<RegionChip[]>([]);
+  const [activeSubChips, setActiveSubChips] = useState<string[]>([]);
+  const [loadingSubChips, setLoadingSubChips] = useState(false);
+  const [viewportRegion, setViewportRegion] = useState<string | null>(null);
+  const regionDeriveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const sheetY      = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const impressionsY = useRef(new Animated.Value(SNAP_PEEK)).current;
 
@@ -2206,7 +2255,11 @@ export default function ExploreScreen() {
 
   useEffect(() => { loadAdventures(); }, [loadAdventures]);
 
-  const loadContentEntries = useCallback((category: FilterCategory, bounds?: [[number, number], [number, number]]) => {
+  const loadContentEntries = useCallback((
+    category: FilterCategory,
+    bounds?: [[number, number], [number, number]],
+    chipSlugs: string[] = [],
+  ) => {
     if (category === "vacations") { setContentEntries([]); return; }
     let boundsOpts: { north: number; south: number; east: number; west: number } | undefined;
     if (bounds) {
@@ -2216,8 +2269,8 @@ export default function ExploreScreen() {
     setLoadingContentEntries(true);
     if (category === "activities") {
       Promise.all([
-        getExploreContentEntries({ type: "activity", bounds: boundsOpts }),
-        getExploreContentEntries({ type: "route", bounds: boundsOpts }),
+        getExploreContentEntries({ type: "activity", bounds: boundsOpts, chipSlugs }),
+        getExploreContentEntries({ type: "route",    bounds: boundsOpts, chipSlugs }),
       ])
         .then(([acts, routes]) => { setContentEntries([...acts, ...routes]); setLoadingContentEntries(false); })
         .catch(() => { setContentEntries([]); setLoadingContentEntries(false); });
@@ -2226,18 +2279,73 @@ export default function ExploreScreen() {
     const type = category === "accommodations" ? "accommodation"
       : category === "things_to_do" ? "things_to_do"
       : "restaurant";
-    getExploreContentEntries({ type, bounds: boundsOpts })
+    getExploreContentEntries({ type, bounds: boundsOpts, chipSlugs })
       .then(entries => { setContentEntries(entries); setLoadingContentEntries(false); })
       .catch(() => { setContentEntries([]); setLoadingContentEntries(false); });
   }, []);
 
   useEffect(() => {
     if (filters.filterCategory !== "vacations") {
-      loadContentEntries(filters.filterCategory);
+      loadContentEntries(filters.filterCategory, undefined, activeSubChips);
     } else {
       setContentEntries([]);
     }
+  // activeSubChips intentionally excluded: sub-chip changes have their own effect below
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.filterCategory, loadContentEntries]);
+
+  // Reload content when sub-chip selection changes
+  useEffect(() => {
+    if (filters.filterCategory === "vacations") return;
+    loadContentEntries(filters.filterCategory, mapBounds ?? undefined, activeSubChips);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSubChips]);
+
+  // Derive admin region from viewport center (amendment 3: viewport-center, not loaded entries)
+  useEffect(() => {
+    const token = process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "";
+    if (!token || filters.filterCategory === "vacations") return;
+    if (regionDeriveTimer.current) clearTimeout(regionDeriveTimer.current);
+    regionDeriveTimer.current = setTimeout(async () => {
+      try {
+        const [lng, lat] = mapCentre;
+        const res = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?types=region,place&limit=1&access_token=${token}`
+        );
+        const data = await res.json() as { features?: Array<{ text: string }> };
+        const name = data.features?.[0]?.text ?? null;
+        setViewportRegion(prev => prev === name ? prev : name);
+      } catch {}
+    }, 600);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapCentre, filters.filterCategory]);
+
+  // Fetch sub-chips when viewport region or filter category changes
+  useEffect(() => {
+    if (filters.filterCategory === "vacations" || !viewportRegion) {
+      setSubChips([]);
+      setActiveSubChips([]);
+      return;
+    }
+    const chipCategory =
+      filters.filterCategory === "restaurants"  ? "restaurant"  as const :
+      filters.filterCategory === "activities"   ? "activity"    as const :
+      filters.filterCategory === "things_to_do" ? "things_to_do" as const : null;
+
+    if (!chipCategory) { setSubChips([]); setActiveSubChips([]); return; }
+
+    setLoadingSubChips(true);
+    getRegionChips({ region: viewportRegion, category: chipCategory })
+      .then(chips => { setSubChips(chips); setActiveSubChips([]); })
+      .catch(() => setSubChips([]))
+      .finally(() => setLoadingSubChips(false));
+  }, [viewportRegion, filters.filterCategory]);
+
+  const handleToggleSubChip = useCallback((slug: string) => {
+    setActiveSubChips(prev =>
+      prev.includes(slug) ? prev.filter(s => s !== slug) : [...prev, slug]
+    );
+  }, []);
 
   const handleFilterOpen = useCallback(async () => {
     setFilterOpen(true);
@@ -2686,6 +2794,11 @@ export default function ExploreScreen() {
         filterCategory={filters.filterCategory}
         contentEntries={contentEntries}
         loadingContentEntries={loadingContentEntries}
+        subChips={subChips}
+        activeSubChips={activeSubChips}
+        loadingSubChips={loadingSubChips}
+        onToggleSubChip={handleToggleSubChip}
+        regionResolved={viewportRegion !== null}
         onContentEntryPress={(entry) => {
           if (entry.coords) {
             cameraRef.current?.setCamera({ centerCoordinate: entry.coords, zoomLevel: Math.max(zoom, 10), animationDuration: 400 });
@@ -3444,6 +3557,38 @@ const impStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 16,
+  },
+  subChipScroll: {
+    flexGrow: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  subChipContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  subChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg,
+  },
+  subChipActive: {
+    backgroundColor: colors.text,
+    borderColor: colors.text,
+  },
+  subChipText: {
+    fontFamily: fonts.sans,
+    fontSize: fontSize.xs,
+    color: colors.text,
+  },
+  subChipTextActive: {
+    color: colors.inverse,
   },
 });
 

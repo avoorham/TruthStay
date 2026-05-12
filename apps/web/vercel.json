@@ -3,6 +3,12 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "crons": [
+    {
+      "path": "/api/admin/chips/recompute",
+      "schedule": "0 2 * * 1"
+    }
+  ],
   "functions": {
     "app/api/admin/adventures/generate/route.ts": {
       "maxDuration": 300
@@ -18,6 +24,9 @@
     },
     "app/api/discovery/itinerary-skeleton/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/admin/chips/recompute/route.ts": {
+      "maxDuration": 300
     }
   }
 }

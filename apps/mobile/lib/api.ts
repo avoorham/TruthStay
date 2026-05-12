@@ -668,6 +668,7 @@ export interface ExploreContentEntry {
 export async function getExploreContentEntries(opts: {
   type: "accommodation" | "route" | "restaurant" | "activity" | "things_to_do";
   bounds?: { north: number; south: number; east: number; west: number };
+  chipSlugs?: string[];
 }): Promise<ExploreContentEntry[]> {
   const params = new URLSearchParams({ type: opts.type });
   if (opts.bounds) {
@@ -676,9 +677,31 @@ export async function getExploreContentEntries(opts: {
     params.set("east",  String(opts.bounds.east));
     params.set("west",  String(opts.bounds.west));
   }
+  if (opts.chipSlugs?.length) {
+    params.set("chip_slugs", opts.chipSlugs.join(","));
+  }
   const res = await fetch(`${BASE}/api/explore/content-entries?${params}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json() as Promise<ExploreContentEntry[]>;
+}
+
+export interface RegionChip {
+  id:         string;
+  slug:       string;
+  label:      string;
+  category:   string;
+  sort_order: number;
+}
+
+export async function getRegionChips(opts: {
+  region: string;
+  category: "restaurant" | "things_to_do" | "activity";
+}): Promise<RegionChip[]> {
+  const params = new URLSearchParams({ region: opts.region, category: opts.category });
+  const res = await fetch(`${BASE}/api/discovery/region-chips?${params}`);
+  if (!res.ok) return [];
+  const data = await res.json() as { chips?: RegionChip[] };
+  return data.chips ?? [];
 }
 
 // ─── Hotspot feed ─────────────────────────────────────────────────────────────

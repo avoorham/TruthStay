@@ -7,6 +7,7 @@ import {
   ACTIVE_TIER,
   type ChipTaxonomyRow,
 } from "@/lib/chip-classifier";
+import { CANONICAL_REGIONS } from "@/lib/region-normalizer";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -69,9 +70,9 @@ export async function POST(request: NextRequest) {
 
   for (const entry of toClassify) {
     const normalized = normalizeToAdminRegion(entry.region ?? "");
-    if (normalized === (entry.region ?? "").trim() && entry.region) {
-      // Region fell through to raw value — not in REGION_MAP.
-      // TODO(v2): resolve via Places API reverse-geocoding.
+    // Genuinely unmapped = normalised result is not a known canonical.
+    // Avoids false positives where raw == canonical (e.g. "Porto" → "Porto").
+    if (entry.region && !CANONICAL_REGIONS.has(normalized)) {
       unmappedRegions.add(entry.region);
     }
 
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
   // Log unmapped regions so we can extend REGION_MAP
   if (unmappedRegions.size > 0) {
     console.warn("[chips/recompute] unmapped regions (extend REGION_MAP):", [...unmappedRegions]);
+  }
+
+  const NEW_UNMAPPED_WARNING_THRESHOLD = 10;
+  if (unmappedRegions.size > NEW_UNMAPPED_WARNING_THRESHOLD) {
+    console.warn(
+      `[chip-recompute] WARNING: ${unmappedRegions.size} unmapped ` +
+      `regions found in this run. If this number stays elevated across ` +
+      `multiple weekly runs, consider evaluating Stage 2 region storage. ` +
+      `See region-normalizer.ts for migration options.`
+    );
   }
 
   return Response.json({

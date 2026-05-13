@@ -1,6 +1,17 @@
 // Canonical map: raw content_entries.region variants → admin region key used in
 // region_chip_stats.  Keys are lowercased for case-insensitive lookup.
 // TODO(v2): replace unmapped strings with Places API reverse-geocoding.
+//
+// TODO: 25 region strings from the 2026-05-12 initial backfill fell through to
+// the raw-value fallback and were not consolidated into a canonical admin region.
+// Add mappings below (or hook up reverse-geocoding) before chip thresholds can
+// fire for these areas.  Full list from backfill:
+//   Dolomites, Italy · Olhos d'Água · Sintra, Portugal · Porto · Tuscany, Italy
+//   Lisbon · Reykjavik · Mount Etna, Sicily · Scottish Borders / Northern England
+//   Scotland · Selfoss · Höfn · Ferragudo, Algarve · Northern England
+//   Northumberland, England · Oregon, USA · Monchique · Monchique / Aljezur
+//   Vik · Algarve · Bjelopavlići plain, central Montenegro · Azinhal · Alvor
+//   Sicily · Northern England and Scotland
 const REGION_MAP: Record<string, string> = {
   // Algarve
   "algarve":                  "Algarve",

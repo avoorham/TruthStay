@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     .eq("admin_region", adminRegion)
     .eq("is_active", true)
     .eq("chip_taxonomy.category", category)
-    .order("chip_taxonomy.sort_order", { ascending: true });
+    .order("sort_order", { ascending: true, referencedTable: "chip_taxonomy" });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });

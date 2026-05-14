@@ -102,8 +102,10 @@ type DB = ReturnType<typeof createClient>;
 const MODEL               = "claude-sonnet-4-6";
 const MIN_SCOUT_SCORE     = 0.5;
 const JOB_BUDGET_MS       = 120_000; // bail before Supabase edge fn hard cap (~150s)
-const MAX_EXTRACTIONS_STD = 25;
-const MAX_EXTRACTIONS_EXH = 100;
+// These caps apply to scrape_source jobs only (no user bracket there).
+// run_scout jobs use the user-selected maxResults bracket directly.
+const MAX_EXTRACTIONS_STD = 25;   // standard source scrape
+const MAX_EXTRACTIONS_EXH = 100;  // exhaustive source scrape
 const MAX_SUBPAGES        = 5;
 
 // Pricing constants — Last verified: 2026-05-05. Update when vendors change pricing.
@@ -1312,13 +1314,14 @@ function isValidCoords(c: { lat: number; lng: number } | undefined): boolean {
 
 // ── Stage 3: Match — pg_trgm dedup ───────────────────────────────────────────
 
+// Returns the existing entry's id if a match is found, null otherwise.
 async function findExistingMatch(
   db:       DB,
   type:     string,
   name:     string,
   region:   string,
   resolved: ResolvedLocation,
-): Promise<boolean> {
+): Promise<string | null> {
   // Primary: place_id exact match
   if (resolved.place_id) {
     const { data } = await db
@@ -1327,7 +1330,7 @@ async function findExistingMatch(
       .eq("place_id", resolved.place_id)
       .neq("status", "rejected")
       .limit(1);
-    if ((data?.length ?? 0) > 0) return true;
+    if (data?.length) return (data[0] as { id: string }).id;
   }
 
   // Fallback: name similarity > 0.6 + 50m proximity + same type
@@ -1338,8 +1341,9 @@ async function findExistingMatch(
       p_lng:        resolved.lng,
       p_focus_type: type,
     }) as { data: Array<{ id: string; status: string }> | null; error: unknown };
-    if (error || !data?.length) return false;
-    return data.some(r => r.status !== "rejected");
+    if (error || !data?.length) return null;
+    const match = data.find(r => r.status !== "rejected");
+    return match?.id ?? null;
   } catch {
     // Last-resort exact name match
     const { data } = await db
@@ -1349,7 +1353,24 @@ async function findExistingMatch(
       .ilike("region", region)
       .eq("type", type)
       .limit(1);
-    return (data?.length ?? 0) > 0;
+    return (data?.length ?? 0) > 0 ? (data![0] as { id: string }).id : null;
+  }
+}
+
+// Merges new source evidence into an existing entry via a DB-side atomic function.
+// The merge_scout_sources() Postgres function holds a FOR UPDATE lock on the row,
+// so concurrent scout runs cannot lose evidence on the same entry.
+async function mergeSourceIntoExisting(
+  db:         DB,
+  existingId: string,
+  sourceUrls: SourceUrl[],
+): Promise<void> {
+  const { error } = await db.rpc("merge_scout_sources", {
+    p_entry_id:        existingId,
+    p_new_source_urls: sourceUrls,  // Supabase JS serialises array → jsonb; don't double-stringify
+  });
+  if (error) {
+    console.warn(`[worker] merge_scout_sources failed for ${existingId}: ${error.message}`);
   }
 }
 
@@ -1581,14 +1602,22 @@ async function runResolveMatchScoreQueue(
   const matchStart  = Date.now();
   const toScore: Array<{ loc: DiscoveredLocation; resolved: ResolvedLocation }> = [];
   let duplicateCnt  = 0;
+  let mergedCnt     = 0;
 
   for (const { loc, resolved } of toStage3) {
-    const isDuplicate = await findExistingMatch(db, loc.type ?? "activity", loc.name, loc.region, resolved);
-    if (isDuplicate) { duplicateCnt++; continue; }
+    const existingId = await findExistingMatch(db, loc.type ?? "activity", loc.name, loc.region, resolved);
+    if (existingId) {
+      // Existing entry found — merge new source evidence rather than discarding it.
+      const scored = scoreEntry(loc, resolved);
+      await mergeSourceIntoExisting(db, existingId, scored.sourceUrls);
+      mergedCnt++;
+      duplicateCnt++;
+      continue;
+    }
     toScore.push({ loc, resolved });
   }
 
-  summary.stages.match = { duration_ms: Date.now() - matchStart, new: toScore.length, duplicates: duplicateCnt };
+  summary.stages.match = { duration_ms: Date.now() - matchStart, new: toScore.length, duplicates: duplicateCnt, merged: mergedCnt };
 
   stagesCompleted.push("match");
   await updateProgress(db, jobId, { stages_completed: stagesCompleted, extractions_matched: toScore.length });
@@ -1854,7 +1883,7 @@ async function runScoutPipeline(
   const region            = String(p.region ?? "Europe");
   const vacationType      = String(p.vacationType ?? "Active Holiday");
   const contentTypes      = (p.contentTypes as string[] | undefined) ?? ["route", "accommodation", "restaurant"];
-  const maxResults        = Math.min(Number(p.maxResults ?? 15), MAX_EXTRACTIONS_STD);
+  const maxResults        = Number(p.maxResults ?? 10);
   const focusKeywords     = (p.focusKeywords as string[] | undefined) ?? [];
   const includeActiveSrcs = Boolean(p.includeActiveSources);
   const depth             = p.depth === "exhaustive" ? "exhaustive" : "standard";
@@ -1899,15 +1928,17 @@ async function runScoutPipeline(
     const { result, durationMs } = await timed(() => discoverWithPrompt(anthropic, prompt, signal));
 
     let locations  = result.locations;
-    const cap      = depth === "exhaustive" ? MAX_EXTRACTIONS_EXH : MAX_EXTRACTIONS_STD;
-    const capped   = locations.length > cap;
+    const capped   = locations.length > maxResults;
     if (capped) {
-      summary.warnings.push(`Stage 1: capped at ${cap} (found ${locations.length})`);
-      locations = locations.slice(0, cap);
+      summary.warnings.push(`Stage 1: capped at ${maxResults} (found ${locations.length})`);
+      locations = locations.slice(0, maxResults);
     }
 
+    // If Claude returned fewer than requested, all available sources were exhausted.
+    const sourcesExhausted = !capped && locations.length < maxResults;
+
     discovered             = locations;
-    summary.stages.extract = { duration_ms: durationMs, extractions: discovered.length, capped };
+    summary.stages.extract = { duration_ms: durationMs, extractions: discovered.length, capped, sources_exhausted: sourcesExhausted };
     summary.claude_calls   = 1;
 
     const stagesCompleted = ["extract"];

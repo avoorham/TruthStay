@@ -123,6 +123,7 @@ interface ScoutEntry {
   description: string | null;
   verified: boolean;
   trust_score: number | null;
+  independent_source_count: number | null;
   data: {
     scoutScore?: number;
     scoutReason?: string;
@@ -712,18 +713,30 @@ function EntryCard({
               })()}
             </div>
           </div>
-          {sources.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span className="text-[10px] font-semibold text-grey-400 uppercase tracking-wide">
-                {sources.length} source{sources.length !== 1 ? "s" : ""}:
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {(entry.independent_source_count ?? 0) > 0 && (
+              <span className={cn(
+                "text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                (entry.independent_source_count ?? 0) >= 3
+                  ? "bg-teal-50 text-teal-700"
+                  : "bg-grey-100 text-grey-500"
+              )}>
+                {entry.independent_source_count} {entry.independent_source_count === 1 ? "domain" : "domains"}
               </span>
-              {sources.slice(0, 3).map((s, i) => (
-                <span key={i} className="text-[10px] text-grey-500 bg-grey-100 px-1.5 py-0.5 rounded-full">
-                  {s.author ?? new URL(s.url ?? "https://unknown").hostname}
+            )}
+            {sources.length > 0 && (
+              <>
+                <span className="text-[10px] font-semibold text-grey-400 uppercase tracking-wide">
+                  {sources.length} source{sources.length !== 1 ? "s" : ""}:
                 </span>
-              ))}
-            </div>
-          )}
+                {sources.slice(0, 3).map((s, i) => (
+                  <span key={i} className="text-[10px] text-grey-500 bg-grey-100 px-1.5 py-0.5 rounded-full">
+                    {s.author ?? new URL(s.url ?? "https://unknown").hostname}
+                  </span>
+                ))}
+              </>
+            )}
+          </div>
           {expanded && (
             <div className="mt-3 pt-3 border-t border-grey-100 space-y-3">
               {entry.data?.scoutReason && (
@@ -2023,7 +2036,7 @@ export default function LocationScoutPage() {
                 <label className="text-xs font-semibold text-grey-500 uppercase tracking-wide block mb-1.5">Max results</label>
                 <select value={form.maxResults} onChange={e => updateForm("maxResults", Number(e.target.value))}
                   className="w-full text-sm text-dark border border-slate-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-teal/30 focus:border-teal">
-                  {[5, 10, 15, 20, 25].map(n => <option key={n} value={n}>{n}{n === 10 ? " (default)" : ""}</option>)}
+                  {[10, 25, 50, 100, 250, 500, 1000].map(n => <option key={n} value={n}>{n}{n === 10 ? " (default)" : ""}</option>)}
                 </select>
               </div>
             </div>
@@ -2042,6 +2055,9 @@ export default function LocationScoutPage() {
                 <span>Estimated cost: <strong className="text-dark font-mono">~€0.50</strong></span>
                 {form.depth === "exhaustive" && (
                   <span className="ml-2 text-amber-600 text-[10px]">exhaustive runs cost ~2×</span>
+                )}
+                {form.maxResults >= 250 && (
+                  <span className="ml-2 text-amber-600 text-[10px]">large bracket — monitor ScrapingBee usage</span>
                 )}
               </div>
               <button onClick={handleRun} disabled={!canRun}

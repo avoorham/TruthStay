@@ -8,6 +8,7 @@ export interface ScoutEntry {
   description: string | null;
   verified: boolean;
   trust_score: number | null;
+  independent_source_count: number | null;
   source_type: string | null;
   data: {
     scoutScore?: number;

@@ -102,10 +102,13 @@ type DB = ReturnType<typeof createClient>;
 const MODEL               = "claude-sonnet-4-6";
 const MIN_SCOUT_SCORE     = 0.5;
 const JOB_BUDGET_MS       = 120_000; // bail before Supabase edge fn hard cap (~150s)
-// These caps apply to scrape_source jobs only (no user bracket there).
-// run_scout jobs use the user-selected maxResults bracket directly.
+// scrape_source caps (page-by-page pipeline, checkpointed — survives budget timer).
 const MAX_EXTRACTIONS_STD = 25;   // standard source scrape
 const MAX_EXTRACTIONS_EXH = 100;  // exhaustive source scrape
+// run_scout cap: single Claude web_search call must finish inside JOB_BUDGET_MS.
+// Each web_search iteration takes ~5-10 s; ~30 locations is the empirical safe limit.
+// Larger brackets are served by scrape_source (page-by-page, handles pagination).
+const MAX_CLAUDE_DISCOVERIES = 30;
 const MAX_SUBPAGES        = 5;
 
 // Pricing constants — Last verified: 2026-05-05. Update when vendors change pricing.
@@ -1884,6 +1887,9 @@ async function runScoutPipeline(
   const vacationType      = String(p.vacationType ?? "Active Holiday");
   const contentTypes      = (p.contentTypes as string[] | undefined) ?? ["route", "accommodation", "restaurant"];
   const maxResults        = Number(p.maxResults ?? 10);
+  // run_scout is a single-shot Claude call; large brackets exceed the 120s JOB_BUDGET_MS.
+  // scrape_source handles large brackets page-by-page — no cap needed there.
+  const claudeRequestMax  = Math.min(maxResults, MAX_CLAUDE_DISCOVERIES);
   const focusKeywords     = (p.focusKeywords as string[] | undefined) ?? [];
   const includeActiveSrcs = Boolean(p.includeActiveSources);
   const depth             = p.depth === "exhaustive" ? "exhaustive" : "standard";
@@ -1922,8 +1928,8 @@ async function runScoutPipeline(
     await updateProgress(db, job.id, { stage: "extract", stage_started_at: new Date().toISOString() });
 
     const prompt = isSourceMode
-      ? buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, rubric, demandSignals, sourceUrls, depth)
-      : buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, maxResults, rubric, demandSignals, appendedUrls, depth);
+      ? buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, claudeRequestMax, rubric, demandSignals, sourceUrls, depth)
+      : buildGeneralSearchPrompt(region, vacationType, contentTypes, focusKeywords, claudeRequestMax, rubric, demandSignals, appendedUrls, depth);
 
     const { result, durationMs } = await timed(() => discoverWithPrompt(anthropic, prompt, signal));
 

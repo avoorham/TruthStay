@@ -106,9 +106,9 @@ const JOB_BUDGET_MS       = 120_000; // bail before Supabase edge fn hard cap (~
 const MAX_EXTRACTIONS_STD = 25;   // standard source scrape
 const MAX_EXTRACTIONS_EXH = 100;  // exhaustive source scrape
 // run_scout cap: single Claude web_search call must finish inside JOB_BUDGET_MS.
-// Each web_search iteration takes ~5-10 s; ~30 locations is the empirical safe limit.
-// Larger brackets are served by scrape_source (page-by-page, handles pagination).
-const MAX_CLAUDE_DISCOVERIES = 30;
+// web_search_20250305 runs searches server-side; ~15-20s each. Cap at 10 so
+// Claude completes in ~30-60s with 3-5 searches. Larger brackets use scrape_source.
+const MAX_CLAUDE_DISCOVERIES = 10;
 const MAX_SUBPAGES        = 5;
 
 // Pricing constants — Last verified: 2026-05-05. Update when vendors change pricing.
@@ -1201,8 +1201,8 @@ function buildGeneralSearchPrompt(
     ? `\n\nCURATED SOURCE LIST\nAlso visit these specific sources:\n${appendedUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")}`
     : "";
   const depthLine = depth === "exhaustive"
-    ? "DEPTH: Exhaustive — run at least 10 targeted searches, cover all content types thoroughly."
-    : "DEPTH: Standard — run 5–7 targeted searches.";
+    ? "DEPTH: Exhaustive — run 5–7 targeted searches, cover all content types thoroughly."
+    : "DEPTH: Standard — run 3–5 targeted searches. Stop as soon as you have enough results.";
 
   return `You are a travel research agent for TruthStay — a community-driven holiday planning platform.
 

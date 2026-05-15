@@ -1467,6 +1467,8 @@ function scoreEntry(loc: DiscoveredLocation, resolved: ResolvedLocation): Scored
 
 async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationType: string): Promise<boolean> {
   const { loc, sourceUrls, independentSourceCount, trustScore, qualityScore, features, coordinates, placeId, country } = entry;
+  // trust_score = 0.4 * source_trust_score + 0.6 * user_trust_score (default 0.5)
+  const combinedTrustScore = 0.4 * trustScore + 0.6 * 0.5;
   const { error } = await db.from("content_entries").insert({
     type:                     loc.type,
     name:                     loc.name.trim(),
@@ -1484,6 +1486,7 @@ async function queueEntry(db: DB, entry: ScoredEntry, runId: string, vacationTyp
     source_urls:              sourceUrls,
     independent_source_count: independentSourceCount,
     source_trust_score:       trustScore,
+    trust_score:              combinedTrustScore,
     quality_score:            qualityScore,
     features,
     image_url:                loc.image_url ?? null,

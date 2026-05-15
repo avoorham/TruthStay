@@ -1197,42 +1197,43 @@ function buildGeneralSearchPrompt(
   const keywordsLine   = focusKeywords.length > 0 ? `\nFocus keywords: ${focusKeywords.join(", ")}` : "";
   const signalsSection = demandSignals ? `\n\n${demandSignals}` : "";
   const rubricSection  = rubric ? `\n\nQUALITY RUBRIC (apply at extraction time):\n${rubric}` : "";
-  const curatedSection = appendedUrls.length > 0
-    ? `\n\nCURATED SOURCE LIST\nAlso visit these specific sources:\n${appendedUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")}`
+  const sourcesHint    = appendedUrls.length > 0
+    ? `\n\nKNOWN SOURCES\nThe following travel blogs and sites are known to cover this region — cite them when you know they feature a specific place:\n${appendedUrls.map((u, i) => `${i + 1}. ${u}`).join("\n")}`
     : "";
   const depthLine = depth === "exhaustive"
-    ? "DEPTH: Exhaustive — run 5–7 targeted searches, cover all content types thoroughly."
-    : "DEPTH: Standard — run 3–5 targeted searches. Stop as soon as you have enough results.";
+    ? `Return up to ${maxResults} results, covering all content types thoroughly.`
+    : `Return up to ${maxResults} high-quality results. Focus on the most notable finds.`;
 
   return `You are a travel research agent for TruthStay — a community-driven holiday planning platform.
+You are working from your training knowledge — you do NOT have web search tools in this session.
 
 RESEARCH TARGET
 - Region: ${region}
 - Holiday type: ${vacationType}
-- Content to find: ${contentTypes.join(", ")} (up to ${maxResults} total)${keywordsLine}
-- ${depthLine}${signalsSection}${rubricSection}
+- Content to find: ${contentTypes.join(", ")}
+- ${depthLine}${keywordsLine}${signalsSection}${rubricSection}
 
 RULES
-- Only extract from authentic sources: personal travel blogs, Instagram posts, specialist travel publications.
-- NEVER use TripAdvisor, Google Reviews, Booking.com, Expedia, or sponsored/commercial platforms.
+- Draw on your training knowledge of authentic travel content for this region.
+- Focus on personal travel blog coverage, Instagram finds, and specialist travel publications — NOT TripAdvisor, Booking.com, or sponsored platforms.
 - Prioritise hidden gems, locally-loved spots, and honest traveller finds.
-- Each result MUST have at least one real source URL you actually visited.
-- Coordinates must be real and specific (not 0,0 and not a country centroid).
-- Content limit: read at most 50KB per URL; ignore footers and sidebars.${curatedSection}
+- For each result, cite the most plausible authentic source URL from your knowledge (a blog or Instagram you know has covered this place). If unsure of the exact URL, cite the site's homepage.
+- Coordinates must be real and accurate (not 0,0 and not a country centroid).
+- Only include places you are genuinely confident exist in this region.${sourcesHint}
 
-OUTPUT — ONLY a valid JSON array, no prose:
+OUTPUT — ONLY a valid JSON array, no prose, no markdown fences:
 [
   {
     "name": "Exact place name",
     "type": "route | accommodation | restaurant | activity | things_to_do",
     "region": "${region}",
-    "description": "2–3 sentences based on what travellers actually say",
+    "description": "2–3 sentences based on what travellers say about this place",
     "coordinates": { "lat": 0.0, "lng": 0.0 },
-    "sources": [{ "url": "https://...", "type": "blog", "author": "Name", "excerpt": "What they said..." }],
+    "sources": [{ "url": "https://...", "type": "blog", "author": "Name or null", "excerpt": "What travellers say..." }],
     "highlights": ["feature 1", "feature 2"],
     "metadata": {},
     "confidenceScore": 0.0,
-    "confidenceReason": "e.g. Mentioned by 3 independent bloggers"
+    "confidenceReason": "e.g. Well-documented boutique hotel mentioned across multiple travel blogs"
   }
 ]`;
 }

@@ -1242,14 +1242,17 @@ async function discoverWithPrompt(
   prompt:    string,
   signal?:   AbortSignal,
 ): Promise<{ locations: DiscoveredLocation[]; inputTokens: number; outputTokens: number }> {
-  const response = await (anthropic.messages.create as Function)(
+  // No web_search tool — Claude answers from training knowledge.
+  // web_search_20250305 makes multiple server-side page fetches (~15-20s each)
+  // and consistently exceeds the 120s edge-function budget.
+  // Real web sources are handled by scrape_source (paginated, checkpointed).
+  const response = await anthropic.messages.create(
     {
       model:      MODEL,
-      max_tokens: 8192,
-      tools:      [{ type: "web_search_20250305", name: "web_search" }],
+      max_tokens: 4096,
       messages:   [{ role: "user", content: prompt }],
     },
-    { headers: { "anthropic-beta": "web-search-2025-03-05" }, signal },
+    { signal },
   );
 
   const text = (response.content as Array<{ type: string; text?: string }>)
@@ -2154,7 +2157,7 @@ Deno.serve(async (_req: Request) => {
   } catch (err) {
     const e = err as { name?: string; message?: string };
 
-    if (e.name === "AbortError") {
+    if (e.name === "AbortError" || e.name === "APIUserAbortError") {
       // Budget exhausted or explicit abort: checkpoint already written by pipeline.
       // Requeue immediately (5s) so the next cron tick picks it up.
       await db.from("scout_jobs").update({
